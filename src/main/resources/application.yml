@@ -101,8 +101,8 @@ logging:
 # JWT Configuration
 jwt:
   secret: ${JWT_SECRET:your-secret-key-here-make-it-long-and-secure}
-  expiration: ${JWT_EXPIRATION:86400000} # 24 hours in milliseconds
-  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days in milliseconds
+  expiration: ${JWT_EXPIRATION:14400000} # 4 * 60 * 60 * 1000 = 4 hours in milliseconds
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:28800000} # 8 * 60 * 60 * 1000 = 8 hours in milliseconds
 
 # AWS Configuration
 aws:

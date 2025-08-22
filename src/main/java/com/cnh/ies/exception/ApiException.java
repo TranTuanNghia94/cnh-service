@@ -30,6 +30,7 @@ public class ApiException extends RuntimeException {
         public static final String INVALID_OLD_PASSWORD = "INVALID_OLD_PASSWORD";
         public static final String BAD_REQUEST = "BAD_REQUEST";
         public static final String CONFLICT = "CONFLICT";
+        public static final String INVALID_CREDENTIALS = "INVALID_CREDENTIALS";
     }
 
     @Override

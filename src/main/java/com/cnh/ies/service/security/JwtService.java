@@ -1,29 +1,30 @@
-package com.cnh.ies.security;
-
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
-import lombok.RequiredArgsConstructor;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Service;
+package com.cnh.ies.service.security;
 
 import java.security.Key;
-import java.util.Date;
 import java.util.HashMap;
+import java.util.Date;
 import java.util.Map;
 import java.util.function.Function;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 import com.cnh.ies.constant.RedisKey;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.service.redis.RedisService;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class JwtService {
+    
     @Value("${jwt.secret}")
     private String secretKey;
 
@@ -65,10 +66,9 @@ public class JwtService {
     
     public String generateAccessToken(UserInfo userInfo) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("id", userInfo.getId());
         claims.put("username", userInfo.getUsername());
-        claims.put("email", userInfo.getEmail());
-        claims.put("fullname", userInfo.getFullName());
+        claims.put("fullName", userInfo.getFullName());
+        claims.put("email", userInfo.getRoles());
         return generate(claims, userInfo.getUsername());
     }
 

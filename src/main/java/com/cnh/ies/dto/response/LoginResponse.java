@@ -16,22 +16,6 @@ public class LoginResponse {
     private String refreshToken;
     
     private String tokenType = "Bearer";
-    
-    private Long expiresIn;
-    
-    private UserInfo userInfo;
-    
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class UserInfo {
-        private Long id;
-        private String username;
-        private String email;
-        private String firstName;
-        private String lastName;
-        private String avatar;
-        private Boolean isActive;
-    }
+
+    private String username;
 }
