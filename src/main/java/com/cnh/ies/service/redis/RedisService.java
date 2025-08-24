@@ -45,8 +45,10 @@ public class RedisService {
      */
     public void set(String key, Object value, Duration expiration) {
         try {
-            redisTemplate.opsForValue().set(key, value, expiration);
-            log.info("Set key: {} with expiration: {}", key, expiration);
+            synchronized (this) {
+                redisTemplate.opsForValue().set(key, value, expiration);
+                log.info("Set key: {} with expiration: {}", key, expiration);
+            }
         } catch (Exception e) {
             log.error("Error setting key: {}", key, e);
             throw e;
@@ -58,8 +60,10 @@ public class RedisService {
      */
     public void set(String key, Object value) {
         try {
-            redisTemplate.opsForValue().set(key, value);
-            log.info("Set key: {}", key);
+            synchronized (this) {
+                redisTemplate.opsForValue().set(key, value);
+                log.info("Set key: {}", key);
+            }
         } catch (Exception e) {
             log.error("Error setting key: {}", key, e);
             throw e;
@@ -71,7 +75,10 @@ public class RedisService {
      */
     public Object get(String key) {
         try {
-            Object value = redisTemplate.opsForValue().get(key);
+            Object value;
+            synchronized (this) {
+                value = redisTemplate.opsForValue().get(key);
+            }
             log.info("Get key: {}, found: {}", key, value != null);
             return value;
         } catch (Exception e) {
@@ -97,7 +104,10 @@ public class RedisService {
      */
     public Boolean delete(String key) {
         try {
-            Boolean result = redisTemplate.delete(key);
+            Boolean result;
+            synchronized (this) {
+                result = redisTemplate.delete(key);
+            }
             log.info("Delete key: {}, result: {}", key, result);
             return result;
         } catch (Exception e) {
@@ -111,7 +121,10 @@ public class RedisService {
      */
     public Long delete(List<String> keys) {
         try {
-            Long result = redisTemplate.delete(keys);
+            Long result;
+            synchronized (this) {
+                result = redisTemplate.delete(keys);
+            }
             log.info("Delete keys: {}, result: {}", keys, result);
             return result;
         } catch (Exception e) {
@@ -125,7 +138,10 @@ public class RedisService {
      */
     public Boolean hasKey(String key) {
         try {
-            Boolean result = redisTemplate.hasKey(key);
+            Boolean result;
+            synchronized (this) {
+                result = redisTemplate.hasKey(key);
+            }
             log.info("Has key: {}, result: {}", key, result);
             return result;
         } catch (Exception e) {
@@ -139,7 +155,10 @@ public class RedisService {
      */
     public Boolean expire(String key, Duration expiration) {
         try {
-            Boolean result = redisTemplate.expire(key, expiration);
+            Boolean result;
+            synchronized (this) {
+                result = redisTemplate.expire(key, expiration);
+            }
             log.info("Set expiration for key: {}, expiration: {}, result: {}", key, expiration, result);
             return result;
         } catch (Exception e) {
@@ -153,7 +172,10 @@ public class RedisService {
      */
     public Long getExpire(String key) {
         try {
-            Long ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+            Long ttl;
+            synchronized (this) {
+                ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+            }
             log.info("Get TTL for key: {}, TTL: {}", key, ttl);
             return ttl;
         } catch (Exception e) {
@@ -167,7 +189,10 @@ public class RedisService {
      */
     public Long increment(String key) {
         try {
-            Long result = redisTemplate.opsForValue().increment(key);
+            Long result;
+            synchronized (this) {
+                result = redisTemplate.opsForValue().increment(key);
+            }
             log.info("Increment key: {}, result: {}", key, result);
             return result;
         } catch (Exception e) {
@@ -181,7 +206,10 @@ public class RedisService {
      */
     public Long increment(String key, long delta) {
         try {
-            Long result = redisTemplate.opsForValue().increment(key, delta);
+            Long result;
+            synchronized (this) {
+                result = redisTemplate.opsForValue().increment(key, delta);
+            }
             log.info("Increment key: {} by {}, result: {}", key, delta, result);
             return result;
         } catch (Exception e) {
@@ -195,7 +223,9 @@ public class RedisService {
      */
     public void hSet(String key, String field, Object value) {
         try {
-            redisTemplate.opsForHash().put(key, field, value);
+            synchronized (this) {
+                redisTemplate.opsForHash().put(key, field, value);
+            }
             log.info("HSet key: {}, field: {}", key, field);
         } catch (Exception e) {
             log.error("Error setting hash field: {}:{}", key, field, e);
@@ -208,7 +238,10 @@ public class RedisService {
      */
     public Object hGet(String key, String field) {
         try {
-            Object value = redisTemplate.opsForHash().get(key, field);
+            Object value;
+            synchronized (this) {
+                value = redisTemplate.opsForHash().get(key, field);
+            }
             log.info("HGet key: {}, field: {}, found: {}", key, field, value != null);
             return value;
         } catch (Exception e) {
@@ -222,7 +255,10 @@ public class RedisService {
      */
     public Map<Object, Object> hGetAll(String key) {
         try {
-            Map<Object, Object> result = redisTemplate.opsForHash().entries(key);
+            Map<Object, Object> result;
+            synchronized (this) {
+                result = redisTemplate.opsForHash().entries(key);
+            }
             log.info("HGetAll key: {}, size: {}", key, result.size());
             return result;
         } catch (Exception e) {
@@ -236,7 +272,10 @@ public class RedisService {
      */
     public Long hDelete(String key, Object... fields) {
         try {
-            Long result = redisTemplate.opsForHash().delete(key, fields);
+            Long result;
+            synchronized (this) {
+                result = redisTemplate.opsForHash().delete(key, fields);
+            }
             log.info("HDelete key: {}, fields: {}, result: {}", key, fields, result);
             return result;
         } catch (Exception e) {
@@ -250,7 +289,10 @@ public class RedisService {
      */
     public Long lPush(String key, Object... values) {
         try {
-            Long result = redisTemplate.opsForList().leftPushAll(key, values);
+            Long result;
+            synchronized (this) {
+                result = redisTemplate.opsForList().leftPushAll(key, values);
+            }
             log.info("LPush key: {}, size: {}", key, result);
             return result;
         } catch (Exception e) {
@@ -264,7 +306,10 @@ public class RedisService {
      */
     public Object rPop(String key) {
         try {
-            Object result = redisTemplate.opsForList().rightPop(key);
+            Object result;
+            synchronized (this) {
+                result = redisTemplate.opsForList().rightPop(key);
+            }
             log.info("RPop key: {}, result: {}", key, result != null);
             return result;
         } catch (Exception e) {
@@ -278,7 +323,10 @@ public class RedisService {
      */
     public Long sAdd(String key, Object... values) {
         try {
-            Long result = redisTemplate.opsForSet().add(key, values);
+            Long result;
+            synchronized (this) {
+                result = redisTemplate.opsForSet().add(key, values);
+            }
             log.info("SAdd key: {}, size: {}", key, result);
             return result;
         } catch (Exception e) {
@@ -292,7 +340,10 @@ public class RedisService {
      */
     public Set<Object> sMembers(String key) {
         try {
-            Set<Object> result = redisTemplate.opsForSet().members(key);
+            Set<Object> result;
+            synchronized (this) {
+                result = redisTemplate.opsForSet().members(key);
+            }
             log.info("SMembers key: {}, size: {}", key, result != null ? result.size() : 0);
             return result;
         } catch (Exception e) {
@@ -310,10 +361,13 @@ public class RedisService {
             script.setScriptText(RATE_LIMIT_SCRIPT);
             script.setResultType(Long.class);
 
-            Long result = redisTemplate.execute(script, 
-                Collections.singletonList(key), 
-                String.valueOf(limit), 
-                String.valueOf(windowSeconds));
+            Long result;
+            synchronized (this) {
+                result = redisTemplate.execute(script, 
+                    Collections.singletonList(key), 
+                    String.valueOf(limit), 
+                    String.valueOf(windowSeconds));
+            }
 
             boolean allowed = result != null && result == 1;
             log.info("Rate limit check for key: {}, limit: {}, window: {}s, allowed: {}", 
@@ -330,11 +384,14 @@ public class RedisService {
      */
     public void clearAll() {
         try {
-            Set<String> keys = redisTemplate.keys("*");
-            if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
-                log.info("Cleared {} keys from Redis", keys.size());
+            Set<String> keys;
+            synchronized (this) {
+                keys = redisTemplate.keys("*");
+                if (keys != null && !keys.isEmpty()) {
+                    redisTemplate.delete(keys);
+                }
             }
+            log.info("Cleared {} keys from Redis", keys != null ? keys.size() : 0);
         } catch (Exception e) {
             log.error("Error clearing all keys", e);
             throw e;
@@ -346,7 +403,11 @@ public class RedisService {
      */
     public String getInfo() {
         try {
-            return redisTemplate.getConnectionFactory().getConnection().info("server").toString();
+            String info;
+            synchronized (this) {
+                info = redisTemplate.getConnectionFactory().getConnection().info("server").toString();
+            }
+            return info;
         } catch (Exception e) {
             log.error("Error getting Redis info", e);
             throw e;

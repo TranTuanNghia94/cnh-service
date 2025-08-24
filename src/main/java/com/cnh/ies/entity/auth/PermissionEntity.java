@@ -31,5 +31,6 @@ public class PermissionEntity extends BaseEntity {
     private String action;
 
     @ManyToMany(mappedBy = "permissions", fetch = FetchType.LAZY)
+    @EqualsAndHashCode.Exclude
     private Set<RoleEntity> roles = new HashSet<>();
 }

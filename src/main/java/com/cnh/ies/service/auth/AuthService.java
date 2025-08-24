@@ -3,7 +3,7 @@ package com.cnh.ies.service.auth;
 import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
-
+import java.util.ConcurrentModificationException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCrypt;
@@ -37,6 +37,39 @@ public class AuthService {
     private final ObjectMapper objectMapper;
 
     public ResponseLoginModel login(LoginModel payload, String requestId) {
+        int maxRetries = 3;
+        int retryCount = 0;
+        
+        while (retryCount < maxRetries) {
+            try {
+                return performLogin(payload, requestId);
+            } catch (ConcurrentModificationException e) {
+                retryCount++;
+                log.warn("ConcurrentModificationException occurred during login, retry {} of {} | RequestId: {}", 
+                    retryCount, maxRetries, requestId);
+                
+                if (retryCount >= maxRetries) {
+                    log.error("Max retries reached for login | RequestId: {}", requestId, e);
+                    throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Service temporarily unavailable",
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+                }
+                
+                // Wait a bit before retrying
+                try {
+                    Thread.sleep(100 * retryCount);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Login interrupted",
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+                }
+            }
+        }
+        
+        throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Service temporarily unavailable",
+        HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+    }
+
+    private ResponseLoginModel performLogin(LoginModel payload, String requestId) {
         try {
             log.info("Login request: {} | RequestId: {}", payload.getUsername(), requestId);
             
@@ -48,14 +81,13 @@ public class AuthService {
                 HttpStatus.UNAUTHORIZED.value(), requestId);
             }
 
-            UserInfo userInfo = userMapper.mapToUserInfo(user.get());
+            // Use synchronized block to prevent concurrent modification during mapping
+            UserInfo userInfo;
+            synchronized (this) {
+                userInfo = userMapper.mapToUserInfo(user.get());
+            }
 
-
-            String abc = BCrypt.hashpw(payload.getPassword(), BCrypt.gensalt());
-
-            log.info("abc: {}", abc);
-
-            if (!BCrypt.checkpw(payload.getPassword(), abc)) {
+            if (!BCrypt.checkpw(payload.getPassword(), user.get().getPassword())) {
                 log.error("Invalid username or password: {} | RequestId: {}", payload.getUsername(), requestId);
                 throw new ApiException(ApiException.ErrorCode.INVALID_CREDENTIALS, "Invalid username or password",
                 HttpStatus.UNAUTHORIZED.value(), requestId);
@@ -64,9 +96,12 @@ public class AuthService {
             String accessToken = jwtService.generateAccessToken(userInfo);
             String refreshToken = generateRefreshToken();
 
-            storeUserTokens(userInfo, accessToken, refreshToken);
+            // Use synchronized block for Redis operations to prevent race conditions
+            synchronized (this) {
+                storeUserTokens(userInfo, accessToken, refreshToken);
+            }
 
-            log.info("Login success: {} | RequestId: {}", userInfo, requestId);
+            log.info("Login success: {} | RequestId: {}", userInfo.getUsername(), requestId);
 
             return ResponseLoginModel.builder()
                 .accessToken(accessToken)
@@ -75,8 +110,11 @@ public class AuthService {
                 .tokenType("Bearer")
                 .build();
 
+        } catch (ConcurrentModificationException e) {
+            log.error("ConcurrentModificationException during login: {} | RequestId: {}", e.getMessage(), requestId, e);
+            throw e; // Re-throw to trigger retry logic
         } catch (Exception e) {
-            log.error("Error logging in: {}", e.getMessage());
+            log.error("Error logging in: {} | RequestId: {}", e.getMessage(), requestId, e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
             HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }

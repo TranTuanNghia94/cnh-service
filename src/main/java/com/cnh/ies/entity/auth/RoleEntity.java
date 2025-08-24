@@ -30,8 +30,10 @@ public class RoleEntity extends BaseEntity {
         joinColumns = @JoinColumn(name = "role_id"),
         inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
+    @EqualsAndHashCode.Exclude
     private Set<PermissionEntity> permissions = new HashSet<>();
 
     @ManyToMany(mappedBy = "roles", fetch = FetchType.LAZY)
+    @EqualsAndHashCode.Exclude
     private Set<UserEntity> users = new HashSet<>();
 }

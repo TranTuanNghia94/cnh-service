@@ -2,6 +2,7 @@ package com.cnh.ies.model.user;
 
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import lombok.Data;
 
@@ -16,5 +17,5 @@ public class UserInfo {
     private String phone;
     private String avatar;
     private Boolean isActive;
-    private Set<RoleInfo> roles;
+    private Set<RoleInfo> roles = new CopyOnWriteArraySet<>();
 }

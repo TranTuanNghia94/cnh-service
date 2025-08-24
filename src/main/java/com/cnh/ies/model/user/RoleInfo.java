@@ -3,6 +3,7 @@ package com.cnh.ies.model.user;
 import lombok.Data;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 
 @Data
@@ -11,5 +12,5 @@ public class RoleInfo {
     private String name;
     private String code;
     private String description;
-    private Set<PermissionInfo> permissions;
+    private Set<PermissionInfo> permissions = new CopyOnWriteArraySet<>();
 }

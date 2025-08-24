@@ -1,6 +1,7 @@
 package com.cnh.ies.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.convert.DurationUnit;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +13,7 @@ import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.repository.configuration.EnableRedisRepositories;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -29,6 +31,7 @@ import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator
 
 @Configuration
 @EnableCaching
+@EnableRedisRepositories(basePackages = "com.cnh.ies.repository.redis")
 public class RedisConfig {
 
     @Value("${spring.redis.host:localhost}")
@@ -43,8 +46,9 @@ public class RedisConfig {
     @Value("${spring.redis.database:0}")
     private int redisDatabase;
 
-    @Value("${spring.redis.timeout:10000}")
-    private int redisTimeout;
+    @Value("${spring.redis.timeout:10000ms}")
+    @DurationUnit(java.time.temporal.ChronoUnit.MILLIS)
+    private java.time.Duration redisTimeout;
 
     @Value("${spring.redis.lettuce.pool.max-active:8}")
     private int maxActive;
@@ -55,8 +59,9 @@ public class RedisConfig {
     @Value("${spring.redis.lettuce.pool.min-idle:0}")
     private int minIdle;
 
-    @Value("${spring.redis.lettuce.pool.max-wait:-1}")
-    private long maxWait;
+    @Value("${spring.redis.lettuce.pool.max-wait:-1ms}")
+    @DurationUnit(java.time.temporal.ChronoUnit.MILLIS)
+    private java.time.Duration maxWait;
 
     /**
      * Redis connection factory with connection pooling
@@ -77,14 +82,14 @@ public class RedisConfig {
         poolConfig.setMaxTotal(maxActive);
         poolConfig.setMaxIdle(maxIdle);
         poolConfig.setMinIdle(minIdle);
-        poolConfig.setMaxWait(Duration.ofMillis(maxWait));
+        poolConfig.setMaxWait(maxWait);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setTestOnReturn(true);
         poolConfig.setTestWhileIdle(true);
         poolConfig.setTimeBetweenEvictionRuns(Duration.ofMinutes(1));
 
         LettucePoolingClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
-                .commandTimeout(Duration.ofMillis(redisTimeout))
+                .commandTimeout(redisTimeout)
                 .shutdownTimeout(Duration.ofSeconds(2))
                 .build();
 

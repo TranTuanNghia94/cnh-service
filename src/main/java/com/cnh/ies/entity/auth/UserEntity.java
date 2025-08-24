@@ -27,7 +27,7 @@ public class UserEntity extends BaseEntity {
     @Column(name = "first_name", length = 100)
     private String firstName;
 
-    @Column(name = "last_name", length = 100)
+    @Column(name = "last_name", length = 255)
     private String lastName;
 
     @Column(name = "full_name", length = 255)
@@ -48,5 +48,6 @@ public class UserEntity extends BaseEntity {
         joinColumns = @JoinColumn(name = "user_id"),
         inverseJoinColumns = @JoinColumn(name = "role_id")
     )
+    @EqualsAndHashCode.Exclude
     private Set<RoleEntity> roles = new HashSet<>();
 }

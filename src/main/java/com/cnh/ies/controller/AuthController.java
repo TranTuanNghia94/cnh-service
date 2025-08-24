@@ -27,10 +27,10 @@ public class AuthController {
 
     @PostMapping("/login")
     public ApiResponse<ResponseLoginModel> login(@RequestBody LoginModel payload) {
-        UUID requestId = UUID.randomUUID();
+        String requestId = UUID.randomUUID().toString();
         log.info("Login request initiated: {} | RequestId: {}",payload.getUsername(), requestId);
         
-        ResponseLoginModel response = authService.login(payload, null);
+        ResponseLoginModel response = authService.login(payload, requestId);
 
         log.info("Login request completed: {} | RequestId: {}",payload.getUsername(), requestId);
         

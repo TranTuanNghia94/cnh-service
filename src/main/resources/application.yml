@@ -6,9 +6,9 @@ spring:
     active: dev
   
   datasource:
-    url: jdbc:postgresql://localhost:5432/cnh_wms
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:password}
+    url: jdbc:postgresql://localhost:5432/new_db_cnh
+    username: ${DB_USERNAME:new_cnh_root}
+    password: ${DB_PASSWORD:Str0ngP@ssw0rId}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -30,12 +30,6 @@ spring:
         order_inserts: true
         order_updates: true
         batch_versioned_data: true
-  
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: true
-    validate-on-migrate: true
   
   redis:
     host: ${REDIS_HOST:localhost}
@@ -87,9 +81,9 @@ server:
 logging:
   level:
     com.cnh.ies: ${LOG_LEVEL:INFO}
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.security: INFO
+    org.hibernate.SQL: INFO
+    org.hibernate.type.descriptor.sql.BasicBinder: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
