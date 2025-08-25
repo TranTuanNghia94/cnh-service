@@ -24,6 +24,7 @@ import com.cnh.ies.mapper.user.UserMapper;
 import com.cnh.ies.repository.auth.UserRepo;
 import com.cnh.ies.service.redis.RedisService;
 import com.cnh.ies.service.security.JwtService;
+import com.cnh.ies.util.RequestContext;
 
 @Service
 @Slf4j
@@ -72,6 +73,47 @@ public class AuthService {
 
         } catch (Exception e) {
             log.error("Error logging in: {}", e.getMessage());
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
+            HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    public ResponseLoginModel refreshToken(String refreshToken, String requestId) {
+        try {
+            log.info("Refresh token request: {} | RequestId: {}", refreshToken, requestId);
+
+            if (refreshToken == null) {
+                log.error("Refresh token is required: {} | RequestId: {}", refreshToken, requestId);
+                throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "Refresh token is required",
+                HttpStatus.UNAUTHORIZED.value(), requestId);
+            }
+
+            String username =  RequestContext.getCurrentUsername();
+
+            if (!isValidRefreshToken(username, refreshToken)) {
+                log.error("Invalid refresh token: {} | RequestId: {}", refreshToken, requestId);
+                throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "Invalid refresh token",
+                HttpStatus.UNAUTHORIZED.value(), requestId);
+            }
+
+            UserInfo userInfo = getUserInfoFromRedis(username);
+
+            String accessToken = jwtService.generateAccessToken(userInfo);
+            String newRefreshToken = generateRefreshToken();
+
+            storeUserTokens(userInfo, accessToken, newRefreshToken);
+
+            log.info("Refresh token success: {} | RequestId: {}", userInfo, requestId);
+
+            return ResponseLoginModel.builder()
+                .accessToken(accessToken)
+                .refreshToken(newRefreshToken)
+                .username(userInfo.getUsername())
+                .tokenType("Bearer")
+                .build();
+
+        } catch (Exception e) {
+            log.error("Error refreshing token: {}", e.getMessage());
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
             HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }

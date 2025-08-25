@@ -36,5 +36,16 @@ public class AuthController {
         
         return ApiResponse.success(response, "Login success");
     }
-  
+
+    @PostMapping("/refresh-token")
+    public ApiResponse<ResponseLoginModel> refreshToken(@RequestBody String refreshToken) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Refresh token request initiated: {} | RequestId: {}", refreshToken, requestId);
+        
+        ResponseLoginModel response = authService.refreshToken(refreshToken, requestId);
+
+        log.info("Refresh token request completed: {} | RequestId: {}", refreshToken, requestId);
+        
+        return ApiResponse.success(response, "Refresh token success");
+    }
 }
