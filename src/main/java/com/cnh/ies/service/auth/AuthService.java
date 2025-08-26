@@ -119,6 +119,21 @@ public class AuthService {
         }
     }
 
+    public String logout(String requestId) {
+        try {
+            String username = RequestContext.getCurrentUsername();
+            removeUserTokens(username);
+
+            log.info("Logout success: {} | RequestId: {}", username, requestId);
+
+            return "Logout success";
+        }
+        catch (Exception e) {
+            log.error("Error logging out: {}", e.getMessage());
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
+            HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
 
     private void storeUserTokens(UserInfo userInfo, String accessToken, String refreshToken) {
         String username = userInfo.getUsername();

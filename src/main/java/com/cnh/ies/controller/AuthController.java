@@ -48,4 +48,16 @@ public class AuthController {
         
         return ApiResponse.success(response, "Refresh token success");
     }
+
+    @PostMapping("/logout")
+    public ApiResponse<String> logout() {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Logout request initiated: | RequestId: {}", requestId);
+        
+        String response = authService.logout(requestId);
+
+        log.info("Logout request completed: | RequestId: {}", requestId);
+
+        return ApiResponse.success(response, "Logout success");
+    }
 }
