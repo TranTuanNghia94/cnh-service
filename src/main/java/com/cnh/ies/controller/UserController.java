@@ -4,12 +4,17 @@ import java.util.UUID;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.model.user.ChangePasswordRequest;
+import com.cnh.ies.model.user.CreateUserRequest;
+import com.cnh.ies.model.user.UpdateUserRequest;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.service.user.UserService;
 
@@ -60,5 +65,90 @@ public class UserController {
         log.info("Getting list users with page: {} and limit: {} success requestId: {}", page, limit, requestId);
         
         return ApiResponse.success(response, "Get list users success");
+    }
+
+
+    @PostMapping("/create")
+    public ApiResponse<UserInfo> createUser(@RequestBody CreateUserRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Creating user with request: {} initiated requestId: {}", request);
+        
+        UserInfo response = userService.createUser(request, requestId);
+
+        log.info("Creating user success requestId: {}", requestId);
+        
+        return ApiResponse.success(response, "Create user success");
+    }
+
+    @PostMapping("/update")
+    public ApiResponse<UserInfo> updateUser(@RequestBody UpdateUserRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Updating user with request: {} initiated requestId: {}", request);
+        
+        UserInfo response = userService.updateUser(request, requestId);
+
+        log.info("Updating user success requestId: {}", requestId);
+        
+        return ApiResponse.success(response, "Update user success");
+    }
+
+    @PostMapping("/delete/{id}")
+    public ApiResponse<String> deleteUser(@PathVariable String id) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Deleting user with initiated requestId: {}", id);
+        
+        String response = userService.deleteUser(UUID.fromString(id), requestId);
+
+        log.info("Deleting user success requestId: {}", requestId);
+        
+        return ApiResponse.success(response, "Delete user success");
+    }
+
+    @PostMapping("/restore/{id}")
+    public ApiResponse<String> restoreUser(@PathVariable String id) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Restoring user with initiated requestId: {}", id);
+        
+        String response = userService.restoreUser(UUID.fromString(id), requestId);
+
+        log.info("Restoring user success requestId: {}", requestId);
+        
+        return ApiResponse.success(response, "Restore user success");
+    }
+
+    @PostMapping("/toggle-active/{id}")
+    public ApiResponse<String> toggleUserActive(@PathVariable String id) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Toggling user active with initiated requestId: {}", id);
+        
+        String response = userService.toggleUserActive(UUID.fromString(id), requestId);
+
+        log.info("Toggling user active success requestId: {}", requestId);
+        
+        return ApiResponse.success(response, "Toggle user active success");
+    }
+
+    @PostMapping("/change-password/{id}")
+    public ApiResponse<String> changePassword(@PathVariable String id, @RequestBody ChangePasswordRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Changing password with initiated requestId: {}", requestId);
+
+        String response = userService.changePassword(request, UUID.fromString(id), requestId);
+
+        log.info("Changing password success requestId: {}", requestId);
+        
+        return ApiResponse.success(response, "Change password success");
+    }
+
+    @PostMapping("/reset-password/{id}")
+    public ApiResponse<String> resetPassword(@PathVariable String id, @RequestBody ChangePasswordRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Resetting password with initial requestId: {}", requestId);
+
+        String response = userService.resetPassword(request, UUID.fromString(id), requestId);
+
+        log.info("Resetting password success requestId: {}", requestId);
+        
+        return ApiResponse.success(response, "Reset password success");
     }
 }

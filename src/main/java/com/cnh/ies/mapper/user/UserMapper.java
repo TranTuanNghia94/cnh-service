@@ -5,11 +5,14 @@ import com.cnh.ies.entity.auth.RoleEntity;
 import com.cnh.ies.entity.auth.PermissionEntity;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.model.user.RoleInfo;
+import com.cnh.ies.model.user.CreateUserRequest;
 import com.cnh.ies.model.user.PermissionInfo;
 
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -66,5 +69,21 @@ public class UserMapper {
         permissionInfo.setResource(permission.getResource());
         permissionInfo.setAction(permission.getAction());
         return permissionInfo;
+    }
+
+    public UserEntity mapToUserEntity(CreateUserRequest request, RoleEntity role) {
+        UserEntity user = new UserEntity();
+        user.setUsername(request.getUsername());
+        user.setPassword(BCrypt.hashpw(request.getPassword(), BCrypt.gensalt()));
+        user.setEmail(request.getEmail());
+        user.setFullName(request.getFullName());
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setPhone(request.getPhone());
+        user.setIsActive(true);
+        user.setIsDeleted(false);
+        user.setRoles(new HashSet<>(Arrays.asList(role)));
+
+        return user;
     }
 }
