@@ -323,4 +323,59 @@ public class UserService {
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }
+
+    public String assignRoleToUser(UUID userId, UUID roleId, String requestId) {
+        try {
+            log.info("Start assign role to user with userId: {} and roleId: {} | RequestId: {}", userId, roleId, requestId);
+
+            Optional<UserEntity> user = userRepo.findById(userId);
+
+            if (user.isEmpty()) {
+                log.error("User not found: {} | RequestId: {}", userId, requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "User not found: " + userId, HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            Optional<RoleEntity> role = roleRepo.findById(roleId);
+
+            if (role.isEmpty()) {
+                log.error("Role not found: {} | RequestId: {}", roleId, requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Role not found: " + roleId, HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            user.get().setRoles(new HashSet<>(Arrays.asList(role.get())));
+
+            userRepo.save(user.get());
+
+            log.info("Assign role to user success: {} and roleId: {} | RequestId: {}", userId, roleId, requestId);
+
+            return "Role assigned to user successfully";
+        } catch (Exception e) {
+            log.error("Error assigning role to user", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    public String unassignRoleFromUser(UUID userId, UUID roleId, String requestId) {
+        try {
+            log.info("Start unassign role from user with userId: {} and roleId: {} | RequestId: {}", userId, roleId, requestId);
+
+            Optional<UserEntity> user = userRepo.findById(userId);
+
+            if (user.isEmpty()) {
+                log.error("User not found: {} | RequestId: {}", userId, requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "User not found: " + userId, HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            user.get().setRoles(user.get().getRoles().stream().filter(role -> !role.getId().equals(roleId)).collect(Collectors.toSet()));
+
+            userRepo.save(user.get());
+
+            log.info("Unassign role from user success: {} and roleId: {} | RequestId: {}", userId, roleId, requestId);
+
+            return "Role unassigned from user successfully";
+        } catch (Exception e) {
+            log.error("Error unassigning role from user", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
 }

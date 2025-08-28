@@ -151,4 +151,28 @@ public class UserController {
         
         return ApiResponse.success(response, "Reset password success");
     }
+
+    @PostMapping("/assign-role/{userId}/{roleId}")
+    public ApiResponse<String> assignRoleToUser(@PathVariable String userId, @PathVariable String roleId) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Assigning role to user with initiated requestId: {}", requestId);
+
+        String response = userService.assignRoleToUser(UUID.fromString(userId), UUID.fromString(roleId), requestId);
+
+        log.info("Assigning role to user success requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Assign role to user success");
+    }
+
+    @PostMapping("/unassign-role/{userId}/{roleId}")
+    public ApiResponse<String> unassignRoleFromUser(@PathVariable String userId, @PathVariable String roleId) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Unassigning role from user with initiated requestId: {}", requestId);
+
+        String response = userService.unassignRoleFromUser(UUID.fromString(userId), UUID.fromString(roleId), requestId);
+
+        log.info("Unassigning role from user success requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Unassign role from user success");
+    }
 }
