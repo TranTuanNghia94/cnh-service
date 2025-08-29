@@ -25,23 +25,23 @@ public class CategoryService {
     private final CategoryRepo categoryRepo;
     private final CategoryMapper categoryMapper;
 
-    // public ListDataModel<CategoryInfo> getAllCategories(String requestId) {
-    //     try {
-    //         log.info("Getting all categories with request: {}", requestId);
+    public ListDataModel<CategoryInfo> getAllCategories(String requestId) {
+        try {
+            log.info("Getting all categories with request: {}", requestId);
 
-    //         List<CategoryEntity> categories = categoryRepo.findAll();
-    //         List<CategoryInfo> categoryInfos = categories.stream()
-    //             .map(categoryMapper::toCategoryInfo)
-    //             .collect(Collectors.toList());
+            List<CategoryEntity> categories = categoryRepo.findAll();
+            List<CategoryInfo> categoryInfos = categories.stream()
+                .map(categoryMapper::toCategoryInfo)
+                .collect(Collectors.toList());
 
-    //         log.info("Categories fetched successfully with request: {}", requestId);
+            log.info("Categories fetched successfully with request: {}", requestId);
            
-    //         return new ListDataModel<>(categoryInfos, categories.size(), 1, 10);
-    //     } catch (Exception e) {
-    //         log.error("Error getting all categories", e);
-    //         throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting all categories", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
-    //     }
-    // }
+            return new ListDataModel<>(categoryInfos, categories.size(), 1, 10);
+        } catch (Exception e) {
+            log.error("Error getting all categories", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting all categories", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
 
     public CategoryInfo createCategory(CreateCategoryRequest request, String requestId) {
         try {
