@@ -1,10 +1,13 @@
 package com.cnh.ies.mapper.goods;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Component;
 
 import com.cnh.ies.entity.goods.CategoryEntity;
 import com.cnh.ies.model.goods.CategoryInfo;
 import com.cnh.ies.model.goods.CreateCategoryRequest;
+import com.cnh.ies.model.goods.UpdateCategoryRequest;
 
 @Component
 public class CategoryMapper {
@@ -28,6 +31,16 @@ public class CategoryMapper {
         category.setUnit(request.getUnit());
         category.setDescription(request.getDescription());
         category.setIsActive(true);
+        return category;
+    }
+
+    public CategoryEntity toCategoryEntity(UpdateCategoryRequest request) {
+        CategoryEntity category = new CategoryEntity();
+        category.setId(UUID.fromString(request.getId()));
+        category.setName(request.getName());
+        category.setCode(request.getCode());
+        category.setUnit(request.getUnit());
+        category.setDescription(request.getDescription());
         return category;
     }
 }

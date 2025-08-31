@@ -1,16 +1,22 @@
 package com.cnh.ies.service.goods;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.model.goods.CategoryInfo;
 import com.cnh.ies.model.goods.CreateCategoryRequest;
+import com.cnh.ies.model.goods.UpdateCategoryRequest;
 import com.cnh.ies.entity.goods.CategoryEntity;
 import com.cnh.ies.model.general.ListDataModel;
+import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.mapper.goods.CategoryMapper;
 import com.cnh.ies.repository.goods.CategoryRepo;
 
@@ -30,19 +36,29 @@ public class CategoryService {
             log.info("Getting all categories with request: {}", requestId);
 
             List<CategoryEntity> categories = categoryRepo.findAll();
-            List<CategoryInfo> categoryInfos = categories.stream()
-                .map(categoryMapper::toCategoryInfo)
-                .collect(Collectors.toList());
+            List<CategoryInfo> categoryInfos = categories.stream().map(categoryMapper::toCategoryInfo).collect(Collectors.toList());
 
+
+            PaginationModel pagination = PaginationModel.builder()
+                .page(1)
+                .limit(10)
+                .total((long) categories.size())
+                .totalPage(1)
+                .build();
+                
             log.info("Categories fetched successfully with request: {}", requestId);
-           
-            return new ListDataModel<>(categoryInfos, categories.size(), 1, 10);
+
+            return ListDataModel.<CategoryInfo>builder()
+                .data(categoryInfos)
+                .pagination(pagination)
+                .build();
         } catch (Exception e) {
             log.error("Error getting all categories", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting all categories", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }
 
+    @Transactional
     public CategoryInfo createCategory(CreateCategoryRequest request, String requestId) {
         try {
             log.info("Creating category with request: {}", request);
@@ -59,4 +75,59 @@ public class CategoryService {
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error creating category", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }
+
+    @Transactional
+    public String updateCategory(UpdateCategoryRequest request, String requestId) {
+        try {
+            log.info("Updating category with request: {}", request);
+
+            Optional<CategoryEntity> category = categoryRepo.findById(UUID.fromString(request.getId()));
+
+            if (category.isEmpty()) {
+                log.error("Category not found with id: {}", request.getId());
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found with id: " + request.getId(), HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            category.get().setName(request.getName());
+            category.get().setCode(request.getCode());
+            category.get().setUnit(request.getUnit());
+            category.get().setDescription(request.getDescription());
+            category.get().setUpdatedAt(Instant.now());
+
+            categoryRepo.save(category.get());
+
+            log.info("Category updated successfully with request: {}", request);
+        
+            return "Category updated successfully";
+        } catch (Exception e) {
+            log.error("Error updating category", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error updating category", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    @Transactional
+    public String deleteCategory(String id, String requestId) {
+        try {
+            log.info("Deleting category with id: {}", id);
+
+            Optional<CategoryEntity> category = categoryRepo.findById(UUID.fromString(id));
+
+            if (category.isEmpty()) {
+                log.error("Category not found with id: {}", id);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found with id: " + id, HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            category.get().setIsDeleted(true);
+            category.get().setUpdatedAt(Instant.now());
+            categoryRepo.save(category.get());
+
+            log.info("Category deleted successfully with id: {}", id);
+
+            return "Category deleted successfully";
+        } catch (Exception e) {
+            log.error("Error deleting category", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error deleting category", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
 }
