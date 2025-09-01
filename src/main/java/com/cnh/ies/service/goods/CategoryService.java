@@ -117,6 +117,7 @@ public class CategoryService {
                 throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found with id: " + id, HttpStatus.NOT_FOUND.value(), requestId);
             }
 
+            category.get().setCode(category.get().getCode() + "_" + "DELETED" + "_" + requestId);
             category.get().setIsDeleted(true);
             category.get().setUpdatedAt(Instant.now());
             categoryRepo.save(category.get());
@@ -130,4 +131,55 @@ public class CategoryService {
         }
     }
 
+    @Transactional
+    public String restoreCategory(String id, String requestId) {
+        try {
+            log.info("Restoring category with id: {}", id);
+
+        Optional<CategoryEntity> category = categoryRepo.findById(UUID.fromString(id));
+
+        if (category.isEmpty()) {
+            log.error("Category not found with id: {}", id);
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found with id: " + id, HttpStatus.NOT_FOUND.value(), requestId);
+        }
+        
+        category.get().setCode(category.get().getCode().replace("_DELETED_" + requestId, ""));
+        category.get().setIsDeleted(false);
+        category.get().setUpdatedAt(Instant.now());
+        categoryRepo.save(category.get());
+
+        log.info("Category restored successfully with id: {}", id);
+
+        return "Category restored successfully";
+        
+        } catch (Exception e) {
+            log.error("Error restoring category", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error restoring category", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    public CategoryInfo getCategoryById(String id, String requestId) {
+        try {
+            log.info("Getting category by id: {}", id);
+
+            Optional<CategoryEntity> category = categoryRepo.findById(UUID.fromString(id));
+
+            if (category.isEmpty()) {
+                log.error("Category not found with id: {}", id);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found with id: " + id, HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            if (category.get().getIsDeleted()) {
+                log.error("Category is deleted with id: {}", id);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category is deleted with id: " + id, HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            log.info("Category fetched successfully with id: {}", id);
+
+        return categoryMapper.toCategoryInfo(category.get());
+        } catch (Exception e) {
+            log.error("Error getting category by id", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting category by id", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
 }

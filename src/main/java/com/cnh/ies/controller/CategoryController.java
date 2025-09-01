@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
@@ -78,4 +79,30 @@ public class CategoryController {
 
         return ApiResponse.success(response, "Delete category success");
     }
+
+    @GetMapping("/categories/{id}")
+    public ApiResponse<CategoryInfo> getCategoryById(@PathVariable String id) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Getting category by id with initiated requestId: {}", requestId);
+
+        CategoryInfo response = categoryService.getCategoryById(id, requestId);
+
+        log.info("Getting category by id success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Get category by id success");
+    }
+
+
+    @PostMapping("/categories/restore")
+    public ApiResponse<String> restoreCategory(@RequestBody GeneralRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Restoring category with initiated requestId: {}", requestId);
+
+        String response = categoryService.restoreCategory(request.getRequestId(), requestId);
+
+        log.info("Restoring category success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Restore category success");
+    }
+
 }
