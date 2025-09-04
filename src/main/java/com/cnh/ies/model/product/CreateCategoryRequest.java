@@ -1,10 +1,9 @@
-package com.cnh.ies.model.goods;
+package com.cnh.ies.model.product;
 
 import lombok.Data;
 
 @Data
-public class UpdateCategoryRequest {
-    private String id;
+public class CreateCategoryRequest {
     private String name;
     private String code;
     private String unit;

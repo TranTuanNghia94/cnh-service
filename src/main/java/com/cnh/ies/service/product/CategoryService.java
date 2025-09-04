@@ -1,4 +1,4 @@
-package com.cnh.ies.service.goods;
+package com.cnh.ies.service.product;
 
 import java.time.Instant;
 import java.util.List;
@@ -10,14 +10,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cnh.ies.entity.product.CategoryEntity;
 import com.cnh.ies.exception.ApiException;
-import com.cnh.ies.model.goods.CategoryInfo;
-import com.cnh.ies.model.goods.CreateCategoryRequest;
-import com.cnh.ies.model.goods.UpdateCategoryRequest;
-import com.cnh.ies.entity.goods.CategoryEntity;
+import com.cnh.ies.mapper.product.CategoryMapper;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
-import com.cnh.ies.mapper.goods.CategoryMapper;
+import com.cnh.ies.model.product.CategoryInfo;
+import com.cnh.ies.model.product.CreateCategoryRequest;
+import com.cnh.ies.model.product.UpdateCategoryRequest;
 import com.cnh.ies.repository.goods.CategoryRepo;
 
 import lombok.RequiredArgsConstructor;

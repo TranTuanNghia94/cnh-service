@@ -1,13 +1,13 @@
-package com.cnh.ies.mapper.goods;
+package com.cnh.ies.mapper.product;
 
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
-import com.cnh.ies.entity.goods.CategoryEntity;
-import com.cnh.ies.model.goods.CategoryInfo;
-import com.cnh.ies.model.goods.CreateCategoryRequest;
-import com.cnh.ies.model.goods.UpdateCategoryRequest;
+import com.cnh.ies.entity.product.CategoryEntity;
+import com.cnh.ies.model.product.CategoryInfo;
+import com.cnh.ies.model.product.CreateCategoryRequest;
+import com.cnh.ies.model.product.UpdateCategoryRequest;
 
 @Component
 public class CategoryMapper {

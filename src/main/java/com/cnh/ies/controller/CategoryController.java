@@ -12,12 +12,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.model.goods.CategoryInfo;
-import com.cnh.ies.model.goods.CreateCategoryRequest;
-import com.cnh.ies.model.goods.UpdateCategoryRequest;
 import com.cnh.ies.model.general.GeneralRequest;
 import com.cnh.ies.model.general.ListDataModel;
-import com.cnh.ies.service.goods.CategoryService;
+import com.cnh.ies.model.product.CategoryInfo;
+import com.cnh.ies.model.product.CreateCategoryRequest;
+import com.cnh.ies.model.product.UpdateCategoryRequest;
+import com.cnh.ies.service.product.CategoryService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

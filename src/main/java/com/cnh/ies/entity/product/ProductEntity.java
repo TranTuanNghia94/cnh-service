@@ -1,9 +1,8 @@
-package com.cnh.ies.entity.goods;
+package com.cnh.ies.entity.product;
 
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
-import java.util.UUID;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

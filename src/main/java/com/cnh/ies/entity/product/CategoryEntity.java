@@ -1,4 +1,4 @@
-package com.cnh.ies.entity.goods;
+package com.cnh.ies.entity.product;
 
 import jakarta.persistence.*;
 import lombok.Data;

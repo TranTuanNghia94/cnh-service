@@ -1,4 +1,4 @@
-package com.cnh.ies.model.goods;
+package com.cnh.ies.model.product;
 
 import lombok.Data;
 
