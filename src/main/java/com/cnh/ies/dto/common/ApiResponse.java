@@ -27,7 +27,12 @@ public class ApiResponse<T> {
     
     private String error;
     
+    private String requestId;
+    
     private Integer status;
+
+
+
     
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
@@ -44,18 +49,20 @@ public class ApiResponse<T> {
                 .build();
     }
     
-    public static <T> ApiResponse<T> error(String error) {
+    public static <T> ApiResponse<T> error(String error, String requestId) {
         return ApiResponse.<T>builder()
                 .success(false)
                 .error(error)
+                .requestId(requestId)
                 .build();
     }
     
-    public static <T> ApiResponse<T> error(String error, Integer status) {
+    public static <T> ApiResponse<T> error(String error, Integer status, String requestId) {
         return ApiResponse.<T>builder()
                 .success(false)
                 .error(error)
                 .status(status)
+                .requestId(requestId)
                 .build();
     }
 }

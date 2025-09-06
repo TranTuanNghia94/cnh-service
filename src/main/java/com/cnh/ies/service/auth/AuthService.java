@@ -39,12 +39,12 @@ public class AuthService {
 
     public ResponseLoginModel login(LoginModel payload, String requestId) {
         try {
-            log.info("Login request: {} | RequestId: {}", payload.getUsername(), requestId);
+            log.info("Login request: {} | RequestId: {}", payload.getEmail(), requestId);
             
-            Optional<UserEntity> user = userRepo.findOneByUsername(payload.getUsername());
+            Optional<UserEntity> user = userRepo.findOneByEmail(payload.getEmail());
 
             if (user.isEmpty() || !user.get().getIsActive()) {
-                log.error("User not found: {} | RequestId: {}", payload.getUsername(), requestId);
+                log.error("User not found: {} | RequestId: {}", payload.getEmail(), requestId);
                 throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "User not found",
                 HttpStatus.UNAUTHORIZED.value(), requestId);
             }
@@ -52,7 +52,7 @@ public class AuthService {
             UserInfo userInfo = userMapper.mapToUserInfo(user.get());
 
             if (!BCrypt.checkpw(payload.getPassword(), user.get().getPassword())) {
-                log.error("Invalid username or password: {} | RequestId: {}", payload.getUsername(), requestId);
+                log.error("Invalid email or password: {} | RequestId: {}", payload.getEmail(), requestId);
                 throw new ApiException(ApiException.ErrorCode.INVALID_CREDENTIALS, "Invalid username or password",
                 HttpStatus.UNAUTHORIZED.value(), requestId);
             }

@@ -39,9 +39,7 @@ public class ApiException extends RuntimeException {
         sb.append("ApiException{");
         sb.append("errorCode='").append(errorCode).append("', ");
         sb.append("message='").append(getMessage()).append("'");
-        if (requestId != null) {
-            sb.append(", requestId='").append(requestId).append("'");
-        }
+        sb.append(", requestId='").append(requestId).append("'");
         sb.append(", httpStatus=").append(httpStatus);
         sb.append("}");
         return sb.toString();

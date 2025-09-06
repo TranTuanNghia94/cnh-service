@@ -26,6 +26,8 @@ public class UserMapper {
         userInfo.setFullName(user.getFullName());
         userInfo.setEmail(user.getEmail());
         userInfo.setIsActive(user.getIsActive());
+        userInfo.setCreatedAt(user.getCreatedAt().toString());
+        userInfo.setUpdatedAt(user.getUpdatedAt().toString());
         
         // Safely map roles with thread-safe collection creation
         if (user.getRoles() != null) {
@@ -76,7 +78,7 @@ public class UserMapper {
         user.setUsername(request.getUsername());
         user.setPassword(BCrypt.hashpw(request.getPassword(), BCrypt.gensalt()));
         user.setEmail(request.getEmail());
-        user.setFullName(request.getFullName());
+        user.setFullName(request.getLastName() + " " + request.getFirstName());
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         user.setPhone(request.getPhone());

@@ -8,6 +8,7 @@ import com.cnh.ies.entity.product.CategoryEntity;
 import com.cnh.ies.model.product.CategoryInfo;
 import com.cnh.ies.model.product.CreateCategoryRequest;
 import com.cnh.ies.model.product.UpdateCategoryRequest;
+import com.cnh.ies.util.RequestContext;
 
 @Component
 public class CategoryMapper {
@@ -18,8 +19,9 @@ public class CategoryMapper {
         categoryInfo.setName(category.getName());
         categoryInfo.setCode(category.getCode());
         categoryInfo.setUnit(category.getUnit());
+        categoryInfo.setCreatedAt(category.getCreatedAt());
+        categoryInfo.setUpdatedAt(category.getUpdatedAt());
         categoryInfo.setDescription(category.getDescription());
-        categoryInfo.setParentId(category.getParent().getId().toString());
         categoryInfo.setIsActive(category.getIsActive());
         return categoryInfo;
     }
@@ -31,6 +33,9 @@ public class CategoryMapper {
         category.setUnit(request.getUnit());
         category.setDescription(request.getDescription());
         category.setIsActive(true);
+        category.setIsDeleted(false);
+        category.setCreatedBy(RequestContext.getCurrentUsername());
+        category.setUpdatedBy(RequestContext.getCurrentUsername());
         return category;
     }
 
@@ -41,6 +46,7 @@ public class CategoryMapper {
         category.setCode(request.getCode());
         category.setUnit(request.getUnit());
         category.setDescription(request.getDescription());
+        category.setUpdatedBy(RequestContext.getCurrentUsername());
         return category;
     }
 }

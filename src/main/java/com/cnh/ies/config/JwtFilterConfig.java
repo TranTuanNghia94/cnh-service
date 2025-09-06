@@ -75,6 +75,8 @@ public class JwtFilterConfig extends OncePerRequestFilter  {
 
     private boolean isPublicEndpoint(String requestURI) {
         return requestURI.equals("/auth/login") || 
+               requestURI.equals("/health") ||
+               requestURI.startsWith("/health/") ||
                requestURI.startsWith("/actuator/") || 
                requestURI.startsWith("/v3/api-docs/") || 
                requestURI.startsWith("/swagger-ui/");
@@ -92,9 +94,19 @@ public class JwtFilterConfig extends OncePerRequestFilter  {
         return username != null && jwtService.isTokenValid(jwt, username);
     }
 
-    private void sendUnauthorizedResponse(HttpServletResponse response, String message) {
+    private void sendUnauthorizedResponse(HttpServletResponse response, String message) throws IOException {
         log.warn(message);
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        
+        String jsonResponse = String.format(
+            "{\"timestamp\":\"%s\",\"success\":false,\"error\":\"%s\",\"status\":401}",
+            java.time.LocalDateTime.now(),
+            message.replace("\"", "\\\"")
+        );
+        
+        response.getWriter().write(jsonResponse);
     }
 
     private void setAuthentication(UserDetails userDetails, HttpServletRequest request) {

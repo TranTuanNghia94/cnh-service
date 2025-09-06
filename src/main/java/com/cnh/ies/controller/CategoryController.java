@@ -4,7 +4,7 @@ import java.util.UUID;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PostMapping;     
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.model.general.GeneralRequest;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.product.CategoryInfo;
 import com.cnh.ies.model.product.CreateCategoryRequest;
@@ -31,7 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 public class CategoryController {
     private final CategoryService categoryService;
 
-    @GetMapping("/categories")
+    @GetMapping("/list")
     public ApiResponse<ListDataModel<CategoryInfo>> getAllCategories() {
 
         String requestId = UUID.randomUUID().toString();
@@ -44,7 +43,7 @@ public class CategoryController {
         return ApiResponse.success(response, "Get all categories success");
     }
 
-    @PostMapping("/categories")
+    @PostMapping("/create")
     public ApiResponse<CategoryInfo> createCategory(@RequestBody CreateCategoryRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Creating category with initiated requestId: {}", requestId);
@@ -56,7 +55,7 @@ public class CategoryController {
         return ApiResponse.success(response, "Create category success");
     }
 
-    @PutMapping("/categories")
+    @PutMapping("/update")
     public ApiResponse<String> updateCategory(@RequestBody UpdateCategoryRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Updating category with initiated requestId: {}", requestId);
@@ -68,19 +67,19 @@ public class CategoryController {
         return ApiResponse.success(response, "Update category success");
     }
 
-    @DeleteMapping("/categories")
-    public ApiResponse<String> deleteCategory(@RequestBody GeneralRequest request) {
+    @DeleteMapping("/delete/{id}")
+    public ApiResponse<String> deleteCategory(@PathVariable String id) {
         String requestId = UUID.randomUUID().toString();
         log.info("Deleting category with initiated requestId: {}", requestId);
 
-        String response = categoryService.deleteCategory(request.getRequestId(), requestId);
+        String response = categoryService.deleteCategory(id, requestId);
 
         log.info("Deleting category success with requestId: {}", requestId);
 
         return ApiResponse.success(response, "Delete category success");
     }
 
-    @GetMapping("/categories/{id}")
+    @GetMapping("/{id}")
     public ApiResponse<CategoryInfo> getCategoryById(@PathVariable String id) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting category by id with initiated requestId: {}", requestId);
@@ -93,12 +92,12 @@ public class CategoryController {
     }
 
 
-    @PostMapping("/categories/restore")
-    public ApiResponse<String> restoreCategory(@RequestBody GeneralRequest request) {
+    @PostMapping("/restore/{id}")
+    public ApiResponse<String> restoreCategory(@PathVariable String id) {
         String requestId = UUID.randomUUID().toString();
         log.info("Restoring category with initiated requestId: {}", requestId);
 
-        String response = categoryService.restoreCategory(request.getRequestId(), requestId);
+        String response = categoryService.restoreCategory(id, requestId);
 
         log.info("Restoring category success with requestId: {}", requestId);
 

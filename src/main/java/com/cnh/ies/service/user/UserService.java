@@ -106,7 +106,7 @@ public class UserService {
         try {
             log.info("Start get list users with page: {} and limit: {} | RequestId: {}", page, limit, requestId);
 
-            Page<UserEntity> users = userRepo.findAll(null, PageRequest.of(page, limit));
+            Page<UserEntity> users = userRepo.findAll(PageRequest.of(page, limit));
 
             List<UserInfo> userInfos = users.stream()
                     .map(userMapper::mapToUserInfo)

@@ -7,9 +7,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.user.ChangePasswordRequest;
@@ -54,15 +54,15 @@ public class UserController {
         
         return ApiResponse.success(response, "Get user info success");
     }
-
-    @GetMapping("/list")
-    public ApiResponse<ListDataModel<UserInfo>> getUsers(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "10")  Integer limit) {
+    
+    @PostMapping("/list")
+    public ApiResponse<ListDataModel<UserInfo>> getUsers(@RequestBody ApiRequestModel request) {
         String requestId = UUID.randomUUID().toString();
-        log.info("Getting list users with page: {} and limit: {} initiated requestId: {}", page, limit, requestId);
+        log.info("Getting list users with page: {} and limit: {} initiated requestId: {}", request.getPage(), request.getLimit(), requestId);
         
-        ListDataModel<UserInfo> response = userService.getUsers(requestId, page, limit);
+        ListDataModel<UserInfo> response = userService.getUsers(requestId, request.getPage(), request.getLimit());
 
-        log.info("Getting list users with page: {} and limit: {} success requestId: {}", page, limit, requestId);
+        log.info("Getting list users with page: {} and limit: {} success requestId: {}", request.getPage(), request.getLimit(), requestId);
         
         return ApiResponse.success(response, "Get list users success");
     }
@@ -71,7 +71,7 @@ public class UserController {
     @PostMapping("/create")
     public ApiResponse<UserInfo> createUser(@RequestBody CreateUserRequest request) {
         String requestId = UUID.randomUUID().toString();
-        log.info("Creating user with request: {} initiated requestId: {}", request);
+        log.info("Creating user with request: {} initiated requestId: {}", request.getUsername());
         
         UserInfo response = userService.createUser(request, requestId);
 

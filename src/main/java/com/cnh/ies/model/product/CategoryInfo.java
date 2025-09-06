@@ -1,5 +1,7 @@
 package com.cnh.ies.model.product;
 
+import java.time.Instant;
+
 import lombok.Data;
 
 @Data
@@ -11,7 +13,7 @@ public class CategoryInfo {
     private String description;
     private String parentId;
     private Boolean isActive;
-    private String createdAt;
-    private String updatedAt;
-    private String deletedAt;
+    private Instant createdAt;
+    private Instant updatedAt;
+    private Instant deletedAt;
 }
