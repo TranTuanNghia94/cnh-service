@@ -28,7 +28,7 @@ import com.cnh.ies.service.product.ProductService;
 public class ProductController {
     private final ProductService productService;
     
-    @GetMapping
+    @PostMapping("/list")
     public ApiResponse<ListDataModel<ProductInfo>> getAllProducts(@RequestBody ApiRequestModel request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting all products with initiated requestId: {}", requestId);
@@ -40,7 +40,7 @@ public class ProductController {
         return ApiResponse.success(response, "Get all products success");
     }
 
-    @PostMapping
+    @PostMapping("/create")
     public ApiResponse<ProductInfo> createProduct(@RequestBody CreateProductRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Creating product with initiated requestId: {}", requestId);
@@ -62,5 +62,17 @@ public class ProductController {
             log.info("Getting product by id: {} success requestId: {}", id, requestId);
 
             return ApiResponse.success(response, "Get product by id success");
+    }
+
+    @PostMapping("/delete/{id}")
+    public ApiResponse<String> deleteProduct(@PathVariable String id) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Deleting product with initiated requestId: {}", requestId);
+
+        String response = productService.deleteProduct(id, requestId);
+
+        log.info("Deleting product success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Delete product success");
     }
 }

@@ -1,5 +1,6 @@
 package com.cnh.ies.service.product;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,7 +36,7 @@ public class ProductService {
         try {
             log.info("Getting all products with request: {}", requestId);
 
-            Page<ProductEntity> products = productRepo.findAll(null, PageRequest.of(page, limit));
+            Page<ProductEntity> products = productRepo.findAll(PageRequest.of(page, limit));
             List<ProductInfo> productInfos = products.stream().map(productMapper::toProductInfo).collect(Collectors.toList());
 
             PaginationModel pagination = PaginationModel.builder()
@@ -94,4 +95,24 @@ public class ProductService {
     }
 
 
+    public String deleteProduct(String id, String requestId) {
+        try {
+            log.info("Deleting product by id: {}", id);
+
+            ProductEntity product = productRepo.findById(UUID.fromString(id))
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found", HttpStatus.NOT_FOUND.value(), requestId));
+
+            product.setIsDeleted(true);
+            product.setCode(product.getCode() + "_" + "DELETED" + "_" + requestId);
+            product.setUpdatedAt(Instant.now());
+            productRepo.save(product);
+
+            log.info("Product deleted successfully with id: {}", id);
+
+            return "Product deleted successfully";
+        } catch (Exception e) {
+            log.error("Error deleting product", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error deleting product", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
 }
