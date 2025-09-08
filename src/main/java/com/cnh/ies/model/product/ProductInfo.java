@@ -15,7 +15,8 @@ public class ProductInfo {
     private String costPrice;
     private String imageUrl;
     private String description;
-    private String category;
+    private String categoryName;
+    private String categoryId;
     private Boolean isActive;
     private String createdAt;
     private String updatedAt;

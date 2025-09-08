@@ -18,6 +18,7 @@ import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.product.CreateProductRequest;
 import com.cnh.ies.model.product.ProductInfo;
+import com.cnh.ies.model.product.UpdateProductRequest;
 import com.cnh.ies.service.product.ProductService;
 
 @RestController
@@ -27,13 +28,14 @@ import com.cnh.ies.service.product.ProductService;
 @Tag(name = "Product", description = "Product management APIs")
 public class ProductController {
     private final ProductService productService;
-    
+
     @PostMapping("/list")
     public ApiResponse<ListDataModel<ProductInfo>> getAllProducts(@RequestBody ApiRequestModel request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting all products with initiated requestId: {}", requestId);
 
-        ListDataModel<ProductInfo> response = productService.getAllProducts(requestId, request.getPage(), request.getLimit());
+        ListDataModel<ProductInfo> response = productService.getAllProducts(requestId, request.getPage(),
+                request.getLimit());
 
         log.info("Getting all products success with requestId: {}", requestId);
 
@@ -54,14 +56,14 @@ public class ProductController {
 
     @GetMapping("/{id}")
     public ApiResponse<ProductInfo> getProductById(@PathVariable String id) {
-            String requestId = UUID.randomUUID().toString();
-            log.info("Getting product by id: {} initiated requestId: {}", id, requestId);
+        String requestId = UUID.randomUUID().toString();
+        log.info("Getting product by id: {} initiated requestId: {}", id, requestId);
 
-            ProductInfo response = productService.getProductById(id, requestId);
+        ProductInfo response = productService.getProductById(id, requestId);
 
-            log.info("Getting product by id: {} success requestId: {}", id, requestId);
+        log.info("Getting product by id: {} success requestId: {}", id, requestId);
 
-            return ApiResponse.success(response, "Get product by id success");
+        return ApiResponse.success(response, "Get product by id success");
     }
 
     @PostMapping("/delete/{id}")
@@ -74,5 +76,17 @@ public class ProductController {
         log.info("Deleting product success with requestId: {}", requestId);
 
         return ApiResponse.success(response, "Delete product success");
+    }
+
+    @PostMapping("/update")
+    public ApiResponse<ProductInfo> updateProduct(@RequestBody UpdateProductRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Updating product with initiated requestId: {}", requestId);
+
+        ProductInfo response = productService.updateProduct(request, requestId);
+
+        log.info("Updating product success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Update product success");
     }
 }

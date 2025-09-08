@@ -2,6 +2,7 @@ package com.cnh.ies.service.product;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -17,6 +18,7 @@ import com.cnh.ies.model.product.CreateProductRequest;
 import com.cnh.ies.mapper.product.ProductMapper;
 import com.cnh.ies.repository.goods.ProductRepo;
 import com.cnh.ies.model.product.ProductInfo;
+import com.cnh.ies.model.product.UpdateProductRequest;
 import com.cnh.ies.entity.product.ProductEntity;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.entity.product.CategoryEntity;
@@ -86,12 +88,15 @@ public class ProductService {
         try {
             log.info("Getting product by id: {}", id);
 
-            ProductEntity product = productRepo.findById(UUID.fromString(id))
-                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found", HttpStatus.NOT_FOUND.value(), requestId));
+            Optional<ProductEntity> product = productRepo.findById(UUID.fromString(id));
+            if (product.isEmpty()) {
+                log.error("Product not found with id: {}", id);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found", HttpStatus.NOT_FOUND.value(), requestId);
+            }
 
             log.info("Product fetched successfully with id: {}", id);
 
-            return productMapper.toProductInfo(product);
+            return productMapper.toProductInfo(product.get());
         } catch (Exception e) {
             log.error("Error getting product by id", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting product by id", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
@@ -117,6 +122,34 @@ public class ProductService {
         } catch (Exception e) {
             log.error("Error deleting product", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error deleting product", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    public ProductInfo updateProduct(UpdateProductRequest request, String requestId) {
+        try {
+            log.info("Updating product with request: {}", request);
+
+            if (request.getId().isEmpty()) {
+                log.error("Product id is required | RequestId: {}", requestId);
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Product id is required", HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+
+            CategoryEntity category = categoryRepo.findById(UUID.fromString(request.getCategoryId()))
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found", HttpStatus.NOT_FOUND.value(), requestId));
+
+            ProductEntity product = productRepo.findById(UUID.fromString(request.getId()))
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found", HttpStatus.NOT_FOUND.value(), requestId));
+
+            product = productMapper.toProductEntity(request, category);
+
+            productRepo.save(product);
+
+            log.info("Product updated successfully with request: {}", request);
+
+            return productMapper.toProductInfo(product);
+        } catch (Exception e) {
+            log.error("Error updating product", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error updating product", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }
 }
