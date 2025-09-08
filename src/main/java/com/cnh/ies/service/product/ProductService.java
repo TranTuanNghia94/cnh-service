@@ -65,6 +65,10 @@ public class ProductService {
             CategoryEntity category = categoryRepo.findById(UUID.fromString(request.getCategoryId()))
                 .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found", HttpStatus.NOT_FOUND.value(), requestId));
 
+            if (productRepo.findByCode(request.getCode()).isPresent()) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Product code already exists", HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+
             ProductEntity product = productMapper.toProductEntity(request, category);
 
             productRepo.save(product);
