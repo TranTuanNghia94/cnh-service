@@ -3,6 +3,7 @@ package com.cnh.ies.controller;
 import java.util.UUID;
 
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -66,7 +67,7 @@ public class ProductController {
         return ApiResponse.success(response, "Get product by id success");
     }
 
-    @PostMapping("/delete/{id}")
+    @DeleteMapping("/delete/{id}")
     public ApiResponse<String> deleteProduct(@PathVariable String id) {
         String requestId = UUID.randomUUID().toString();
         log.info("Deleting product with initiated requestId: {}", requestId);
