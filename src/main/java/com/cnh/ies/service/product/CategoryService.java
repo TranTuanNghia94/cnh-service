@@ -18,7 +18,7 @@ import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.product.CategoryInfo;
 import com.cnh.ies.model.product.CreateCategoryRequest;
 import com.cnh.ies.model.product.UpdateCategoryRequest;
-import com.cnh.ies.repository.goods.CategoryRepo;
+import com.cnh.ies.repository.product.CategoryRepo;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +63,11 @@ public class CategoryService {
         try {
             log.info("Creating category with request: {}", request);
 
+            if (categoryRepo.findByCode(request.getCode()).isPresent()) {
+                log.error("Category code already exists with code: {} RequestId: {}", request.getCode(), requestId);
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Category code already exists", HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+
             CategoryEntity category = categoryMapper.toCategoryEntity(request);
 
             categoryRepo.save(category);
@@ -79,13 +84,18 @@ public class CategoryService {
     @Transactional
     public String updateCategory(UpdateCategoryRequest request, String requestId) {
         try {
-            log.info("Updating category with request: {}", request);
+            log.info("Updating category with requestID: {} request: {}", requestId, request);
 
             Optional<CategoryEntity> category = categoryRepo.findById(UUID.fromString(request.getId()));
 
             if (category.isEmpty()) {
-                log.error("Category not found with id: {}", request.getId());
+                log.error("Category not found with id: {} RequestId: {}", request.getId(), requestId);
                 throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found with id: " + request.getId(), HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            if (category.get().getIsDeleted()) {
+                log.error("Category already deleted with id: {} RequestId: {}", request.getId(), requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category already deleted with id: " + request.getId(), HttpStatus.NOT_FOUND.value(), requestId);
             }
 
             category.get().setName(request.getName());
@@ -115,6 +125,11 @@ public class CategoryService {
             if (category.isEmpty()) {
                 log.error("Category not found with id: {}", id);
                 throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found with id: " + id, HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            if (category.get().getIsDeleted()) {
+                log.error("Category already deleted with id: {} RequestId: {}", id, requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category already deleted with id: " + id, HttpStatus.NOT_FOUND.value(), requestId);
             }
 
             category.get().setCode(category.get().getCode() + "_" + "DELETED" + "_" + requestId);

@@ -1,4 +1,4 @@
-package com.cnh.ies.repository.goods;
+package com.cnh.ies.repository.product;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

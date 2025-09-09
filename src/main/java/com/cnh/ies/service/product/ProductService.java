@@ -11,14 +11,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
-import com.cnh.ies.repository.goods.CategoryRepo;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.product.CreateProductRequest;
 import com.cnh.ies.mapper.product.ProductMapper;
-import com.cnh.ies.repository.goods.ProductRepo;
 import com.cnh.ies.model.product.ProductInfo;
 import com.cnh.ies.model.product.UpdateProductRequest;
+import com.cnh.ies.repository.product.CategoryRepo;
+import com.cnh.ies.repository.product.ProductRepo;
 import com.cnh.ies.entity.product.ProductEntity;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.entity.product.CategoryEntity;
