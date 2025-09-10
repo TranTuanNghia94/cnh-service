@@ -4,6 +4,8 @@ import org.springframework.stereotype.Repository;
 
 import com.cnh.ies.entity.customer.CustomerAddressEntity;
 import com.cnh.ies.repository.BaseRepo;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.Query;
@@ -17,4 +19,7 @@ public interface CustomerAddressRepo extends BaseRepo<CustomerAddressEntity, UUI
 
     @Query("SELECT c FROM CustomerAddressEntity c WHERE c.isDeleted = false")
     Page<CustomerAddressEntity> findAllAndIsDeletedFalse(Pageable pageable);
+
+    @Query("SELECT c FROM CustomerAddressEntity c WHERE c.customer.id = :customerId AND c.isDeleted = false")
+    List<CustomerAddressEntity> findAllByCustomerId(UUID customerId);
 }

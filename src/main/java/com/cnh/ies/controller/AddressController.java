@@ -1,12 +1,20 @@
 package com.cnh.ies.controller;
 
+import java.util.List;
+import java.util.UUID;
+
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.service.product.AddressService;
+import com.cnh.ies.model.customer.CreateAddressRequest;
+import com.cnh.ies.model.customer.CustomerAddressInfo;
+import com.cnh.ies.service.customer.CustomerAddressService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,17 +24,58 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class AddressController {
-    private final AddressService addressService;
+    private final CustomerAddressService addressService;
 
     @PostMapping("/create")
-    public ApiResponse<AddressInfo> createAddress(@RequestBody CreateAddressRequest request) {
+    public ApiResponse<CustomerAddressInfo> createAddress(@RequestBody CreateAddressRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Creating address with initiated requestId: {}", requestId);
 
-        AddressInfo response = addressService.createAddress(request, requestId);
+        CustomerAddressInfo response = addressService.createAddress(request, requestId);
 
         log.info("Creating address success with requestId: {}", requestId);
 
         return ApiResponse.success(response, "Create address success");
     }
+
+
+    @GetMapping("/list/{customerId}")
+    public ApiResponse<List<CustomerAddressInfo>> getAllAddresses(@PathVariable String customerId) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Getting all addresses with initiated requestId: {}", requestId);
+
+        List<CustomerAddressInfo> response = addressService.getAllAddresses(requestId, customerId);
+
+        log.info("Getting all addresses success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Get all addresses success");
+    }
+
+    @DeleteMapping("/delete/{id}")
+    public ApiResponse<String> deleteAddress(@PathVariable String id) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Deleting address with initiated requestId: {}", requestId);
+
+        String response = addressService.deleteAddress(id, requestId);
+
+        log.info("Deleting address success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Delete address success");
+    }
+
+    // @PutMapping("/update")
+    // public ApiResponse<String> updateAddress(@RequestBody UpdateAddressRequest request) {
+    //     String requestId = UUID.randomUUID().toString();
+    //     log.info("Updating address with initiated requestId: {}", requestId);
+
+    //     String response = addressService.updateAddress(request, requestId);
+    // }
+
+    // @GetMapping("/{id}")
+    // public ApiResponse<CustomerAddressInfo> getAddressById(@PathVariable String id) {
+    //     String requestId = UUID.randomUUID().toString();
+    //     log.info("Getting address by id: {} initiated requestId: {}", id, requestId);
+
+    //     CustomerAddressInfo response = addressService.getAddressById(id, requestId);
+    // }
 }
