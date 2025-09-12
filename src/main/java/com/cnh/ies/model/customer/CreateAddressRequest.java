@@ -11,5 +11,6 @@ public class CreateAddressRequest {
     private String contactPerson;
     private String phone;
     private String email;
+    private Optional<Boolean> isDeleted;
     private Optional<String> id;
 }

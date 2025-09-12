@@ -19,4 +19,7 @@ public interface CustomerRepo extends BaseRepo<CustomerEntity, UUID> {
 
     @Query("SELECT c FROM CustomerEntity c WHERE c.isDeleted = false")
     Page<CustomerEntity> findAllAndIsDeletedFalse(Pageable pageable);
+
+    @Query("SELECT c FROM CustomerEntity c WHERE c.id = :id AND c.isDeleted = false ")
+    Optional<CustomerEntity> findByIdAndIsDeletedFalse(UUID id);
 }

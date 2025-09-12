@@ -99,16 +99,11 @@ public class CustomerService {
         try {
             log.info("Getting customer by id: {} | RequestId: {}", id, requestId);
 
-            Optional<CustomerEntity> customer = customerRepo.findById(UUID.fromString(id));
+            Optional<CustomerEntity> customer = customerRepo.findByIdAndIsDeletedFalse(UUID.fromString(id));
 
             if (customer.isEmpty()) {
                 log.error("Customer not found with id: {} | RequestId: {}", id, requestId);
                 throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Customer not found", HttpStatus.NOT_FOUND.value(), requestId);
-            }
-
-            if (customer.get().getIsDeleted()) {
-                log.error("Customer is deleted with id: {} | RequestId: {}", id, requestId);
-                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Customer is deleted", HttpStatus.NOT_FOUND.value(), requestId);
             }
 
             log.info("Customer fetched successfully with id: {}", id);

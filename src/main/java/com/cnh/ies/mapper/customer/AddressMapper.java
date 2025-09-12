@@ -20,6 +20,7 @@ public class AddressMapper {
         customerAddressInfo.setContactPerson(customerAddress.getContactPerson());
         customerAddressInfo.setPhone(customerAddress.getPhone());
         customerAddressInfo.setEmail(customerAddress.getEmail());
+        customerAddressInfo.setIsDeleted(customerAddress.getIsDeleted());
         customerAddressInfo.setCreatedAt(customerAddress.getCreatedAt().toString());
         customerAddressInfo.setUpdatedAt(customerAddress.getUpdatedAt().toString());
         customerAddressInfo.setCreatedBy(customerAddress.getCreatedBy());
@@ -30,7 +31,11 @@ public class AddressMapper {
 
     public CustomerAddressEntity mapToCustomerAddressEntity(CreateAddressRequest request,CustomerEntity customer) {
         CustomerAddressEntity customerAddress = new CustomerAddressEntity();
-        customerAddress.setId(UUID.fromString(request.getId().orElse(null)));
+        
+        if (request.getId() != null && request.getId().isPresent()) {
+            customerAddress.setId(UUID.fromString(request.getId().get()));
+        }
+
         customerAddress.setAddress(request.getAddress());
         customerAddress.setContactPerson(request.getContactPerson());
         customerAddress.setPhone(request.getPhone());
@@ -38,7 +43,7 @@ public class AddressMapper {
         customerAddress.setCustomer(customer);
         customerAddress.setCreatedBy(RequestContext.getCurrentUsername());
         customerAddress.setUpdatedBy(RequestContext.getCurrentUsername());
-        customerAddress.setIsDeleted(false);
+        customerAddress.setIsDeleted(request.getIsDeleted() != null ? request.getIsDeleted().orElse(false) : false);
 
         return customerAddress;
     }

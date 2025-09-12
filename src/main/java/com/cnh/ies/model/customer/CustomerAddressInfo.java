@@ -9,6 +9,7 @@ public class CustomerAddressInfo {
     private String contactPerson;
     private String phone;
     private String email;
+    private Boolean isDeleted;
     private String customerId;
     private String createdAt;
     private String updatedAt;

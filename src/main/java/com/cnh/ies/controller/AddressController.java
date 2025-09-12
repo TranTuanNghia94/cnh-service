@@ -40,15 +40,15 @@ public class AddressController {
 
 
     @GetMapping("/list/{customerId}")
-    public ApiResponse<List<CustomerAddressInfo>> getAllAddresses(@PathVariable String customerId) {
+    public ApiResponse<List<CustomerAddressInfo>> getAllAddressesByCustomerId(@PathVariable String customerId) {
         String requestId = UUID.randomUUID().toString();
-        log.info("Getting all addresses with initiated requestId: {}", requestId);
+        log.info("Getting all addresses by customerId: {} with initiated requestId: {}", customerId, requestId);
 
-        List<CustomerAddressInfo> response = addressService.getAllAddresses(requestId, customerId);
+        List<CustomerAddressInfo> response = addressService.getAddressByCustomerId(requestId, customerId);
 
-        log.info("Getting all addresses success with requestId: {}", requestId);
+        log.info("Getting all addresses by customerId: {} success with requestId: {}", customerId, requestId);
 
-        return ApiResponse.success(response, "Get all addresses success");
+        return ApiResponse.success(response, "Get all addresses by customerId success");
     }
 
     @DeleteMapping("/delete/{id}")

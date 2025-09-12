@@ -101,5 +101,47 @@ public class CustomerAddressService {
         }
     }
 
+    public String updateAddress(CreateAddressRequest request, String requestId) {
+        try {
+            log.info("Updating address with requestId: {} | request: {}", requestId, request);
 
+            Optional<CustomerAddressEntity> customerAddress = customerAddressRepo.findById(UUID.fromString(request.getId().orElse(null)));
+
+            if (customerAddress.isEmpty()) {
+                log.error("Address not found with id: {} | RequestId: {}", request.getId(), requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Address not found", HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            CustomerAddressEntity customerAddressEntity = addressMapper.mapToCustomerAddressEntity(request, customerAddress.get().getCustomer());
+
+            customerAddressRepo.save(customerAddressEntity);
+
+            log.info("Address updated successfully with requestId: {} | request: {}", requestId, request);
+
+            return "Address updated successfully";
+        } catch (Exception e) {
+            log.error("Error updating address requestId: {} | error: {}", requestId, e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error updating address", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    public List<CustomerAddressInfo> getAddressByCustomerId(String requestId, String customerId) {
+        try {
+            log.info("Getting address by customerId: {} | RequestId: {}", customerId, requestId);
+
+            List<CustomerAddressEntity> customerAddress = customerAddressRepo.findByCustomerId(UUID.fromString(customerId));
+
+            if (customerAddress.size() == 0) {
+                log.error("Address not found with customerId: {} | RequestId: {}", customerId, requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Address not found", HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            log.info("Address fetched successfully with customerId: {}", customerId);
+
+            return customerAddress.stream().map(addressMapper::mapToCustomerAddressInfo).collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error getting address by customerId requestId: {} | error: {}", requestId, e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting address by customerId", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
 }
