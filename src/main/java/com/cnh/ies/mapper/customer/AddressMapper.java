@@ -1,5 +1,7 @@
 package com.cnh.ies.mapper.customer;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Component;
 
 import com.cnh.ies.entity.customer.CustomerAddressEntity;
@@ -28,6 +30,7 @@ public class AddressMapper {
 
     public CustomerAddressEntity mapToCustomerAddressEntity(CreateAddressRequest request,CustomerEntity customer) {
         CustomerAddressEntity customerAddress = new CustomerAddressEntity();
+        customerAddress.setId(UUID.fromString(request.getId().orElse(null)));
         customerAddress.setAddress(request.getAddress());
         customerAddress.setContactPerson(request.getContactPerson());
         customerAddress.setPhone(request.getPhone());

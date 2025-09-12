@@ -3,9 +3,9 @@ package com.cnh.ies.controller;
 import java.util.UUID;
 
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.customer.CreateCustomerRequest;
 import com.cnh.ies.model.customer.CustomerInfo;
+import com.cnh.ies.model.customer.UpdateCustomerRequest;
 import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.service.customer.CustomerService;
@@ -53,13 +54,17 @@ public class CustomerController {
         return ApiResponse.success(response, "Create customer success");
     }
 
-    // @PutMapping("/update")
-    // public ApiResponse<String> updateCustomer(@RequestBody UpdateCustomerRequest request) {
-    //     String requestId = UUID.randomUUID().toString();
-    //     log.info("Updating customer with initiated requestId: {}", requestId);
+    @PutMapping("/update")
+    public ApiResponse<String> updateCustomer(@RequestBody UpdateCustomerRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Updating customer with initiated requestId: {}", requestId);
 
-    //     String response = customerService.updateCustomer(request, requestId);
-    // }
+        String response = customerService.updateCustomer(request, requestId);
+
+        log.info("Updating customer success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Update customer success");
+    }
 
     @GetMapping("/{id}")
     public ApiResponse<CustomerInfo> getCustomerById(@PathVariable String id) {

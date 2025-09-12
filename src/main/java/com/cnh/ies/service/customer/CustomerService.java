@@ -16,6 +16,7 @@ import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.customer.CreateCustomerRequest;
 import com.cnh.ies.model.customer.CustomerInfo;
+import com.cnh.ies.model.customer.UpdateCustomerRequest;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.mapper.customer.CustomerMapper;
 import com.cnh.ies.mapper.customer.AddressMapper;
@@ -152,4 +153,37 @@ public class CustomerService {
     }
     
 
+    @Transactional
+    public String updateCustomer(UpdateCustomerRequest request, String requestId) {
+        try {
+            log.info("Updating customer with 0/3 steps RequestId: {} | Request: {}", requestId, request);
+
+            Optional<CustomerEntity> customer = customerRepo.findById(UUID.fromString(request.getId()));
+
+            if (customer.isEmpty()) {
+                log.error("Customer not found with id: {} | RequestId: {}", request.getId(), requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Customer not found", HttpStatus.NOT_FOUND.value(), requestId);
+            }
+            
+            CustomerEntity customerEntity = customerMapper.mapToCustomerEntity(request);
+            customerRepo.save(customerEntity);
+
+            log.info("Customer updated successfully with request 1/3: {}", requestId);
+
+            if (request.getAddresses() != null) {
+                List<CustomerAddressEntity> addresses = request.getAddresses().stream().map(address -> addressMapper.mapToCustomerAddressEntity(address, customerEntity)).collect(Collectors.toList());
+                customerAddressRepo.saveAll(addresses);
+                log.info("Customer addresses updated successfully with request 2/3: {}", requestId);
+            }
+
+
+            log.info("Customer updated successfully with request 3/3: {}", requestId);
+
+            return "Customer updated successfully";
+        }
+        catch (Exception e) {
+            log.error("Error updating customer requestId: {} | error: {}", requestId, e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error updating customer", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
 }

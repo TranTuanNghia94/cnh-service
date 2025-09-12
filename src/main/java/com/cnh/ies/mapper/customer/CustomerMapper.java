@@ -1,9 +1,13 @@
 package com.cnh.ies.mapper.customer;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Component;
 
 import com.cnh.ies.entity.customer.CustomerEntity;
 import com.cnh.ies.model.customer.CustomerInfo;
+import com.cnh.ies.model.customer.UpdateCustomerRequest;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.model.customer.CreateCustomerRequest;
 
 @Component
@@ -35,8 +39,24 @@ public class CustomerMapper {
         customer.setPhone(request.getPhone());
         customer.setTaxCode(request.getTaxCode());
         customer.setMisaCode(request.getMisaCode());
+        customer.setCreatedBy(RequestContext.getCurrentUsername());
+        customer.setUpdatedBy(RequestContext.getCurrentUsername());
         customer.setIsActive(true);
         
+        return customer;
+    }
+
+
+    public CustomerEntity mapToCustomerEntity(UpdateCustomerRequest request) {
+        CustomerEntity customer = new CustomerEntity();
+        customer.setId(UUID.fromString(request.getId()));
+        customer.setName(request.getName());
+        customer.setEmail(request.getEmail());
+        customer.setPhone(request.getPhone());
+        customer.setTaxCode(request.getTaxCode());
+        customer.setMisaCode(request.getMisaCode());
+        customer.setUpdatedBy(RequestContext.getCurrentUsername());
+
         return customer;
     }
 
