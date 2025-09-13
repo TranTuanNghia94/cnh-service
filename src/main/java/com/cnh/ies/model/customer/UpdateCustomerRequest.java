@@ -10,6 +10,7 @@ public class UpdateCustomerRequest {
     private String name;
     private String email;
     private String phone;
+    private String code;
     private String taxCode;
     private String misaCode;
     private List<CreateAddressRequest> addresses;

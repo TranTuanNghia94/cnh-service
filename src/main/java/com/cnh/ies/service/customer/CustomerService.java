@@ -153,11 +153,17 @@ public class CustomerService {
         try {
             log.info("Updating customer with 0/3 steps RequestId: {} | Request: {}", requestId, request);
 
+
             Optional<CustomerEntity> customer = customerRepo.findById(UUID.fromString(request.getId()));
 
             if (customer.isEmpty()) {
                 log.error("Customer not found with id: {} | RequestId: {}", request.getId(), requestId);
                 throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Customer not found", HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            if (request.getCode() == null) {
+                log.error("Customer code is required | RequestId: {}", requestId);
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Customer code is required", HttpStatus.BAD_REQUEST.value(), requestId);
             }
             
             CustomerEntity customerEntity = customerMapper.mapToCustomerEntity(request);
