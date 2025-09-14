@@ -50,6 +50,7 @@ public class CustomerMapper {
     public CustomerEntity mapToCustomerEntity(UpdateCustomerRequest request) {
         CustomerEntity customer = new CustomerEntity();
         customer.setId(UUID.fromString(request.getId()));
+        customer.setCode(request.getCode());
         customer.setName(request.getName());
         customer.setEmail(request.getEmail());
         customer.setPhone(request.getPhone());
