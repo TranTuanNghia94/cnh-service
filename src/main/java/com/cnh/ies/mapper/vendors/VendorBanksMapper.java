@@ -7,10 +7,17 @@ import com.cnh.ies.model.vendors.VendorBanksInfo;
 import com.cnh.ies.util.RequestContext;
 
 import org.springframework.stereotype.Component;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class VendorBanksMapper {
-    public static VendorBanksEntity toVendorBanksEntity(CreateVendorBanksRequest request, VendorsEntity vendor) {
+
+    public List<VendorBanksInfo> toVendorBanksInfoList(List<VendorBanksEntity> vendorBanksEntity) {
+        return vendorBanksEntity.stream().map(this::toVendorBanksInfo).collect(Collectors.toList());
+    }
+
+    public VendorBanksEntity toVendorBanksEntity(CreateVendorBanksRequest request, VendorsEntity vendor) {
         VendorBanksEntity vendorBanksEntity = new VendorBanksEntity();
         vendorBanksEntity.setVendor(vendor);
         vendorBanksEntity.setBankName(request.getBankName());
@@ -26,7 +33,7 @@ public class VendorBanksMapper {
         return vendorBanksEntity;
     }
 
-    public static VendorBanksInfo toVendorBanksInfo(VendorBanksEntity vendorBanksEntity) {
+    public VendorBanksInfo toVendorBanksInfo(VendorBanksEntity vendorBanksEntity) {
         VendorBanksInfo vendorBanksInfo = new VendorBanksInfo();
         vendorBanksInfo.setId(vendorBanksEntity.getId().toString());
         vendorBanksInfo.setBankName(vendorBanksEntity.getBankName());

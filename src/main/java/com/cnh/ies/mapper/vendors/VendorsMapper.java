@@ -6,10 +6,16 @@ import com.cnh.ies.entity.vendors.VendorsEntity;
 import com.cnh.ies.model.vendors.CreateVendorRequest;
 import com.cnh.ies.model.vendors.VendorInfo;
 import com.cnh.ies.util.RequestContext;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class VendorsMapper {
-    public static VendorInfo toVendorInfo(VendorsEntity vendorsEntity) { 
+
+    public List<VendorInfo> toVendorInfoList(List<VendorsEntity> vendorsEntity) {
+        return vendorsEntity.stream().map(this::toVendorInfo).collect(Collectors.toList());
+    }
+    public VendorInfo toVendorInfo(VendorsEntity vendorsEntity) { 
         VendorInfo vendorInfo = new VendorInfo();
         vendorInfo.setId(vendorsEntity.getId().toString());
         vendorInfo.setCode(vendorsEntity.getCode());
@@ -32,7 +38,7 @@ public class VendorsMapper {
         return vendorInfo;
     }
 
-    public static VendorsEntity toVendorsEntity(CreateVendorRequest request) {
+    public VendorsEntity toVendorsEntity(CreateVendorRequest request) {
         VendorsEntity vendorsEntity = new VendorsEntity();
         vendorsEntity.setCode(request.getCode());
         vendorsEntity.setName(request.getName());
