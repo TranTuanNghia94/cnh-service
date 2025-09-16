@@ -1,0 +1,46 @@
+package com.cnh.ies.mapper.vendors;
+
+import com.cnh.ies.entity.vendors.VendorsEntity;
+import com.cnh.ies.entity.vendors.VendorBanksEntity;
+import com.cnh.ies.model.vendors.CreateVendorBanksRequest;
+import com.cnh.ies.model.vendors.VendorBanksInfo;
+import com.cnh.ies.util.RequestContext;
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class VendorBanksMapper {
+    public static VendorBanksEntity toVendorBanksEntity(CreateVendorBanksRequest request, VendorsEntity vendor) {
+        VendorBanksEntity vendorBanksEntity = new VendorBanksEntity();
+        vendorBanksEntity.setVendor(vendor);
+        vendorBanksEntity.setBankName(request.getBankName());
+        vendorBanksEntity.setBankAccountName(request.getBankAccountName());
+        vendorBanksEntity.setBankAccountNumber(request.getBankAccountNumber());
+        vendorBanksEntity.setBankAccountBranch(request.getBankAccountBranch());
+        vendorBanksEntity.setBankAccountSwift(request.getBankAccountSwift());
+        vendorBanksEntity.setBankAccountIban(request.getBankAccountIban());
+        vendorBanksEntity.setIsActive(true);
+        vendorBanksEntity.setCreatedBy(RequestContext.getCurrentUsername());
+        vendorBanksEntity.setUpdatedBy(RequestContext.getCurrentUsername());
+        
+        return vendorBanksEntity;
+    }
+
+    public static VendorBanksInfo toVendorBanksInfo(VendorBanksEntity vendorBanksEntity) {
+        VendorBanksInfo vendorBanksInfo = new VendorBanksInfo();
+        vendorBanksInfo.setId(vendorBanksEntity.getId().toString());
+        vendorBanksInfo.setBankName(vendorBanksEntity.getBankName());
+        vendorBanksInfo.setBankAccountName(vendorBanksEntity.getBankAccountName());
+        vendorBanksInfo.setBankAccountNumber(vendorBanksEntity.getBankAccountNumber());
+        vendorBanksInfo.setBankAccountBranch(vendorBanksEntity.getBankAccountBranch());
+        vendorBanksInfo.setBankAccountSwift(vendorBanksEntity.getBankAccountSwift());
+        vendorBanksInfo.setBankAccountIban(vendorBanksEntity.getBankAccountIban());
+        vendorBanksInfo.setIsActive(vendorBanksEntity.getIsActive());
+        vendorBanksInfo.setCreatedAt(vendorBanksEntity.getCreatedAt());
+        vendorBanksInfo.setUpdatedAt(vendorBanksEntity.getUpdatedAt());
+        vendorBanksInfo.setCreatedBy(vendorBanksEntity.getCreatedBy());
+        vendorBanksInfo.setUpdatedBy(vendorBanksEntity.getUpdatedBy());
+        
+        return vendorBanksInfo;
+    }
+}

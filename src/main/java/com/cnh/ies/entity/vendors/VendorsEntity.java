@@ -10,9 +10,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 @Entity
 @Table(name = "vendors")
+@Data
+@EqualsAndHashCode(callSuper = true)
 public class VendorsEntity extends BaseEntity {
 
     @Column(name = "code", unique = true, nullable = false, length = 50)
