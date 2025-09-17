@@ -23,9 +23,9 @@ public class VendorBanksMapper {
         vendorBanksEntity.setBankName(request.getBankName());
         vendorBanksEntity.setBankAccountName(request.getBankAccountName());
         vendorBanksEntity.setBankAccountNumber(request.getBankAccountNumber());
-        vendorBanksEntity.setBankAccountBranch(request.getBankAccountBranch());
-        vendorBanksEntity.setBankAccountSwift(request.getBankAccountSwift());
-        vendorBanksEntity.setBankAccountIban(request.getBankAccountIban());
+        vendorBanksEntity.setBankAccountBranch(request.getBankAccountBranch().orElse(null));
+        vendorBanksEntity.setBankAccountSwift(request.getBankAccountSwift().orElse(null));
+        vendorBanksEntity.setBankAccountIban(request.getBankAccountIban().orElse(null));
         vendorBanksEntity.setIsActive(true);
         vendorBanksEntity.setCreatedBy(RequestContext.getCurrentUsername());
         vendorBanksEntity.setUpdatedBy(RequestContext.getCurrentUsername());

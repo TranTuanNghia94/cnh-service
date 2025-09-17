@@ -75,8 +75,8 @@ public class VendorService {
             vendorsRepo.save(vendor);
             log.info("Vendor created successfully with request 1/3: {}", requestId);
 
-            if (request.getBanks() != null) {
-                vendorBanksService.createVendorBanks( request.getBanks(), requestId, vendor);
+            if (request.getBanks().isPresent()) {
+                vendorBanksService.createVendorBanks( request.getBanks().get(), requestId, vendor);
 
                 log.info("Vendor banks created successfully with request 2/3: {}", requestId);
             }

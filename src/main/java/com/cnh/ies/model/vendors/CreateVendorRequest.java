@@ -1,6 +1,7 @@
 package com.cnh.ies.model.vendors;
 
 import java.util.List;
+import java.util.Optional;
 
 import lombok.Data;
 
@@ -16,5 +17,5 @@ public class CreateVendorRequest {
     private String address;
     private String taxCode;
     private String contactPerson;
-    private List<CreateVendorBanksRequest> banks;
+    private Optional<List<CreateVendorBanksRequest>> banks;
 }
