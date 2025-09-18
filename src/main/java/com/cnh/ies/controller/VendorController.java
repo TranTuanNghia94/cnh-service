@@ -8,6 +8,7 @@ import com.cnh.ies.service.vendor.VendorService;
 import com.cnh.ies.model.vendors.VendorInfo;
 import com.cnh.ies.model.vendors.CreateVendorRequest;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,7 +52,7 @@ public class VendorController {
 
 
 
-    @PostMapping("/delete/{id}")
+    @DeleteMapping("/delete/{id}")
     public String deleteVendor(@PathVariable String id) {
         String requestId = UUID.randomUUID().toString();
         log.info("Deleting vendor with initiated requestId: {}", requestId);
