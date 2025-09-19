@@ -14,6 +14,7 @@ import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.mapper.vendors.VendorsMapper;
 import com.cnh.ies.model.vendors.VendorInfo;
 import com.cnh.ies.model.vendors.CreateVendorRequest;
+import com.cnh.ies.model.vendors.UpdateVendorRequest;
 import com.cnh.ies.entity.vendors.VendorsEntity;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
@@ -108,6 +109,33 @@ public class VendorService {
             return vendorsMapper.toVendorInfo(vendor.get());
         } catch (Exception e) {
             log.error("Error getting vendor by id", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    @Transactional
+    public VendorInfo updateVendor(UpdateVendorRequest request, String requestId) {
+        try {
+            log.info("Updating vendor with id: {} | RequestId: {}", request.getId(), requestId);
+
+            Optional<VendorsEntity> vendor = vendorsRepo.findById(UUID.fromString(request.getId()));
+            if (vendor.isEmpty()) {
+                log.error("Vendor not found with id: {} | RequestId: {}", request.getId(), requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Vendor not found", HttpStatus.NOT_FOUND.value(), requestId);
+            }
+
+            if (vendor.get().getIsDeleted()) {
+                log.error("Vendor is deleted with id: {} | RequestId: {}", request.getId(), requestId);
+                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Vendor is deleted", HttpStatus.NOT_FOUND.value(), requestId);
+            }
+            
+            VendorsEntity vendorEntity = vendorsMapper.toVendorsEntity(request);
+            vendorsRepo.save(vendorEntity);
+
+            log.info("Vendor updated successfully with id: {}", request.getId());
+            return vendorsMapper.toVendorInfo(vendorEntity);
+        } catch (Exception e) {
+            log.error("Error updating vendor", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }

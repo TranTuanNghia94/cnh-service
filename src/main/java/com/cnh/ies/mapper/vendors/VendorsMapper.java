@@ -1,9 +1,12 @@
 package com.cnh.ies.mapper.vendors;
 
+import java.util.UUID;
+
 import org.springframework.stereotype.Component;
 
 import com.cnh.ies.entity.vendors.VendorsEntity;
 import com.cnh.ies.model.vendors.CreateVendorRequest;
+import com.cnh.ies.model.vendors.UpdateVendorRequest;
 import com.cnh.ies.model.vendors.VendorInfo;
 import com.cnh.ies.util.RequestContext;
 import java.util.List;
@@ -52,6 +55,22 @@ public class VendorsMapper {
         vendorsEntity.setContactPerson(request.getContactPerson());
         vendorsEntity.setIsActive(true);
         vendorsEntity.setCreatedBy(RequestContext.getCurrentUsername());
+        vendorsEntity.setUpdatedBy(RequestContext.getCurrentUsername());
+        
+        return vendorsEntity;
+    }
+
+    public VendorsEntity toVendorsEntity(UpdateVendorRequest request) {
+        VendorsEntity vendorsEntity = new VendorsEntity();
+        vendorsEntity.setId(UUID.fromString(request.getId()));
+        vendorsEntity.setCode(request.getCode());
+        vendorsEntity.setName(request.getName());
+        vendorsEntity.setEmail(request.getEmail());
+        vendorsEntity.setPhone(request.getPhone());
+        vendorsEntity.setMisaCode(request.getMisaCode());
+        vendorsEntity.setAddress(request.getAddress());
+        vendorsEntity.setTaxCode(request.getTaxCode());
+        vendorsEntity.setContactPerson(request.getContactPerson());
         vendorsEntity.setUpdatedBy(RequestContext.getCurrentUsername());
         
         return vendorsEntity;

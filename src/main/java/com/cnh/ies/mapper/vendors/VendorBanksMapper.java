@@ -3,6 +3,7 @@ package com.cnh.ies.mapper.vendors;
 import com.cnh.ies.entity.vendors.VendorsEntity;
 import com.cnh.ies.entity.vendors.VendorBanksEntity;
 import com.cnh.ies.model.vendors.CreateVendorBanksRequest;
+import com.cnh.ies.model.vendors.UpdateVendorBanksRequest;
 import com.cnh.ies.model.vendors.VendorBanksInfo;
 import com.cnh.ies.util.RequestContext;
 
@@ -50,4 +51,20 @@ public class VendorBanksMapper {
         
         return vendorBanksInfo;
     }
+
+    public VendorBanksEntity toVendorBanksEntity(UpdateVendorBanksRequest request, VendorsEntity vendor) {
+        VendorBanksEntity vendorBanksEntity = new VendorBanksEntity();
+        vendorBanksEntity.setVendor(vendor);
+        vendorBanksEntity.setBankName(request.getBankName());
+        vendorBanksEntity.setBankAccountName(request.getBankAccountName());
+        vendorBanksEntity.setBankAccountNumber(request.getBankAccountNumber());
+        vendorBanksEntity.setBankAccountBranch(request.getBankAccountBranch().orElse(null));
+        vendorBanksEntity.setBankAccountSwift(request.getBankAccountSwift().orElse(null));
+        vendorBanksEntity.setBankAccountIban(request.getBankAccountIban().orElse(null));
+        vendorBanksEntity.setIsActive(true);
+        vendorBanksEntity.setUpdatedBy(RequestContext.getCurrentUsername());
+        
+        return vendorBanksEntity;
+    }
+    
 }
