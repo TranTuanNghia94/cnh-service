@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.cnh.ies.entity.vendors.VendorBanksEntity;
@@ -18,5 +19,8 @@ public interface VendorBanksRepo extends BaseRepo<VendorBanksEntity, UUID> {
 
     @Query("SELECT v FROM VendorBanksEntity v WHERE v.vendor.id = :vendorId AND v.isDeleted = false")
     Page<VendorBanksEntity> findByVendorId(UUID vendorId, PageRequest pageable);
+
+    @Query("SELECT v FROM VendorBanksEntity v WHERE v.vendor.id = :vendorId AND v.isDeleted = false")
+    List<VendorBanksEntity> findByVendorAndIsDeletedFalse(UUID vendorId);
     
 }

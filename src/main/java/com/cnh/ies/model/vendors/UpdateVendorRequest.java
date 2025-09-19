@@ -1,7 +1,6 @@
 package com.cnh.ies.model.vendors;
 
 import java.util.List;
-import java.util.Optional;
 
 import lombok.Data;
 
@@ -16,5 +15,5 @@ public class UpdateVendorRequest {
     private String misaCode;
     private String address;
     private String contactPerson;
-    private Optional<List<UpdateVendorBanksRequest>> banks;
+    private List<UpdateVendorBanksRequest> banks;
 }

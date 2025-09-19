@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.cnh.ies.repository.vendors.VendorsRepo;
+import com.cnh.ies.repository.vendors.VendorBanksRepo;
+import com.cnh.ies.mapper.vendors.VendorBanksMapper;
 import com.cnh.ies.util.RequestContext;
 
 import jakarta.transaction.Transactional;
@@ -15,6 +17,7 @@ import com.cnh.ies.mapper.vendors.VendorsMapper;
 import com.cnh.ies.model.vendors.VendorInfo;
 import com.cnh.ies.model.vendors.CreateVendorRequest;
 import com.cnh.ies.model.vendors.UpdateVendorRequest;
+import com.cnh.ies.entity.vendors.VendorBanksEntity;
 import com.cnh.ies.entity.vendors.VendorsEntity;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
@@ -23,6 +26,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +36,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class VendorService {
     private final VendorsRepo vendorsRepo;
+    private final VendorBanksRepo vendorBanksRepo;
     private final VendorsMapper vendorsMapper;
+    private final VendorBanksMapper vendorBanksMapper;
     private final VendorBanksService vendorBanksService;
 
     public ListDataModel<VendorInfo> getAllVendors(String requestId, Integer page, Integer limit) {
@@ -104,9 +110,11 @@ public class VendorService {
                 log.error("Vendor is deleted with id: {} | RequestId: {}", id, requestId);
                 throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Vendor is deleted", HttpStatus.NOT_FOUND.value(), requestId);
             }
+
             log.info("Vendor fetched successfully with id: {}", id);
 
-            return vendorsMapper.toVendorInfo(vendor.get());
+            // Use the mapper with the vendor and fetch banks separately
+            return vendorsMapper.toVendorInfoWithBanks(vendor.get(), vendorBanksRepo.findByVendorAndIsDeletedFalse(vendor.get().getId()));
         } catch (Exception e) {
             log.error("Error getting vendor by id", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
@@ -114,9 +122,9 @@ public class VendorService {
     }
 
     @Transactional
-    public VendorInfo updateVendor(UpdateVendorRequest request, String requestId) {
+    public String updateVendor(UpdateVendorRequest request, String requestId) {
         try {
-            log.info("Updating vendor with id: {} | RequestId: {}", request.getId(), requestId);
+            log.info("Updating vendor with 0/3 steps requestId: {} request: {}", requestId, request);
 
             Optional<VendorsEntity> vendor = vendorsRepo.findById(UUID.fromString(request.getId()));
             if (vendor.isEmpty()) {
@@ -132,8 +140,18 @@ public class VendorService {
             VendorsEntity vendorEntity = vendorsMapper.toVendorsEntity(request);
             vendorsRepo.save(vendorEntity);
 
-            log.info("Vendor updated successfully with id: {}", request.getId());
-            return vendorsMapper.toVendorInfo(vendorEntity);
+            log.info("Vendor updated successfully with request 1/3: {}", requestId);
+
+            if (request.getBanks() != null) {
+                List<VendorBanksEntity> vendorBanks = request.getBanks().stream().map(bank -> vendorBanksMapper.toVendorBanksEntity(bank, vendor.get())).collect(Collectors.toList());
+                vendorBanksRepo.saveAll(vendorBanks);
+
+                log.info("Vendor banks updated successfully with request 2/3: {}", requestId);
+            }
+
+            log.info("Vendor updated successfully with request 3/3: {}", requestId);
+
+            return "Vendor updated successfully";
         } catch (Exception e) {
             log.error("Error updating vendor", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);

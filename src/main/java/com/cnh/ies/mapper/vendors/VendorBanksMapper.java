@@ -63,6 +63,7 @@ public class VendorBanksMapper {
         vendorBanksEntity.setBankAccountIban(request.getBankAccountIban().orElse(null));
         vendorBanksEntity.setIsActive(true);
         vendorBanksEntity.setUpdatedBy(RequestContext.getCurrentUsername());
+        vendorBanksEntity.setIsDeleted(request.getIsDeleted() != null ? request.getIsDeleted().orElse(false) : false);
         
         return vendorBanksEntity;
     }

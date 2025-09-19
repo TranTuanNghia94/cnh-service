@@ -13,5 +13,6 @@ public class UpdateVendorBanksRequest {
     private Optional<String> bankAccountBranch;
     private Optional<String> bankAccountSwift;
     private Optional<String> bankAccountIban;
+    private Optional<Boolean> isDeleted;
     private Optional<String> vendorId;
 }
