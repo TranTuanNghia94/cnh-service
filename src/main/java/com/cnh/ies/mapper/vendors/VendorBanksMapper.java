@@ -9,6 +9,7 @@ import com.cnh.ies.util.RequestContext;
 
 import org.springframework.stereotype.Component;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Component
@@ -27,10 +28,11 @@ public class VendorBanksMapper {
         vendorBanksEntity.setBankAccountBranch(request.getBankAccountBranch().orElse(null));
         vendorBanksEntity.setBankAccountSwift(request.getBankAccountSwift().orElse(null));
         vendorBanksEntity.setBankAccountIban(request.getBankAccountIban().orElse(null));
+        vendorBanksEntity.setIsDeleted(request.getIsDeleted() != null ? request.getIsDeleted().orElse(false) : false);
         vendorBanksEntity.setIsActive(true);
         vendorBanksEntity.setCreatedBy(RequestContext.getCurrentUsername());
         vendorBanksEntity.setUpdatedBy(RequestContext.getCurrentUsername());
-        
+        vendorBanksEntity.setId(request.getId() != null ? UUID.fromString(request.getId().orElse(null)) : null);
         return vendorBanksEntity;
     }
 

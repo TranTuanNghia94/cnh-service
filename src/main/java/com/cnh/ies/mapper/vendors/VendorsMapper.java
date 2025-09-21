@@ -109,6 +109,8 @@ public class VendorsMapper {
         vendorsEntity.setCode(request.getCode());
         vendorsEntity.setName(request.getName());
         vendorsEntity.setEmail(request.getEmail());
+        vendorsEntity.setCountry(request.getCountry());
+        vendorsEntity.setCurrency(request.getCurrency());
         vendorsEntity.setPhone(request.getPhone());
         vendorsEntity.setMisaCode(request.getMisaCode());
         vendorsEntity.setAddress(request.getAddress());
