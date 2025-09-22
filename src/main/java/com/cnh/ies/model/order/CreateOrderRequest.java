@@ -1,7 +1,7 @@
 package com.cnh.ies.model.order;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.List;
 
@@ -14,8 +14,8 @@ public class CreateOrderRequest {
     private String customerId;
     private String customerAddressId;
     private String contractNumber;
-    private Instant orderDate;
-    private Instant deliveryDate;
+    private LocalDate orderDate;
+    private LocalDate deliveryDate;
     private String status;
     private BigDecimal totalAmount;
     private BigDecimal discountAmount;

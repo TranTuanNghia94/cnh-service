@@ -1,7 +1,7 @@
 package com.cnh.ies.entity.order;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -43,10 +43,10 @@ public class OrderEntity extends BaseEntity {
     private String contractNumber;
     
     @Column(name = "order_date", nullable = false)
-    private Instant orderDate;
+    private LocalDate orderDate;
     
     @Column(name = "delivery_date")
-    private Instant deliveryDate;
+    private LocalDate deliveryDate;
     
     @Column(name = "status", nullable = false, length = 20)
     private String status;

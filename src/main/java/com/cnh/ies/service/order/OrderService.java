@@ -72,7 +72,7 @@ public class OrderService {
     }
     
     @Transactional
-    public String createOrder(CreateOrderRequest request, String requestId) {
+    public OrderInfo createOrder(CreateOrderRequest request, String requestId) {
         try {
             log.info("Creating order with 0/3 steps requestId: {} | request: {}", requestId, request);
 
@@ -101,7 +101,7 @@ public class OrderService {
 
             log.info("Order created successfully with request 3/3: {}", requestId);
 
-            return "Order created successfully";
+            return orderMapper.toOrderInfo(order);
         } catch (Exception e) {
             log.error("Error creating order", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error creating order", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
