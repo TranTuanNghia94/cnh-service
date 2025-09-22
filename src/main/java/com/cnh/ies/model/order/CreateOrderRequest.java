@@ -3,6 +3,7 @@ package com.cnh.ies.model.order;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 
 import lombok.Data;
 
@@ -21,4 +22,5 @@ public class CreateOrderRequest {
     private BigDecimal taxAmount;
     private BigDecimal finalAmount;
     private String notes;
+    private List<CreateOrderLineRequest> orderLines;
 }
