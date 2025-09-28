@@ -66,6 +66,18 @@ public class ProductController {
 
         return ApiResponse.success(response, "Get product by id success");
     }
+    
+    @GetMapping("/code/{code}")
+    public ApiResponse<ProductInfo> getProductByCode(@PathVariable String code) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Getting product by code: {} initiated requestId: {}", code, requestId);
+
+        ProductInfo response = productService.getProductByCode(code, requestId);
+
+        log.info("Getting product by code: {} success requestId: {}", code, requestId);
+
+        return ApiResponse.success(response, "Get product by code success");
+    }
 
     @DeleteMapping("/delete/{id}")
     public ApiResponse<String> deleteProduct(@PathVariable String id) {
