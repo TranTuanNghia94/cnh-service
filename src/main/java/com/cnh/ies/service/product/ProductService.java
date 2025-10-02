@@ -58,15 +58,19 @@ public class ProductService {
     public ProductInfo createProduct(CreateProductRequest request, String requestId) {
         log.info("Creating product: {} | RequestId: {}", request, requestId);
 
-        CategoryEntity category = categoryRepo.findById(UUID.fromString(request.getCategoryId()))
-            .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found", HttpStatus.NOT_FOUND.value(), requestId));
+        Optional<CategoryEntity> category = categoryRepo.findById(UUID.fromString(request.getCategoryId()));
+        if (category.isEmpty()) {
+            log.error("Category not found with id: {} RequestId: {}", request.getCategoryId(), requestId);
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Category not found", HttpStatus.NOT_FOUND.value(), requestId);
+        }
 
+            
         if (productRepo.findByCode(request.getCode()).isPresent()) {
             log.error("Product code already exists with code: {} RequestId: {}", request.getCode(), requestId);
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Product code already exists", HttpStatus.BAD_REQUEST.value(), requestId);
         }
 
-        ProductEntity product = productMapper.toProductEntity(request, category);
+        ProductEntity product = productMapper.toProductEntity(request, category.get());
 
         productRepo.save(product);
 
@@ -157,7 +161,7 @@ public class ProductService {
             log.error("Product not found with id: {} RequestId: {}", request.getId(), requestId);
             throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found", HttpStatus.NOT_FOUND.value(), requestId);
         }
-
+        
         if (product.get().getIsDeleted()) {
             log.error("Product already deleted with id: {} RequestId: {}", request.getId(), requestId);
             throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product already deleted", HttpStatus.NOT_FOUND.value(), requestId);
