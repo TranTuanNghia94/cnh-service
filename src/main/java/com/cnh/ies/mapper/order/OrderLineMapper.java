@@ -1,5 +1,6 @@
 package com.cnh.ies.mapper.order;
 
+
 import org.springframework.stereotype.Component;
 
 import com.cnh.ies.entity.order.OrderEntity;
@@ -47,6 +48,8 @@ public class OrderLineMapper {
     public OrderLineEntity toOrderLineEntity(CreateOrderLineRequest createOrderLineRequest, OrderEntity order) {
         OrderLineEntity orderLineEntity = new OrderLineEntity();
         orderLineEntity.setOrder(order);
+        orderLineEntity.setProduct(null);
+        orderLineEntity.setVendor(null);
         orderLineEntity.setProductCodeSuggest(createOrderLineRequest.getProductCodeSuggest());
         orderLineEntity.setProductNameSuggest(createOrderLineRequest.getProductNameSuggest());
         orderLineEntity.setVendorCodeSuggest(createOrderLineRequest.getVendorCodeSuggest());
@@ -61,9 +64,9 @@ public class OrderLineMapper {
         orderLineEntity.setTaxAmount(createOrderLineRequest.getTaxAmount());
         orderLineEntity.setTotalAmount(createOrderLineRequest.getTotalAmount());
         orderLineEntity.setNotes(createOrderLineRequest.getNotes());
-        orderLineEntity.setReceiverNote(createOrderLineRequest.getReceiverNote().orElse(null));
-        orderLineEntity.setDeliveryNote(createOrderLineRequest.getDeliveryNote().orElse(null));
-        orderLineEntity.setReferenceNote(createOrderLineRequest.getReferenceNote().orElse(null));
+        orderLineEntity.setReceiverNote(createOrderLineRequest.getReceiverNote() != null ? createOrderLineRequest.getReceiverNote().orElse(null) : null);
+        orderLineEntity.setDeliveryNote(createOrderLineRequest.getDeliveryNote() != null ? createOrderLineRequest.getDeliveryNote().orElse(null) : null);
+        orderLineEntity.setReferenceNote(createOrderLineRequest.getReferenceNote() != null ? createOrderLineRequest.getReferenceNote().orElse(null) : null);
         orderLineEntity.setCreatedBy(RequestContext.getCurrentUsername());
         orderLineEntity.setUpdatedBy(RequestContext.getCurrentUsername());
 

@@ -90,18 +90,18 @@ public class OrderService {
 
 
             OrderEntity order = orderMapper.toOrderEntity(request, customer.get(), customerAddress.get());
-            orderRepo.save(order);
+            OrderEntity savedOrder = orderRepo.save(order);
             log.info("Order created successfully with request 1/3: {}", requestId);
 
             if (request.getOrderLines() != null) {
-                List<OrderLineEntity> orderLines = request.getOrderLines().stream().map(orderLine -> orderLineMapper.toOrderLineEntity(orderLine, order)).collect(Collectors.toList());
+                List<OrderLineEntity> orderLines = request.getOrderLines().stream().map(orderLine -> orderLineMapper.toOrderLineEntity(orderLine, savedOrder)).collect(Collectors.toList());
                 orderLineRepo.saveAll(orderLines);
                 log.info("Order lines created successfully with request 2/3: {}", requestId);
             }
 
             log.info("Order created successfully with request 3/3: {}", requestId);
 
-            return orderMapper.toOrderInfo(order);
+            return orderMapper.toOrderInfo(savedOrder);
         } catch (Exception e) {
             log.error("Error creating order", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error creating order", HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);

@@ -38,9 +38,9 @@ public class OrderMapper {
 
     public OrderEntity toOrderEntity(CreateOrderRequest createOrderRequest, CustomerEntity customer, CustomerAddressEntity customerAddress) {
         OrderEntity order = new OrderEntity();
-        order.setId(UUID.randomUUID());
-        order.setOrderNumber(createOrderRequest.getOrderNumber());
+        order.setOrderNumber(UUID.randomUUID().toString());
         order.setCustomer(customer);
+        order.setVersion(1L);
         order.setCustomerAddress(customerAddress);
         order.setContractNumber(createOrderRequest.getContractNumber());
         order.setOrderDate(createOrderRequest.getOrderDate());
@@ -48,6 +48,7 @@ public class OrderMapper {
         order.setStatus(createOrderRequest.getStatus());
         order.setTotalAmount(createOrderRequest.getTotalAmount());
         order.setDiscountAmount(createOrderRequest.getDiscountAmount());
+        order.setIsIncludedTax(false);
         order.setTaxAmount(createOrderRequest.getTaxAmount());
         order.setFinalAmount(createOrderRequest.getFinalAmount());
         order.setNotes(createOrderRequest.getNotes());
