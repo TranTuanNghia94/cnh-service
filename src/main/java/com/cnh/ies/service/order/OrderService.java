@@ -1,5 +1,6 @@
 package com.cnh.ies.service.order;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,7 @@ import com.cnh.ies.mapper.order.OrderMapper;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.order.CreateOrderRequest;
+import com.cnh.ies.model.order.CreateOrderLineRequest;
 import com.cnh.ies.model.order.OrderInfo;
 import com.cnh.ies.entity.customer.CustomerAddressEntity;
 import com.cnh.ies.entity.customer.CustomerEntity;
@@ -94,9 +96,22 @@ public class OrderService {
             log.info("Order created successfully with request 1/3: {}", requestId);
 
             if (request.getOrderLines() != null) {
-                List<OrderLineEntity> orderLines = request.getOrderLines().stream().map(orderLine -> orderLineMapper.toOrderLineEntity(orderLine, savedOrder)).collect(Collectors.toList());
-                orderLineRepo.saveAll(orderLines);
-                log.info("Order lines created successfully with request 2/3: {}", requestId);
+                log.info("Processing {} order lines for requestId: {}", request.getOrderLines().size(), requestId);
+                try {
+                    List<OrderLineEntity> orderLines = new ArrayList<>();
+                    for (int i = 0; i < request.getOrderLines().size(); i++) {
+                        CreateOrderLineRequest orderLineRequest = request.getOrderLines().get(i);
+                        log.info("Processing order line {}: productId={}, vendorId={}", 
+                            i, orderLineRequest.getProductId(), orderLineRequest.getVendorId());
+                        OrderLineEntity orderLineEntity = orderLineMapper.toOrderLineEntity(orderLineRequest, savedOrder);
+                        orderLines.add(orderLineEntity);
+                    }
+                    orderLineRepo.saveAll(orderLines);
+                    log.info("Order lines created successfully with request 2/3: {}", requestId);
+                } catch (IllegalArgumentException e) {
+                    log.error("Invalid order line data: {} | RequestId: {}", e.getMessage(), requestId);
+                    throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, e.getMessage(), HttpStatus.BAD_REQUEST.value(), requestId);
+                }
             }
 
             log.info("Order created successfully with request 3/3: {}", requestId);
