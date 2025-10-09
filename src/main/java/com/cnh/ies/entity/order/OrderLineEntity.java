@@ -9,6 +9,7 @@ import com.cnh.ies.entity.vendors.VendorsEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -27,15 +28,15 @@ public class OrderLineEntity extends BaseEntity {
     private Long version;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id")
+    @JoinColumn(name = "order_id", nullable = false)
     private OrderEntity order;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id")
+    @JoinColumn(name = "product_id", nullable = false)
     private ProductEntity product;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vendor_id")
+    @JoinColumn(name = "vendor_id", nullable = false)
     private VendorsEntity vendor;
 
     @Column(name = "product_code_suggest", length = 200)
@@ -60,19 +61,19 @@ public class OrderLineEntity extends BaseEntity {
     private String uom;
     
     @Column(name = "discount_percent", nullable = false, precision = 5, scale = 2)
-    private BigDecimal discountPercent;
+    private BigDecimal discountPercent = BigDecimal.ZERO;
 
     @Column(name = "discount_amount", nullable = false, precision = 15, scale = 0)
-    private BigDecimal discountAmount;
+    private BigDecimal discountAmount = BigDecimal.ZERO;
     
     @Column(name = "is_included_tax", nullable = false)
-    private Boolean isIncludedTax;
+    private Boolean isIncludedTax = false;
 
     @Column(name = "tax_rate", nullable = false, precision = 5, scale = 2)
-    private BigDecimal taxRate;
+    private BigDecimal taxRate = BigDecimal.ZERO;
     
     @Column(name = "tax_amount", nullable = false, precision = 15, scale = 0)
-    private BigDecimal taxAmount;
+    private BigDecimal taxAmount = BigDecimal.ZERO;
 
     @Column(name = "total_amount", nullable = false, precision = 15, scale = 0)
     private BigDecimal totalAmount;
