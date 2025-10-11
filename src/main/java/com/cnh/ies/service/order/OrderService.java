@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.cnh.ies.repository.order.OrderRepo;
+import com.cnh.ies.repository.product.ProductRepo;
 import com.cnh.ies.util.RequestContext;
 
 import jakarta.transaction.Transactional;
@@ -27,6 +28,7 @@ import com.cnh.ies.entity.customer.CustomerAddressEntity;
 import com.cnh.ies.entity.customer.CustomerEntity;
 import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.entity.order.OrderLineEntity;
+import com.cnh.ies.entity.product.ProductEntity;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.mapper.order.OrderLineMapper;
 import com.cnh.ies.repository.customer.CustomerRepo;
@@ -44,6 +46,7 @@ public class OrderService {
     private final OrderMapper orderMapper;
     private final OrderLineMapper orderLineMapper;
     private final CustomerRepo customerRepo;
+    private final ProductRepo productRepo;
     private final CustomerAddressRepo customerAddressRepo;
 
 
@@ -97,21 +100,26 @@ public class OrderService {
 
             if (request.getOrderLines() != null) {
                 log.info("Processing {} order lines for requestId: {}", request.getOrderLines().size(), requestId);
-                try {
-                    List<OrderLineEntity> orderLines = new ArrayList<>();
-                    for (int i = 0; i < request.getOrderLines().size(); i++) {
-                        CreateOrderLineRequest orderLineRequest = request.getOrderLines().get(i);
-                        log.info("Processing order line {}: productId={}, vendorId={}", 
-                            i, orderLineRequest.getProductId(), orderLineRequest.getVendorId());
-                        OrderLineEntity orderLineEntity = orderLineMapper.toOrderLineEntity(orderLineRequest, savedOrder);
-                        orderLines.add(orderLineEntity);
-                    }
-                    orderLineRepo.saveAll(orderLines);
-                    log.info("Order lines created successfully with request 2/3: {}", requestId);
-                } catch (IllegalArgumentException e) {
-                    log.error("Invalid order line data: {} | RequestId: {}", e.getMessage(), requestId);
-                    throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, e.getMessage(), HttpStatus.BAD_REQUEST.value(), requestId);
+
+                List<UUID> productIds = new ArrayList<>();
+                for (CreateOrderLineRequest orderLine : request.getOrderLines()) {
+                    productIds.add(UUID.fromString(orderLine.getProductId().get()));
                 }
+
+                List<ProductEntity> products = productRepo.findByIdIn(productIds);
+
+                List<OrderLineEntity> orderLines = new ArrayList<>();
+
+                for (CreateOrderLineRequest orderLine : request.getOrderLines()) {
+                    ProductEntity product = products.stream().filter(p -> p.getId().equals(UUID.fromString(orderLine.getProductId().get()))).findFirst().orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found", HttpStatus.NOT_FOUND.value(), requestId));
+                    OrderLineEntity orderLineEntity = orderLineMapper.toOrderLineEntity(orderLine, savedOrder);
+                    orderLineEntity.setProduct(product);
+                    orderLines.add(orderLineEntity);
+                }
+
+                orderLineRepo.saveAll(orderLines);
+                log.info("Order lines created successfully with request 2/3: {}", requestId);
+
             }
 
             log.info("Order created successfully with request 3/3: {}", requestId);

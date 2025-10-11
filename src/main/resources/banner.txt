@@ -9,7 +9,7 @@
 █║                                                                                                      █
 █║  ╔═══════════════════════════════════════════════════════════════════════════════════════════════╗   █
 █║  ║                              Innovation & Technology Hub                                      ║   █
-█║  ║                      Powered by ${AnsiColor.BRIGHT_GREEN}Nghia Tran Tuan${AnsiColor.DEFAULT}  ║   █
+█║  ║                              Powered by Nghia Tran Tuan                                       ║   █
 █║  ║                                Ready for Excellence                                           ║   █
 █║  ╚═══════════════════════════════════════════════════════════════════════════════════════════════╝   █
 █║                                                                                                      █

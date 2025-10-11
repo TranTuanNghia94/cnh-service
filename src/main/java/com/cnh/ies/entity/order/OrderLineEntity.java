@@ -35,7 +35,7 @@ public class OrderLineEntity extends BaseEntity {
     private ProductEntity product;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vendor_id", nullable = false)
+    @JoinColumn(name = "vendor_id")
     private VendorsEntity vendor;
 
     @Column(name = "product_code_suggest", length = 200)

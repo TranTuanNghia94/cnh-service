@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import com.cnh.ies.entity.product.ProductEntity;
@@ -18,4 +19,7 @@ public interface ProductRepo extends BaseRepo<ProductEntity, UUID> {
     // add pagination in the query
     @Query("SELECT p FROM ProductEntity p WHERE p.isDeleted = false ORDER BY p.createdAt DESC")
     Page<ProductEntity> findAllAndIsDeletedFalse(Pageable pageable);
+
+    @Query("SELECT p FROM ProductEntity p WHERE p.id IN :ids AND p.isDeleted = false")
+    List<ProductEntity> findByIdIn(List<UUID> ids);
 }
