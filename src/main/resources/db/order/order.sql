@@ -46,7 +46,7 @@ CREATE TABLE order_lines (
     id uuid PRIMARY KEY,
     order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     product_id uuid NOT NULL REFERENCES products(id),
-    vendor_id uuid NOT NULL REFERENCES vendors(id),
+    vendor_id uuid REFERENCES vendors(id),
     product_code_suggest VARCHAR(200),
     product_name_suggest VARCHAR(200),
     vendor_code_suggest VARCHAR(200),

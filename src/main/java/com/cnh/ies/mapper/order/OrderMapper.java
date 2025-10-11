@@ -1,7 +1,5 @@
 package com.cnh.ies.mapper.order;
 
-import java.util.UUID;
-
 import org.springframework.stereotype.Component;
 
 import com.cnh.ies.entity.customer.CustomerAddressEntity;
@@ -9,10 +7,16 @@ import com.cnh.ies.entity.customer.CustomerEntity;
 import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.model.order.CreateOrderRequest;
 import com.cnh.ies.model.order.OrderInfo;
+import com.cnh.ies.service.order.OrderNumberService;
 import com.cnh.ies.util.RequestContext;
 
+import lombok.RequiredArgsConstructor;
+
 @Component
+@RequiredArgsConstructor
 public class OrderMapper {
+    
+    private final OrderNumberService orderNumberService;
 
     public OrderInfo toOrderInfo(OrderEntity order) {
         OrderInfo orderInfo = new OrderInfo();
@@ -38,7 +42,7 @@ public class OrderMapper {
 
     public OrderEntity toOrderEntity(CreateOrderRequest createOrderRequest, CustomerEntity customer, CustomerAddressEntity customerAddress) {
         OrderEntity order = new OrderEntity();
-        order.setOrderNumber(UUID.randomUUID().toString());
+        order.setOrderNumber(orderNumberService.generateNextOrderNumber());
         order.setCustomer(customer);
         order.setVersion(1L);
         order.setCustomerAddress(customerAddress);
