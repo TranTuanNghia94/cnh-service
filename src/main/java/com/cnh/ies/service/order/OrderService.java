@@ -48,6 +48,7 @@ public class OrderService {
     private final CustomerRepo customerRepo;
     private final ProductRepo productRepo;
     private final CustomerAddressRepo customerAddressRepo;
+    private final OrderNumberService orderNumberService;
 
 
     public ListDataModel<OrderInfo> getAllOrders(String requestId, Integer page, Integer limit) {
@@ -95,6 +96,7 @@ public class OrderService {
 
 
             OrderEntity order = orderMapper.toOrderEntity(request, customer.get(), customerAddress.get());
+            order.setOrderNumber(orderNumberService.generateNextOrderNumber());
             OrderEntity savedOrder = orderRepo.save(order);
             log.info("Order created successfully with request 1/3: {}", requestId);
 
