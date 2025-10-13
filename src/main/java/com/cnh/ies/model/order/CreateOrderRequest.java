@@ -10,7 +10,6 @@ import lombok.Data;
 @Data
 public class CreateOrderRequest {
     private Optional<String> id;
-    private String orderNumber;
     private String customerId;
     private String customerAddressId;
     private String contractNumber;

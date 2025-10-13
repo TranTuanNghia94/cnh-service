@@ -16,7 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-    import jakarta.persistence.Version;
+import jakarta.persistence.Version;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -30,8 +30,11 @@ public class OrderEntity extends BaseEntity {
     @Column(name = "version", nullable = false)
     private Long version;
     
-    @Column(name = "order_number", unique = true, nullable = false, length = 100)
-    private String orderNumber;
+    @Column(name = "order_number", nullable = false)
+    private Integer orderNumber;
+    
+    @Column(name = "order_prefix", nullable = false)
+    private String orderPrefix;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
@@ -73,7 +76,6 @@ public class OrderEntity extends BaseEntity {
     
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
-
 
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     private Set<OrderLineEntity> orderLines = new HashSet<>();

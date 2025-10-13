@@ -1,5 +1,6 @@
 package com.cnh.ies.mapper.order;
 
+import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
@@ -48,8 +49,8 @@ public class OrderLineMapper {
     public OrderLineEntity toOrderLineEntity(CreateOrderLineRequest createOrderLineRequest, OrderEntity order) {
         OrderLineEntity orderLineEntity = new OrderLineEntity();
         orderLineEntity.setOrder(order);
-        orderLineEntity.setProduct(null);
-        orderLineEntity.setVendor(null);
+        orderLineEntity.setIsDeleted(false);
+        orderLineEntity.setVersion(1L);
         orderLineEntity.setProductCodeSuggest(createOrderLineRequest.getProductCodeSuggest());
         orderLineEntity.setProductNameSuggest(createOrderLineRequest.getProductNameSuggest());
         orderLineEntity.setVendorCodeSuggest(createOrderLineRequest.getVendorCodeSuggest());
@@ -64,13 +65,18 @@ public class OrderLineMapper {
         orderLineEntity.setTaxAmount(createOrderLineRequest.getTaxAmount());
         orderLineEntity.setTotalAmount(createOrderLineRequest.getTotalAmount());
         orderLineEntity.setNotes(createOrderLineRequest.getNotes());
-        orderLineEntity.setReceiverNote(createOrderLineRequest.getReceiverNote() != null ? createOrderLineRequest.getReceiverNote().orElse(null) : null);
-        orderLineEntity.setDeliveryNote(createOrderLineRequest.getDeliveryNote() != null ? createOrderLineRequest.getDeliveryNote().orElse(null) : null);
-        orderLineEntity.setReferenceNote(createOrderLineRequest.getReferenceNote() != null ? createOrderLineRequest.getReferenceNote().orElse(null) : null);
-        orderLineEntity.setCreatedBy(RequestContext.getCurrentUsername());
-        orderLineEntity.setUpdatedBy(RequestContext.getCurrentUsername());
+        orderLineEntity.setReceiverNote(orNull(createOrderLineRequest.getReceiverNote()));
+        orderLineEntity.setDeliveryNote(orNull(createOrderLineRequest.getDeliveryNote()));
+        orderLineEntity.setReferenceNote(orNull(createOrderLineRequest.getReferenceNote()));
+        String currentUser = RequestContext.getCurrentUsername();
+        orderLineEntity.setCreatedBy(currentUser);
+        orderLineEntity.setUpdatedBy(currentUser);
 
         return orderLineEntity;
+    }
+    
+    private String orNull(Optional<String> value) {
+        return value != null ? value.orElse(null) : null;
     }
     
 }

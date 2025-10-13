@@ -10,7 +10,8 @@ import lombok.Data;
 @Data
 public class OrderInfo {
     private String id;
-    private String orderNumber;
+    private Integer orderNumber;
+    private String orderPrefix;
     private String customerName;
     private String contractNumber;
     private LocalDate orderDate;

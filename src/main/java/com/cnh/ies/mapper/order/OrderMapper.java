@@ -7,7 +7,6 @@ import com.cnh.ies.entity.customer.CustomerEntity;
 import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.model.order.CreateOrderRequest;
 import com.cnh.ies.model.order.OrderInfo;
-import com.cnh.ies.service.order.OrderNumberService;
 import com.cnh.ies.util.RequestContext;
 
 import lombok.RequiredArgsConstructor;
@@ -15,13 +14,12 @@ import lombok.RequiredArgsConstructor;
 @Component
 @RequiredArgsConstructor
 public class OrderMapper {
-    
-    private final OrderNumberService orderNumberService;
 
     public OrderInfo toOrderInfo(OrderEntity order) {
         OrderInfo orderInfo = new OrderInfo();
         orderInfo.setId(order.getId().toString());
         orderInfo.setOrderNumber(order.getOrderNumber());
+        orderInfo.setOrderPrefix(order.getOrderPrefix());
         orderInfo.setCustomerName(order.getCustomer().getName());
         orderInfo.setContractNumber(order.getContractNumber());
         orderInfo.setOrderDate(order.getOrderDate());
@@ -42,7 +40,6 @@ public class OrderMapper {
 
     public OrderEntity toOrderEntity(CreateOrderRequest createOrderRequest, CustomerEntity customer, CustomerAddressEntity customerAddress) {
         OrderEntity order = new OrderEntity();
-        order.setOrderNumber(orderNumberService.generateNextOrderNumber());
         order.setCustomer(customer);
         order.setVersion(1L);
         order.setCustomerAddress(customerAddress);

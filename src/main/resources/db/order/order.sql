@@ -2,7 +2,8 @@
 CREATE TABLE orders (
     version BIGINT NOT NULL DEFAULT 1,
     id uuid PRIMARY KEY,
-    order_number VARCHAR(100) UNIQUE NOT NULL,
+    order_number  SERIAL,
+    order_prefix VARCHAR(10) NOT NULL,
     customer_id uuid REFERENCES customers(id),
     customer_address_id uuid REFERENCES customer_addresses(id),
     contract_number VARCHAR(200) NOT NULL,
@@ -24,7 +25,6 @@ CREATE TABLE orders (
 );
 
 -- Primary indexes for orders table
-CREATE INDEX idx_orders_order_number ON orders(order_number);
 CREATE INDEX idx_orders_customer_id ON orders(customer_id);
 CREATE INDEX idx_orders_customer_address_id ON orders(customer_address_id);
 CREATE INDEX idx_orders_status ON orders(status);
