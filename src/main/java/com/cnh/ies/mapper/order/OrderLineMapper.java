@@ -1,30 +1,41 @@
 package com.cnh.ies.mapper.order;
 
 import java.util.Optional;
+import java.util.List;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.entity.order.OrderLineEntity;
+import com.cnh.ies.mapper.product.ProductMapper;
+import com.cnh.ies.mapper.vendors.VendorsMapper;
 import com.cnh.ies.model.order.CreateOrderLineRequest;
 import com.cnh.ies.model.order.OrderLineInfo;
 import com.cnh.ies.util.RequestContext;
 
 @Component
 public class OrderLineMapper {
-    
+    @Autowired
+    private ProductMapper productMapper;
+    @Autowired
+    private VendorsMapper vendorMapper;
+
     public OrderLineInfo toOrderLineInfo(OrderLineEntity orderLineEntity) {
         OrderLineInfo orderLineInfo = new OrderLineInfo();
         orderLineInfo.setId(orderLineEntity.getId().toString());
         orderLineInfo.setOrderId(orderLineEntity.getOrder().getId().toString());
         orderLineInfo.setProductId(orderLineEntity.getProduct().getId().toString());
         orderLineInfo.setProductName(orderLineEntity.getProduct().getName());
-        orderLineInfo.setVendorId(orderLineEntity.getVendor().getId().toString());
-        orderLineInfo.setVendorName(orderLineEntity.getVendor().getName());
+        orderLineInfo.setVendorId(orderLineEntity.getVendor() != null ? orderLineEntity.getVendor().getId().toString() : null);
+        orderLineInfo.setVendorName(orderLineEntity.getVendor() != null ? orderLineEntity.getVendor().getName() : orderLineEntity.getVendorNameSuggest());
+        orderLineInfo.setVendorCodeSuggest(orderLineEntity.getVendor() != null ? orderLineEntity.getVendor().getCode() : orderLineEntity.getVendorCodeSuggest());
+        orderLineInfo.setVendorNameSuggest(orderLineEntity.getVendor() != null ? orderLineEntity.getVendor().getName() : orderLineEntity.getVendorNameSuggest());
         orderLineInfo.setProductCodeSuggest(orderLineEntity.getProductCodeSuggest());
         orderLineInfo.setProductNameSuggest(orderLineEntity.getProductNameSuggest());
-        orderLineInfo.setVendorCodeSuggest(orderLineEntity.getVendorCodeSuggest());
-        orderLineInfo.setVendorNameSuggest(orderLineEntity.getVendorNameSuggest());
+        orderLineInfo.setProduct(orderLineEntity.getProduct() != null ? productMapper.toProductInfo(orderLineEntity.getProduct()) : null);
+        orderLineInfo.setVendor(orderLineEntity.getVendor() != null ? vendorMapper.toVendorInfo(orderLineEntity.getVendor()) : null);
         orderLineInfo.setQuantity(orderLineEntity.getQuantity());
         orderLineInfo.setUnitPrice(orderLineEntity.getUnitPrice());
         orderLineInfo.setUom(orderLineEntity.getUom());
@@ -79,4 +90,7 @@ public class OrderLineMapper {
         return value != null ? value.orElse(null) : null;
     }
     
+    public List<OrderLineInfo> toOrderLineInfos(List<OrderLineEntity> orderLines) {
+        return orderLines.stream().map(this::toOrderLineInfo).collect(Collectors.toList());
+    }
 }

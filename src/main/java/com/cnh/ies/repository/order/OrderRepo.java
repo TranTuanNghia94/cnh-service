@@ -16,7 +16,7 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
     @Query("SELECT o FROM OrderEntity o WHERE o.orderNumber = :orderNumber AND o.isDeleted = false")
     Optional<OrderEntity> findByOrderNumber(String orderNumber);
 
-    @Query("SELECT o FROM OrderEntity o WHERE o.isDeleted = false")
+    @Query("SELECT o FROM OrderEntity o LEFT JOIN FETCH o.customer WHERE o.isDeleted = false")
     Page<OrderEntity> findAllAndIsDeletedFalse(Pageable pageable);
 
     @Query("SELECT o FROM OrderEntity o WHERE o.id = :id AND o.isDeleted = false")
@@ -24,4 +24,7 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
     
     @Query("SELECT o.orderNumber FROM OrderEntity o WHERE o.orderPrefix = :orderPrefix AND o.isDeleted = false")
     Integer findMaxSequenceForYearMonth(String orderPrefix);
+
+    @Query("SELECT o FROM OrderEntity o WHERE o.orderPrefix = :orderPrefix AND o.orderNumber = :orderNumber AND o.isDeleted = false")
+    Optional<OrderEntity> findByOrderPrefixAndOrderNumber(String orderPrefix, Integer orderNumber);
 }

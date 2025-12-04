@@ -8,20 +8,26 @@ import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.model.order.CreateOrderRequest;
 import com.cnh.ies.model.order.OrderInfo;
 import com.cnh.ies.util.RequestContext;
-
+import com.cnh.ies.mapper.customer.CustomerMapper;
+import com.cnh.ies.mapper.customer.AddressMapper;
 import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
 public class OrderMapper {
 
+    private final CustomerMapper customerMapper;
+
+    private final AddressMapper addressMapper;
+
     public OrderInfo toOrderInfo(OrderEntity order) {
         OrderInfo orderInfo = new OrderInfo();
         orderInfo.setId(order.getId().toString());
         orderInfo.setOrderNumber(order.getOrderNumber());
         orderInfo.setOrderPrefix(order.getOrderPrefix());
-        orderInfo.setCustomerName(order.getCustomer().getName());
         orderInfo.setContractNumber(order.getContractNumber());
+        orderInfo.setCustomer( order.getCustomer() != null ? customerMapper.mapToCustomerInfo(order.getCustomer()) : null);
+        orderInfo.setCustomerAddress( order.getCustomerAddress() != null ? addressMapper.mapToCustomerAddressInfo(order.getCustomerAddress()) : null);
         orderInfo.setOrderDate(order.getOrderDate());
         orderInfo.setDeliveryDate(order.getDeliveryDate());
         orderInfo.setStatus(order.getStatus());

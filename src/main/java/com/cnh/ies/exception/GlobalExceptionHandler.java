@@ -21,6 +21,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> response = ApiResponse.<Object>builder()
                 .success(false)
                 .error(ex.getErrorMessage())
+                .errorCode(ex.getErrorCode())
                 .status(ex.getHttpStatus())
                 .requestId(ex.getRequestId())
                 .build();
@@ -35,6 +36,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> response = ApiResponse.<Object>builder()
                 .success(false)
                 .error("An unexpected error occurred")
+                .errorCode(ApiException.ErrorCode.INTERNAL_ERROR)
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .build();
         

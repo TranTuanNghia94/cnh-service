@@ -26,6 +26,8 @@ public class ApiResponse<T> {
     private T data;
     
     private String error;
+
+    private String errorCode;
     
     private String requestId;
     
@@ -49,19 +51,21 @@ public class ApiResponse<T> {
                 .build();
     }
     
-    public static <T> ApiResponse<T> error(String error, String requestId) {
+    public static <T> ApiResponse<T> error(String error, String errorCode, String requestId) {
         return ApiResponse.<T>builder()
                 .success(false)
                 .error(error)
+                .errorCode(errorCode)
                 .requestId(requestId)
                 .build();
     }
     
-    public static <T> ApiResponse<T> error(String error, Integer status, String requestId) {
+    public static <T> ApiResponse<T> error(String error, String errorCode, Integer status, String requestId) {
         return ApiResponse.<T>builder()
                 .success(false)
                 .error(error)
                 .status(status)
+                .errorCode(errorCode)
                 .requestId(requestId)
                 .build();
     }

@@ -4,7 +4,6 @@ import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 
-
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -38,44 +37,38 @@ public class AuthService {
     private final ObjectMapper objectMapper;
 
     public ResponseLoginModel login(LoginModel payload, String requestId) {
-        try {
-            log.info("Login request: {} | RequestId: {}", payload.getEmail(), requestId);
-            
-            Optional<UserEntity> user = userRepo.findOneByEmail(payload.getEmail());
+        log.info("Login request: {} | RequestId: {}", payload.getEmail(), requestId);
 
-            if (user.isEmpty() || !user.get().getIsActive()) {
-                log.error("User not found: {} | RequestId: {}", payload.getEmail(), requestId);
-                throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "User not found",
-                HttpStatus.UNAUTHORIZED.value(), requestId);
-            }
+        Optional<UserEntity> user = userRepo.findOneByEmail(payload.getEmail());
 
-            UserInfo userInfo = userMapper.mapToUserInfo(user.get());
+        if (user.isEmpty() || !user.get().getIsActive()) {
+            log.error("User not found: {} | RequestId: {}", payload.getEmail(), requestId);
+            throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "User not found",
+                    HttpStatus.UNAUTHORIZED.value(), requestId);
+        }
 
-            if (!BCrypt.checkpw(payload.getPassword(), user.get().getPassword())) {
-                log.error("Invalid email or password: {} | RequestId: {}", payload.getEmail(), requestId);
-                throw new ApiException(ApiException.ErrorCode.INVALID_CREDENTIALS, "Invalid username or password",
-                HttpStatus.UNAUTHORIZED.value(), requestId);
-            }
+        UserInfo userInfo = userMapper.mapToUserInfo(user.get());
 
-            String accessToken = jwtService.generateAccessToken(userInfo);
-            String refreshToken = generateRefreshToken();
+        if (!BCrypt.checkpw(payload.getPassword(), user.get().getPassword())) {
+            log.error("Invalid email or password: {} | RequestId: {}", payload.getEmail(), requestId);
+            throw new ApiException(ApiException.ErrorCode.INVALID_CREDENTIALS, "Invalid username or password",
+                    HttpStatus.UNAUTHORIZED.value(), requestId);
+        }
 
-            storeUserTokens(userInfo, accessToken, refreshToken);
+        String accessToken = jwtService.generateAccessToken(userInfo);
+        String refreshToken = generateRefreshToken();
 
-            log.info("Login success: {} | RequestId: {}", userInfo, requestId);
+        storeUserTokens(userInfo, accessToken, refreshToken);
 
-            return ResponseLoginModel.builder()
+        log.info("Login success: {} | RequestId: {}", userInfo, requestId);
+
+        return ResponseLoginModel.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .username(userInfo.getUsername())
                 .tokenType("Bearer")
                 .build();
 
-        } catch (Exception e) {
-            log.error("Error logging in: {}", e.getMessage());
-            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
-            HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
-        }
     }
 
     public ResponseLoginModel refreshToken(String refreshToken, String requestId) {
@@ -85,15 +78,15 @@ public class AuthService {
             if (refreshToken == null) {
                 log.error("Refresh token is required: {} | RequestId: {}", refreshToken, requestId);
                 throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "Refresh token is required",
-                HttpStatus.UNAUTHORIZED.value(), requestId);
+                        HttpStatus.UNAUTHORIZED.value(), requestId);
             }
 
-            String username =  RequestContext.getCurrentUsername();
+            String username = RequestContext.getCurrentUsername();
 
             if (!isValidRefreshToken(username, refreshToken)) {
                 log.error("Invalid refresh token: {} | RequestId: {}", refreshToken, requestId);
                 throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "Invalid refresh token",
-                HttpStatus.UNAUTHORIZED.value(), requestId);
+                        HttpStatus.UNAUTHORIZED.value(), requestId);
             }
 
             UserInfo userInfo = getUserInfoFromRedis(username);
@@ -106,16 +99,16 @@ public class AuthService {
             log.info("Refresh token success: {} | RequestId: {}", userInfo, requestId);
 
             return ResponseLoginModel.builder()
-                .accessToken(accessToken)
-                .refreshToken(newRefreshToken)
-                .username(userInfo.getUsername())
-                .tokenType("Bearer")
-                .build();
+                    .accessToken(accessToken)
+                    .refreshToken(newRefreshToken)
+                    .username(userInfo.getUsername())
+                    .tokenType("Bearer")
+                    .build();
 
         } catch (Exception e) {
             log.error("Error refreshing token: {}", e.getMessage());
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
-            HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }
 
@@ -127,11 +120,10 @@ public class AuthService {
             log.info("Logout success: {} | RequestId: {}", username, requestId);
 
             return "Logout success";
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             log.error("Error logging out: {}", e.getMessage());
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
-            HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }
 

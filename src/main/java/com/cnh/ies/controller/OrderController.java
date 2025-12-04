@@ -39,16 +39,16 @@ public class OrderController {
         return ApiResponse.success(response, "Create order success");
     }
 
-    @GetMapping("/{id}")
-    public ApiResponse<OrderInfo> getOrderById(@PathVariable String id) {
+    @GetMapping("/{code}")
+    public ApiResponse<OrderInfo> getOrderByCode(@PathVariable String code) {
         String requestId = UUID.randomUUID().toString();
-        log.info("Getting order by id: {} initiated requestId: {}", id, requestId);
+        log.info("Getting order by code: {} initiated requestId: {}", code, requestId);
 
-        OrderInfo response = orderService.getOrderById(id, requestId);
+        OrderInfo response = orderService.getOrderByCode(code, requestId);
 
-        log.info("Getting order by id: {} success with requestId: {}", id, requestId);
+        log.info("Getting order by code: {} success with requestId: {}", code, requestId);
 
-        return ApiResponse.success(response, "Get order by id success");
+        return ApiResponse.success(response, "Get order by code success");
     }
 
     @DeleteMapping("/delete/{id}")
@@ -63,12 +63,17 @@ public class OrderController {
         return ApiResponse.success(response, "Delete order success");
     }
 
-    // @PostMapping("/update")
-    // public ApiResponse<OrderInfo> updateOrder(@RequestBody UpdateOrderRequest
-    // request) {
-    // String requestId = UUID.randomUUID().toString();
-    // log.info("Updating order with initiated requestId: {}", requestId);
-    // }
+    @PostMapping("/update")
+    public ApiResponse<OrderInfo> updateOrder(@RequestBody CreateOrderRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Updating order with initiated requestId: {}", requestId);
+
+        OrderInfo response = orderService.updateOrder(request, requestId);
+
+        log.info("Updating order with initiated requestId: {} success with requestId: {}", requestId, requestId);
+
+        return ApiResponse.success(response, "Update order success");
+    }
 
     @PostMapping("/list")
     public ApiResponse<ListDataModel<OrderInfo>> getAllOrders(@RequestBody ApiRequestModel request) {

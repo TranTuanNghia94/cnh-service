@@ -3,6 +3,9 @@ package com.cnh.ies.model.order;
 import lombok.Data;
 import java.math.BigDecimal;
 
+import com.cnh.ies.model.product.ProductInfo;
+import com.cnh.ies.model.vendors.VendorInfo;
+
 @Data
 public class OrderLineInfo {
     private String id;
@@ -15,6 +18,8 @@ public class OrderLineInfo {
     private String productNameSuggest;
     private String vendorCodeSuggest;
     private String vendorNameSuggest;
+    private ProductInfo product;
+    private VendorInfo vendor;
     private BigDecimal quantity;
     private BigDecimal unitPrice;
     private String uom;

@@ -35,6 +35,8 @@ import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.mapper.order.OrderLineMapper;
 import com.cnh.ies.repository.customer.CustomerRepo;
 import com.cnh.ies.repository.customer.CustomerAddressRepo;
+import com.cnh.ies.mapper.customer.CustomerMapper;
+import com.cnh.ies.mapper.customer.AddressMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +53,8 @@ public class OrderService {
     private final ProductRepo productRepo;
     private final CustomerAddressRepo customerAddressRepo;
     private final OrderNumberService orderNumberService;
+    private final CustomerMapper customerMapper;
+    private final AddressMapper addressMapper;
 
     public ListDataModel<OrderInfo> getAllOrders(String requestId, Integer page, Integer limit) {
         try {
@@ -94,7 +98,8 @@ public class OrderService {
                 customerAddress = null;
             }
 
-            BigDecimal amount = request.getOrderLines().stream().map(line -> line.getTotalAmount()).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal amount = request.getOrderLines().stream().map(line -> line.getTotalAmount())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             OrderEntity order = orderMapper.toOrderEntity(request, customer, customerAddress);
             order.setOrderNumber(orderNumberService.generateNextNumberOrReset());
@@ -125,24 +130,100 @@ public class OrderService {
         }
     }
 
-    public OrderInfo getOrderById(String id, String requestId) {
+    public OrderInfo getOrderByCode(String code, String requestId) {
         try {
-            log.info("Getting order by id with requestId: {} | id: {}", requestId, id);
-            Optional<OrderEntity> order = orderRepo.findByIdAndIsDeletedFalse(UUID.fromString(id));
+            log.info("Getting order by code with requestId: {} | code: {}", requestId, code);
+            String[] codeParts = code.split("\\.");
+
+            log.info("Code parts: {} | RequestId: {}", codeParts, requestId);
+            if (codeParts.length != 2) {
+                log.error("Invalid code format: {} | RequestId: {}", code, requestId);
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid code format",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+
+            String orderPrefix = codeParts[0];
+            Integer orderNumber = Integer.parseInt(codeParts[1]);
+            Optional<OrderEntity> order = orderRepo.findByOrderPrefixAndOrderNumber(orderPrefix, orderNumber);
             if (order.isEmpty()) {
-                log.error("Order not found with id: {} | RequestId: {}", id, requestId);
+                log.error("Order not found with code: {} | RequestId: {}", code, requestId);
                 throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Order not found",
                         HttpStatus.NOT_FOUND.value(), requestId);
             }
 
-            log.info("Order fetched successfully with requestId: {} | data: {}", requestId, order.get());
+            OrderInfo orderInfo = orderMapper.toOrderInfo(order.get());
 
-            return orderMapper.toOrderInfo(order.get());
+            Optional<CustomerEntity> customer = customerRepo.findById(order.get().getCustomer().getId());
+            if (customer.isEmpty()) {
+                log.warn("Customer not found with id: {} | RequestId: {}", order.get().getCustomer().getId(),
+                        requestId);
+            } else {
+                orderInfo.setCustomer(customerMapper.mapToCustomerInfo(customer.get()));
+            }
+
+            if (order.get().getCustomerAddress() != null) {
+                Optional<CustomerAddressEntity> customerAddress = customerAddressRepo
+                        .findById(order.get().getCustomerAddress().getId());
+                if (customerAddress.isEmpty()) {
+                    log.warn("Customer address not found with id: {} | RequestId: {}",
+                            order.get().getCustomerAddress().getId(), requestId);
+                } else {
+                    orderInfo.setCustomerAddress(addressMapper.mapToCustomerAddressInfo(customerAddress.get()));
+                }
+            }
+
+            List<OrderLineEntity> orderLines = orderLineRepo.findAllByOrderId(order.get().getId());
+            if (orderLines.isEmpty()) {
+                log.warn("Order lines not found with order id: {} | RequestId: {}", order.get().getId(), requestId);
+            } else {
+                orderInfo.setOrderLines(
+                        orderLineMapper.toOrderLineInfos(orderLines).stream().collect(Collectors.toSet()));
+            }
+
+            log.info("Order fetched successfully with requestId: {}", requestId);
+            return orderInfo;
         } catch (Exception e) {
-            log.error("Error getting order by id", e);
-            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting order by id",
+            log.error("Error getting order by code", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting order by code",
                     HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
+    }
+
+    public OrderInfo updateOrder(CreateOrderRequest request, String requestId) {
+        log.info("Updating order with requestId: {} | request: {}", requestId, request);
+
+        Optional<OrderEntity> order = orderRepo.findById(UUID.fromString(request.getId().orElse(null)));
+        if (order.isEmpty()) {
+            log.error("Order not found with id: {} | RequestId: {}", request.getId(), requestId);
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Order not found",
+                    HttpStatus.NOT_FOUND.value(), requestId);
+        }
+
+        if (request.getCustomerId() != null) {
+            CustomerEntity customer = getCustomerOrThrow(request.getCustomerId(), requestId);
+            order.get().setCustomer(customer);
+        }
+
+        if (request.getCustomerAddressId() != null) {
+            CustomerAddressEntity customerAddress = getCustomerAddressOrThrow(request.getCustomerAddressId(), requestId);
+            order.get().setCustomerAddress(customerAddress);
+        }
+
+        order.get().setContractNumber(request.getContractNumber());
+        order.get().setOrderDate(request.getOrderDate());
+        order.get().setDeliveryDate(request.getDeliveryDate());
+        order.get().setStatus(request.getStatus());
+        order.get().setTotalAmount(request.getTotalAmount());
+        order.get().setDiscountAmount(request.getDiscountAmount());
+        order.get().setTaxAmount(request.getTaxAmount());
+        order.get().setFinalAmount(request.getFinalAmount());
+        order.get().setNotes(request.getNotes());
+        order.get().setUpdatedBy(RequestContext.getCurrentUsername());
+        
+
+        orderRepo.save(order.get());
+        log.info("Order updated successfully with requestId: {}", requestId);
+        return orderMapper.toOrderInfo(order.get());
     }
 
     @Transactional
@@ -158,7 +239,7 @@ public class OrderService {
             order.get().setIsDeleted(true);
             order.get().setUpdatedBy(RequestContext.getCurrentUsername());
             order.get().setContractNumber(order.get().getContractNumber() + "_" + "DELETED" + "_" + requestId);
-            
+
             orderRepo.save(order.get());
 
             log.info("Order deleted successfully with request 1/3: {}", requestId);
