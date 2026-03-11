@@ -1,7 +1,7 @@
 package com.cnh.ies.mapper.order;
 
-import java.util.Optional;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,8 +11,10 @@ import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.entity.order.OrderLineEntity;
 import com.cnh.ies.mapper.product.ProductMapper;
 import com.cnh.ies.mapper.vendors.VendorsMapper;
+import com.cnh.ies.model.general.OrderLineRequestModel;
 import com.cnh.ies.model.order.CreateOrderLineRequest;
 import com.cnh.ies.model.order.OrderLineInfo;
+import com.cnh.ies.model.order.UpdateOrderLineRequest;
 import com.cnh.ies.util.RequestContext;
 
 @Component
@@ -22,75 +24,113 @@ public class OrderLineMapper {
     @Autowired
     private VendorsMapper vendorMapper;
 
-    public OrderLineInfo toOrderLineInfo(OrderLineEntity orderLineEntity) {
-        OrderLineInfo orderLineInfo = new OrderLineInfo();
-        orderLineInfo.setId(orderLineEntity.getId().toString());
-        orderLineInfo.setOrderId(orderLineEntity.getOrder().getId().toString());
-        orderLineInfo.setProductId(orderLineEntity.getProduct().getId().toString());
-        orderLineInfo.setProductName(orderLineEntity.getProduct().getName());
-        orderLineInfo.setVendorId(orderLineEntity.getVendor() != null ? orderLineEntity.getVendor().getId().toString() : null);
-        orderLineInfo.setVendorName(orderLineEntity.getVendor() != null ? orderLineEntity.getVendor().getName() : orderLineEntity.getVendorNameSuggest());
-        orderLineInfo.setVendorCodeSuggest(orderLineEntity.getVendor() != null ? orderLineEntity.getVendor().getCode() : orderLineEntity.getVendorCodeSuggest());
-        orderLineInfo.setVendorNameSuggest(orderLineEntity.getVendor() != null ? orderLineEntity.getVendor().getName() : orderLineEntity.getVendorNameSuggest());
-        orderLineInfo.setProductCodeSuggest(orderLineEntity.getProductCodeSuggest());
-        orderLineInfo.setProductNameSuggest(orderLineEntity.getProductNameSuggest());
-        orderLineInfo.setProduct(orderLineEntity.getProduct() != null ? productMapper.toProductInfo(orderLineEntity.getProduct()) : null);
-        orderLineInfo.setVendor(orderLineEntity.getVendor() != null ? vendorMapper.toVendorInfo(orderLineEntity.getVendor()) : null);
-        orderLineInfo.setQuantity(orderLineEntity.getQuantity());
-        orderLineInfo.setUnitPrice(orderLineEntity.getUnitPrice());
-        orderLineInfo.setUom(orderLineEntity.getUom());
-        orderLineInfo.setDiscountPercent(orderLineEntity.getDiscountPercent());
-        orderLineInfo.setDiscountAmount(orderLineEntity.getDiscountAmount());
-        orderLineInfo.setIsIncludedTax(orderLineEntity.getIsIncludedTax());
-        orderLineInfo.setTaxRate(orderLineEntity.getTaxRate());
-        orderLineInfo.setTaxAmount(orderLineEntity.getTaxAmount());
-        orderLineInfo.setTotalAmount(orderLineEntity.getTotalAmount());
-        orderLineInfo.setNotes(orderLineEntity.getNotes());
-        orderLineInfo.setReceiverNote(orderLineEntity.getReceiverNote());
-        orderLineInfo.setDeliveryNote(orderLineEntity.getDeliveryNote());
-        orderLineInfo.setReferenceNote(orderLineEntity.getReferenceNote());
-        orderLineInfo.setCreatedAt(orderLineEntity.getCreatedAt().toString());
-        orderLineInfo.setUpdatedAt(orderLineEntity.getUpdatedAt().toString());
-        orderLineInfo.setCreatedBy(orderLineEntity.getCreatedBy());
-        orderLineInfo.setUpdatedBy(orderLineEntity.getUpdatedBy());
+    public OrderLineInfo toOrderLineInfo(OrderLineEntity e) {
+        OrderLineInfo info = new OrderLineInfo();
+        info.setId(e.getId() != null ? e.getId().toString() : null);
+        info.setOrderId(e.getOrder() != null ? e.getOrder().getId().toString() : null);
+        info.setProductId(e.getProduct() != null ? e.getProduct().getId().toString() : null);
+        info.setProductName(e.getProduct() != null ? e.getProduct().getName() : null);
+        info.setProductCodeSuggest(e.getProductCodeSuggest());
+        info.setProductNameSuggest(e.getProductNameSuggest());
+        info.setProduct(productMapper.toProductInfo(e.getProduct()));
 
-        return orderLineInfo;
+        boolean hasVendor = e.getVendor() != null;
+        info.setVendorId(hasVendor ? e.getVendor().getId().toString() : null);
+        info.setVendorName(hasVendor ? e.getVendor().getName() : e.getVendorNameSuggest());
+        info.setVendorCodeSuggest(hasVendor ? e.getVendor().getCode() : e.getVendorCodeSuggest());
+        info.setVendorNameSuggest(hasVendor ? e.getVendor().getName() : e.getVendorNameSuggest());
+        info.setVendor(hasVendor ? vendorMapper.toVendorInfo(e.getVendor()) : null);
+
+        info.setQuantity(e.getQuantity());
+        info.setUnitPrice(e.getUnitPrice());
+        info.setUom(e.getUom());
+        info.setDiscountPercent(e.getDiscountPercent());
+        info.setDiscountAmount(e.getDiscountAmount());
+        info.setIsIncludedTax(e.getIsIncludedTax());
+        info.setTaxRate(e.getTaxRate());
+        info.setTaxAmount(e.getTaxAmount());
+        info.setTotalAmount(e.getTotalAmount());
+        info.setNotes(e.getNotes());
+        info.setReceiverNote(e.getReceiverNote());
+        info.setDeliveryNote(e.getDeliveryNote());
+        info.setReferenceNote(e.getReferenceNote());
+        info.setCreatedAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null);
+        info.setUpdatedAt(e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : null);
+        info.setCreatedBy(e.getCreatedBy());
+        info.setUpdatedBy(e.getUpdatedBy());
+        return info;
     }
 
-    public OrderLineEntity toOrderLineEntity(CreateOrderLineRequest createOrderLineRequest, OrderEntity order) {
-        OrderLineEntity orderLineEntity = new OrderLineEntity();
-        orderLineEntity.setOrder(order);
-        orderLineEntity.setIsDeleted(false);
-        orderLineEntity.setVersion(1L);
-        orderLineEntity.setProductCodeSuggest(createOrderLineRequest.getProductCodeSuggest());
-        orderLineEntity.setProductNameSuggest(createOrderLineRequest.getProductNameSuggest());
-        orderLineEntity.setVendorCodeSuggest(createOrderLineRequest.getVendorCodeSuggest());
-        orderLineEntity.setVendorNameSuggest(createOrderLineRequest.getVendorNameSuggest());
-        orderLineEntity.setQuantity(createOrderLineRequest.getQuantity());
-        orderLineEntity.setUnitPrice(createOrderLineRequest.getUnitPrice());
-        orderLineEntity.setUom(createOrderLineRequest.getUom());
-        orderLineEntity.setDiscountPercent(createOrderLineRequest.getDiscountPercent());
-        orderLineEntity.setDiscountAmount(createOrderLineRequest.getDiscountAmount());
-        orderLineEntity.setIsIncludedTax(createOrderLineRequest.getIsIncludedTax());
-        orderLineEntity.setTaxRate(createOrderLineRequest.getTaxRate());
-        orderLineEntity.setTaxAmount(createOrderLineRequest.getTaxAmount());
-        orderLineEntity.setTotalAmount(createOrderLineRequest.getTotalAmount());
-        orderLineEntity.setNotes(createOrderLineRequest.getNotes());
-        orderLineEntity.setReceiverNote(orNull(createOrderLineRequest.getReceiverNote()));
-        orderLineEntity.setDeliveryNote(orNull(createOrderLineRequest.getDeliveryNote()));
-        orderLineEntity.setReferenceNote(orNull(createOrderLineRequest.getReferenceNote()));
+    public OrderLineEntity toOrderLineEntity(CreateOrderLineRequest request, OrderEntity order) {
+        OrderLineEntity entity = buildCommon(request, order);
         String currentUser = RequestContext.getCurrentUsername();
-        orderLineEntity.setCreatedBy(currentUser);
-        orderLineEntity.setUpdatedBy(currentUser);
+        entity.setCreatedBy(currentUser);
+        entity.setUpdatedBy(currentUser);
+        return entity;
+    }
 
-        return orderLineEntity;
+    public OrderLineEntity toOrderLineEntity(UpdateOrderLineRequest request, OrderEntity order) {
+        OrderLineEntity entity = buildCommon(request, order);
+
+        if (request.getIsDeleted() != null) {
+            entity.setIsDeleted(false);
+        }
+
+        entity.setUpdatedBy(RequestContext.getCurrentUsername());
+        return entity;
     }
-    
-    private String orNull(Optional<String> value) {
-        return value != null ? value.orElse(null) : null;
+
+    public void applyUpdate(UpdateOrderLineRequest request, OrderLineEntity entity) {
+        entity.setProductCodeSuggest(request.getProductCodeSuggest());
+        entity.setProductNameSuggest(request.getProductNameSuggest());
+        entity.setVendorCodeSuggest(request.getVendorCodeSuggest());
+        entity.setVendorNameSuggest(request.getVendorNameSuggest());
+        entity.setQuantity(request.getQuantity());
+        entity.setUnitPrice(request.getUnitPrice());
+        entity.setUom(request.getUom());
+        entity.setDiscountPercent(request.getDiscountPercent());
+        entity.setDiscountAmount(request.getDiscountAmount());
+        entity.setIsIncludedTax(request.getIsIncludedTax());
+        entity.setTaxRate(request.getTaxRate());
+        entity.setTaxAmount(request.getTaxAmount());
+        entity.setTotalAmount(request.getTotalAmount());
+        entity.setNotes(request.getNotes());
+        entity.setReceiverNote(orNull(request.getReceiverNote()));
+        entity.setDeliveryNote(orNull(request.getDeliveryNote()));
+        entity.setReferenceNote(orNull(request.getReferenceNote()));
+        entity.setUpdatedBy(RequestContext.getCurrentUsername());
     }
-    
+
     public List<OrderLineInfo> toOrderLineInfos(List<OrderLineEntity> orderLines) {
         return orderLines.stream().map(this::toOrderLineInfo).collect(Collectors.toList());
+    }
+
+    private OrderLineEntity buildCommon(OrderLineRequestModel request, OrderEntity order) {
+        OrderLineEntity entity = new OrderLineEntity();
+        entity.setOrder(order);
+        entity.setIsDeleted(false);
+        entity.setVersion(1L);
+        entity.setProductCodeSuggest(request.getProductCodeSuggest());
+        entity.setProductNameSuggest(request.getProductNameSuggest());
+        entity.setVendorCodeSuggest(request.getVendorCodeSuggest());
+        entity.setVendorNameSuggest(request.getVendorNameSuggest());
+        entity.setQuantity(request.getQuantity());
+        entity.setUnitPrice(request.getUnitPrice());
+        entity.setUom(request.getUom());
+        entity.setDiscountPercent(request.getDiscountPercent());
+        entity.setDiscountAmount(request.getDiscountAmount());
+        entity.setIsIncludedTax(request.getIsIncludedTax());
+        entity.setTaxRate(request.getTaxRate());
+        entity.setTaxAmount(request.getTaxAmount());
+        entity.setTotalAmount(request.getTotalAmount());
+        entity.setNotes(request.getNotes());
+        entity.setReceiverNote(orNull(request.getReceiverNote()));
+        entity.setDeliveryNote(orNull(request.getDeliveryNote()));
+        entity.setReferenceNote(orNull(request.getReferenceNote()));
+        return entity;
+    }
+
+    private String orNull(Optional<String> value) {
+        return value != null ? value.orElse(null) : null;
     }
 }

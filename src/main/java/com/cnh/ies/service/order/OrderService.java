@@ -209,16 +209,24 @@ public class OrderService {
             order.get().setCustomerAddress(customerAddress);
         }
 
+        List<OrderLineEntity> orderLines = orderLineRepo.findByOrderId(order.get().getId());
+
+        // calculate total amount
+        BigDecimal totalAmount = orderLines.stream().map(line -> line.getTotalAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.get().setTotalAmount(totalAmount);
+
         order.get().setContractNumber(request.getContractNumber());
         order.get().setOrderDate(request.getOrderDate());
         order.get().setDeliveryDate(request.getDeliveryDate());
         order.get().setStatus(request.getStatus());
-        order.get().setTotalAmount(request.getTotalAmount());
         order.get().setDiscountAmount(request.getDiscountAmount());
         order.get().setTaxAmount(request.getTaxAmount());
         order.get().setFinalAmount(request.getFinalAmount());
         order.get().setNotes(request.getNotes());
         order.get().setUpdatedBy(RequestContext.getCurrentUsername());
+
+
         
 
         orderRepo.save(order.get());
