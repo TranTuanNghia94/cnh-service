@@ -250,19 +250,19 @@ public class OrderService {
 
             orderRepo.save(order.get());
 
-            log.info("Order deleted successfully with request 1/3: {}", requestId);
+            // log.info("Order deleted successfully with request 1/3: {}", requestId);
 
-            if (order.get().getOrderLines() != null) {
-                List<OrderLineEntity> orderLines = order.get().getOrderLines().stream().map(orderLine -> {
-                    orderLine.setIsDeleted(true);
-                    orderLineRepo.save(orderLine);
-                    return orderLine;
-                }).collect(Collectors.toList());
-                orderLineRepo.saveAll(orderLines);
-                log.info("Order lines deleted successfully with request 2/3: {}", requestId);
-            }
+            // if (order.get().getOrderLines() != null) {
+            //     List<OrderLineEntity> orderLines = order.get().getOrderLines().stream().map(orderLine -> {
+            //         orderLine.setIsDeleted(true);
+            //         orderLineRepo.save(orderLine);
+            //         return orderLine;
+            //     }).collect(Collectors.toList());
+            //     orderLineRepo.saveAll(orderLines);
+            //     log.info("Order lines deleted successfully with request 2/3: {}", requestId);
+            // }
 
-            log.info("Order deleted successfully with request 3/3: {}", requestId);
+            // log.info("Order deleted successfully with request 3/3: {}", requestId);
 
             return "Order deleted successfully";
         } catch (Exception e) {

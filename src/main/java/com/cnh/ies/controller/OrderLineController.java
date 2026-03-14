@@ -53,7 +53,7 @@ public class OrderLineController {
         return ApiResponse.success(response, "Update order lines success");
     }
 
-    @DeleteMapping("/delete/{orderId}")
+    @PostMapping("/delete/{orderId}")
     public ApiResponse<String> deleteOrderLines(@RequestBody List<String> ids, @PathVariable String orderId) {
         String requestId = UUID.randomUUID().toString();
         log.info("Deleting order lines for orderId: {} | ids: {}", orderId, ids);

@@ -1,5 +1,6 @@
 package com.cnh.ies.controller;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.web.bind.annotation.PathVariable;
@@ -8,19 +9,23 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.dto.response.UploadProductResponse;
 import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.product.CreateProductRequest;
 import com.cnh.ies.model.product.ProductInfo;
 import com.cnh.ies.model.product.UpdateProductRequest;
 import com.cnh.ies.service.product.ProductService;
+import com.cnh.ies.service.product.UploadProductService;
 
 @RestController
 @Slf4j
@@ -29,6 +34,7 @@ import com.cnh.ies.service.product.ProductService;
 @Tag(name = "Product", description = "Product management APIs")
 public class ProductController {
     private final ProductService productService;
+    private final UploadProductService uploadProductService;
 
     @PostMapping("/list")
     public ApiResponse<ListDataModel<ProductInfo>> getAllProducts(@RequestBody ApiRequestModel request) {
@@ -101,5 +107,17 @@ public class ProductController {
         log.info("Updating product success with requestId: {}", requestId);
 
         return ApiResponse.success(response, "Update product success");
+    }
+
+    @PostMapping("/upload-file-product")
+    public ApiResponse<UploadProductResponse> uploadFileProduct(@RequestParam("file") MultipartFile file) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Uploading file product with initiated requestId: {}", requestId);
+
+        UploadProductResponse response = uploadProductService.readExcelFile(file, requestId);
+
+        log.info("Uploading file product success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Upload file product success");
     }
 }
