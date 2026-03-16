@@ -4,7 +4,9 @@ import java.util.UUID;
 
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.dto.response.UploadOjectResponse;
 import com.cnh.ies.model.general.ApiRequestModel;
+import com.cnh.ies.service.vendor.UploadVendorService;
 import com.cnh.ies.service.vendor.VendorService;
 import com.cnh.ies.model.vendors.VendorInfo;
 import com.cnh.ies.model.vendors.CreateVendorRequest;
@@ -17,7 +19,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,13 +32,15 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/vendor")
 public class VendorController {
     private final VendorService vendorService;
-
+    private final UploadVendorService uploadVendorService;
+    
     @PostMapping("/list")
     public ApiResponse<ListDataModel<VendorInfo>> getAllVendors(@RequestBody ApiRequestModel request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting all vendors with initiated requestId: {}", requestId);
 
-        ListDataModel<VendorInfo> response = vendorService.getAllVendors(requestId, request.getPage(), request.getLimit());
+        ListDataModel<VendorInfo> response = vendorService.getAllVendors(requestId, request.getPage(),
+                request.getLimit());
 
         log.info("Getting all vendors success with requestId: {}", requestId);
 
@@ -87,5 +93,17 @@ public class VendorController {
         log.info("Getting vendor by id: {} success requestId: {}", id, requestId);
 
         return ApiResponse.success(response, "Get vendor by id success");
+    }
+
+    @PostMapping("/upload-file-vendor")
+    public ApiResponse<UploadOjectResponse> uploadFileVendor(@RequestParam("file") MultipartFile file) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Uploading file vendor with initiated requestId: {}", requestId);
+
+        UploadOjectResponse response = uploadVendorService.readExcelFile(file, requestId);
+
+        log.info("Uploading file vendor success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Upload file vendor success");
     }
 }

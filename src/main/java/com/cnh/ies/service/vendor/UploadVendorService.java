@@ -1,11 +1,11 @@
-package com.cnh.ies.service.product;
+package com.cnh.ies.service.vendor;
 
 import com.cnh.ies.dto.response.UploadOjectResponse;
-import com.cnh.ies.entity.product.CategoryEntity;
-import com.cnh.ies.entity.product.ProductEntity;
+import com.cnh.ies.entity.vendors.VendorBanksEntity;
+import com.cnh.ies.entity.vendors.VendorsEntity;
 import com.cnh.ies.exception.ApiException;
-import com.cnh.ies.repository.product.CategoryRepo;
-import com.cnh.ies.repository.product.ProductRepo;
+import com.cnh.ies.repository.vendors.VendorBanksRepo;
+import com.cnh.ies.repository.vendors.VendorsRepo;
 import com.cnh.ies.util.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +16,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,9 +24,9 @@ import static com.cnh.ies.util.ExcelUtils.*;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class UploadProductService {
-    private final ProductRepo productRepo;
-    private final CategoryRepo categoryRepo;
+public class UploadVendorService {
+    private final VendorsRepo vendorsRepo;
+    private final VendorBanksRepo vendorBanksRepo;
 
     public UploadOjectResponse readExcelFile(MultipartFile file, String requestId) {
         log.info("Reading excel file, requestId: {}", requestId);
@@ -37,7 +36,7 @@ public class UploadProductService {
         try (var workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             
-            String headerError = validateHeaders(sheet, TemplateType.PRODUCT);
+            String headerError = validateHeaders(sheet, TemplateType.VENDOR);
             if (headerError != null) {
                 throw new ApiException(ApiException.ErrorCode.INVALID_REQUEST,
                         "Invalid template: " + headerError, HttpStatus.BAD_REQUEST.value(), requestId);
@@ -61,35 +60,40 @@ public class UploadProductService {
     }
 
     private String processRow(Row row, int rowNum) {
-        String categoryCode = getString(row, 0);
-        String code = getString(row, 1);
-        String name = getString(row, 2);
-        String unit = getString(row, 3);
-        BigDecimal tax = getNumeric(row, 4);
-        String misaCode = getString(row, 5);
+        String code = getString(row, 0);
+        String name = getString(row, 1);
+        String currency = getString(row, 3);
 
-        if (isBlank(code)) return "Row " + rowNum + ": Product code is required";
-        if (isBlank(name)) return "Row " + rowNum + ": Product name is required";
-        if (isBlank(unit)) return "Row " + rowNum + ": Product unit is required";
-        if (productRepo.findByCode(code).isPresent()) return "Row " + rowNum + ": Product with code '" + code + "' already exists";
-
-        CategoryEntity category = categoryRepo.findByCode(categoryCode).orElse(null);
-        if (category == null) return "Row " + rowNum + ": Category with code '" + categoryCode + "' not found";
+        if (isBlank(code)) return "Row " + rowNum + ": Vendor code is required";
+        if (isBlank(name)) return "Row " + rowNum + ": Vendor name is required";
+        if (isBlank(currency)) return "Row " + rowNum + ": Vendor currency is required";
+        if (vendorsRepo.findByCode(code).isPresent()) return "Row " + rowNum + ": Vendor with code '" + code + "' already exists";
 
         String username = RequestContext.getCurrentUsername();
         
-        ProductEntity product = new ProductEntity();
-        product.setCode(code);
-        product.setName(name);
-        product.setUnit1(unit);
-        product.setTax(tax != null ? tax : BigDecimal.ZERO);
-        product.setMisaCode(misaCode != null ? misaCode : "");
-        product.setCategory(category);
-        product.setPrice(BigDecimal.ZERO);
-        product.setCostPrice(BigDecimal.ZERO);
-        product.setCreatedBy(username);
-        product.setUpdatedBy(username);
-        productRepo.save(product);
+        VendorsEntity vendor = new VendorsEntity();
+        vendor.setCode(code);
+        vendor.setName(name);
+        vendor.setMisaCode(getString(row, 2));
+        vendor.setCurrency(currency);
+        vendor.setCountry(getString(row, 4));
+        vendor.setPhone(getString(row, 5));
+        vendor.setAddress(getString(row, 6));
+        vendor.setCreatedBy(username);
+        vendor.setUpdatedBy(username);
+        vendorsRepo.save(vendor);
+
+        if (getString(row, 7) != null && getString(row, 8) != null) {
+            VendorBanksEntity vendorBank = new VendorBanksEntity();
+            vendorBank.setVendor(vendor);
+            vendorBank.setBankName(getString(row, 7));
+            vendorBank.setBankAccountNumber(getString(row, 8));
+            vendorBank.setBankAccountName(getString(row, 9));
+            vendorBank.setBankAccountBranch(getString(row, 10));
+            vendorBank.setCreatedBy(username);
+            vendorBank.setUpdatedBy(username);
+            vendorBanksRepo.save(vendorBank);
+        }
 
         return null;
     }

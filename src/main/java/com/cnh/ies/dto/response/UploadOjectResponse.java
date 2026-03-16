@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UploadProductResponse {
+public class UploadOjectResponse {
     private String message;
-    private List<String> errors;
     private int totalRows;
-    private int totalErrors;
     private int totalSuccess;
+    private int totalErrors;
+    private List<String> errors;
 }

@@ -8,7 +8,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.customer.CreateCustomerRequest;
@@ -17,6 +19,8 @@ import com.cnh.ies.model.customer.UpdateCustomerRequest;
 import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.service.customer.CustomerService;
+import com.cnh.ies.service.customer.UploadCustomerService;
+import com.cnh.ies.dto.response.UploadOjectResponse;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Tag(name = "Customer", description = "Customer management APIs")
 public class CustomerController {
     private final CustomerService customerService;
+    private final UploadCustomerService uploadCustomerService;
 
     @PostMapping("/list")
     public ApiResponse<ListDataModel<CustomerInfo>> getAllCustomers(@RequestBody ApiRequestModel request) {
@@ -88,5 +93,17 @@ public class CustomerController {
         log.info("Deleting customer success with requestId: {}", requestId);
 
         return ApiResponse.success(response, "Delete customer success");
+    }
+
+    @PostMapping("/upload-file-customer")
+    public ApiResponse<UploadOjectResponse> uploadFileCustomer(@RequestParam("file") MultipartFile file) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Uploading file customer with initiated requestId: {}", requestId);
+
+        UploadOjectResponse response = uploadCustomerService.readExcelFile(file, requestId);
+
+        log.info("Uploading file customer success with requestId: {}", requestId);
+
+        return ApiResponse.success(response, "Upload file customer success");
     }
 }

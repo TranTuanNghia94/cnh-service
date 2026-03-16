@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.dto.response.UploadProductResponse;
+import com.cnh.ies.dto.response.UploadOjectResponse;
 import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.product.CreateProductRequest;
@@ -110,11 +110,11 @@ public class ProductController {
     }
 
     @PostMapping("/upload-file-product")
-    public ApiResponse<UploadProductResponse> uploadFileProduct(@RequestParam("file") MultipartFile file) {
+    public ApiResponse<UploadOjectResponse> uploadFileProduct(@RequestParam("file") MultipartFile file) {
         String requestId = UUID.randomUUID().toString();
         log.info("Uploading file product with initiated requestId: {}", requestId);
 
-        UploadProductResponse response = uploadProductService.readExcelFile(file, requestId);
+        UploadOjectResponse response = uploadProductService.readExcelFile(file, requestId);
 
         log.info("Uploading file product success with requestId: {}", requestId);
 
