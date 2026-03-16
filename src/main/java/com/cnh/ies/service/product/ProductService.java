@@ -19,6 +19,7 @@ import com.cnh.ies.model.product.ProductInfo;
 import com.cnh.ies.model.product.UpdateProductRequest;
 import com.cnh.ies.repository.product.CategoryRepo;
 import com.cnh.ies.repository.product.ProductRepo;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.entity.product.ProductEntity;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.entity.product.CategoryEntity;
@@ -135,6 +136,7 @@ public class ProductService {
         product.get().setIsDeleted(true);
         product.get().setCode(product.get().getCode() + "_DEL_" + requestId);
         product.get().setUpdatedAt(Instant.now());
+        product.get().setUpdatedBy(RequestContext.getCurrentUsername());
         productRepo.save(product.get());
 
         log.info("Product deleted successfully with id: {} RequestId: {}", id, requestId);

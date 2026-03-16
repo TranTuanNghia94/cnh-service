@@ -3,6 +3,7 @@ package com.cnh.ies.service.product;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.repository.product.ProductRepo;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.dto.response.UploadProductResponse;
 import com.cnh.ies.entity.product.CategoryEntity;
@@ -92,6 +93,10 @@ public class UploadProductService {
         product.setTax(tax != null ? tax : BigDecimal.ZERO);
         product.setMisaCode(misaCode != null ? misaCode : "");
         product.setCategory(category);
+        product.setPrice(BigDecimal.ZERO);
+        product.setCostPrice(BigDecimal.ZERO);
+        product.setCreatedBy(RequestContext.getCurrentUsername());
+        product.setUpdatedBy(RequestContext.getCurrentUsername());
         productRepo.save(product);
 
         return null;
