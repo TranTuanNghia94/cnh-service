@@ -6,9 +6,9 @@ spring:
     active: dev
   
   datasource:
-    url: jdbc:postgresql://localhost:5432/new_db_cnh
-    username: ${DB_USERNAME:new_cnh_root}
-    password: ${DB_PASSWORD:Str0ngP@ssw0rId}
+    url: jdbc:postgresql://localhost:5432/cnh_wms
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20

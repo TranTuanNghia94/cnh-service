@@ -30,7 +30,7 @@ INSERT INTO roles (id, name, code,description) VALUES
 ('a549de97-3a7a-4c1d-84ed-3040149bc743','CS','CS', 'Customer Service'),
 ('e0affac4-d9ca-42fd-8324-f23b6a5de692',    'ACCOUNT','ACCOUNTANT', 'Accountant'),
 ('02227161-198a-457d-9561-6bdf06a86239','ACCOUNTANT MANAGER','ACCOUNTANT_MANAGER', 'Accountant'),
-('7f30103c-b454-4a7f-80a9-11dec8e86974','WAREHOUSE KEEPER','WAREHOUSE_KEEPER', 'Warehouse Keeper')
+('7f30103c-b454-4a7f-80a9-11dec8e86974','WAREHOUSE KEEPER','WAREHOUSE_KEEPER', 'Warehouse Keeper');
 
 -- Insert default permissions
 INSERT INTO permissions (id, name, code,description, resource, action) VALUES
@@ -47,22 +47,22 @@ INSERT INTO permissions (id, name, code,description, resource, action) VALUES
 ('19ba7f91-688d-4a35-b823-9910752421d1','Product Delete','PRODUCT_DELETE', 'Delete products', 'PRODUCT', 'DELETE'),
 
 -- Order management
-('ORDER_CREATE', 'Create orders', 'ORDER', 'CREATE'),
-('ORDER_READ', 'Read orders', 'ORDER', 'READ'),
-('ORDER_UPDATE', 'Update orders', 'ORDER', 'UPDATE'),
-('ORDER_DELETE', 'Delete orders', 'ORDER', 'DELETE'),
+('a1b2c3d4-1111-4000-8000-000000000001','Order Create','ORDER_CREATE', 'Create orders', 'ORDER', 'CREATE'),
+('a1b2c3d4-1111-4000-8000-000000000002','Order Read','ORDER_READ', 'Read orders', 'ORDER', 'READ'),
+('a1b2c3d4-1111-4000-8000-000000000003','Order Update','ORDER_UPDATE', 'Update orders', 'ORDER', 'UPDATE'),
+('a1b2c3d4-1111-4000-8000-000000000004','Order Delete','ORDER_DELETE', 'Delete orders', 'ORDER', 'DELETE'),
 
 -- Purchase order management
-('PO_CREATE', 'Create purchase orders', 'PURCHASE_ORDER', 'CREATE'),
-('PO_READ', 'Read purchase orders', 'PURCHASE_ORDER', 'READ'),
-('PO_UPDATE', 'Update purchase orders', 'PURCHASE_ORDER', 'UPDATE'),
-('PO_DELETE', 'Delete purchase orders', 'PURCHASE_ORDER', 'DELETE'),
+('a1b2c3d4-2222-4000-8000-000000000001','PO Create','PO_CREATE', 'Create purchase orders', 'PURCHASE_ORDER', 'CREATE'),
+('a1b2c3d4-2222-4000-8000-000000000002','PO Read','PO_READ', 'Read purchase orders', 'PURCHASE_ORDER', 'READ'),
+('a1b2c3d4-2222-4000-8000-000000000003','PO Update','PO_UPDATE', 'Update purchase orders', 'PURCHASE_ORDER', 'UPDATE'),
+('a1b2c3d4-2222-4000-8000-000000000004','PO Delete','PO_DELETE', 'Delete purchase orders', 'PURCHASE_ORDER', 'DELETE'),
 
 -- Payment management
-('PAYMENT_CREATE', 'Create payment requests', 'PAYMENT', 'CREATE'),
-('PAYMENT_READ', 'Read payment requests', 'PAYMENT', 'READ'),
-('PAYMENT_APPROVE', 'Approve payment requests', 'PAYMENT', 'APPROVE'),
-('PAYMENT_REJECT', 'Reject payment requests', 'PAYMENT', 'REJECT');
+('a1b2c3d4-3333-4000-8000-000000000001','Payment Create','PAYMENT_CREATE', 'Create payment requests', 'PAYMENT', 'CREATE'),
+('a1b2c3d4-3333-4000-8000-000000000002','Payment Read','PAYMENT_READ', 'Read payment requests', 'PAYMENT', 'READ'),
+('a1b2c3d4-3333-4000-8000-000000000003','Payment Approve','PAYMENT_APPROVE', 'Approve payment requests', 'PAYMENT', 'APPROVE'),
+('a1b2c3d4-3333-4000-8000-000000000004','Payment Reject','PAYMENT_REJECT', 'Reject payment requests', 'PAYMENT', 'REJECT');
 
 -- Assign permissions to ADMIN role
 INSERT INTO role_permissions (role_id, permission_id)
@@ -95,8 +95,8 @@ AND p.name IN (
 );
 
 -- Create default admin user (password: admin123)
-INSERT INTO users (username, email, password, first_name, last_name, is_active) VALUES
-('admin', 'admin@cnh.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS.iK8i', 'System', 'Administrator', true);
+INSERT INTO users (id, username, email, password, first_name, last_name, is_active) VALUES
+('d0d0d0d0-0000-4000-8000-000000000001', 'admin', 'admin@cnh.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS.iK8i', 'System', 'Administrator', true);
 
 -- Assign admin role to admin user
 INSERT INTO user_roles (user_id, role_id)
@@ -105,9 +105,9 @@ FROM users u, roles r
 WHERE u.username = 'admin' AND r.name = 'ADMIN';
 
 -- Insert default categories
-INSERT INTO categories (name, description) VALUES
-('Electronics', 'Electronic devices and components'),
-('Clothing', 'Clothing and apparel'),
-('Food & Beverages', 'Food and beverage products'),
-('Books', 'Books and publications'),
-('Home & Garden', 'Home and garden products');
+INSERT INTO categories (id, name, description) VALUES
+('c0c0c0c0-0001-4000-8000-000000000001', 'Electronics', 'Electronic devices and components'),
+('c0c0c0c0-0001-4000-8000-000000000002', 'Clothing', 'Clothing and apparel'),
+('c0c0c0c0-0001-4000-8000-000000000003', 'Food & Beverages', 'Food and beverage products'),
+('c0c0c0c0-0001-4000-8000-000000000004', 'Books', 'Books and publications'),
+('c0c0c0c0-0001-4000-8000-000000000005', 'Home & Garden', 'Home and garden products');

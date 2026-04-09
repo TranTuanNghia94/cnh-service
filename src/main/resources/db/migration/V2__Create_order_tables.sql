@@ -2,9 +2,9 @@
 
 -- Orders table
 CREATE TABLE orders (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     order_number VARCHAR(50) UNIQUE NOT NULL,
-    customer_id BIGINT REFERENCES customers(id),
+    customer_id UUID REFERENCES customers(id),
     order_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     delivery_date TIMESTAMP,
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
@@ -22,9 +22,9 @@ CREATE TABLE orders (
 
 -- Order lines table
 CREATE TABLE order_lines (
-    id BIGSERIAL PRIMARY KEY,
-    order_id BIGINT NOT NULL REFERENCES orders(id),
-    product_id BIGINT NOT NULL REFERENCES products(id),
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL REFERENCES orders(id),
+    product_id UUID NOT NULL REFERENCES products(id),
     quantity INTEGER NOT NULL,
     unit_price DECIMAL(15,2) NOT NULL,
     discount_percent DECIMAL(5,2) DEFAULT 0,
@@ -42,9 +42,9 @@ CREATE TABLE order_lines (
 
 -- Purchase orders table
 CREATE TABLE purchase_orders (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY,
     po_number VARCHAR(50) UNIQUE NOT NULL,
-    supplier_id BIGINT NOT NULL REFERENCES suppliers(id),
+    supplier_id UUID NOT NULL REFERENCES suppliers(id),
     order_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expected_delivery_date TIMESTAMP,
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
@@ -62,9 +62,9 @@ CREATE TABLE purchase_orders (
 
 -- Purchase order lines table
 CREATE TABLE purchase_order_lines (
-    id BIGSERIAL PRIMARY KEY,
-    purchase_order_id BIGINT NOT NULL REFERENCES purchase_orders(id),
-    product_id BIGINT NOT NULL REFERENCES products(id),
+    id UUID PRIMARY KEY,
+    purchase_order_id UUID NOT NULL REFERENCES purchase_orders(id),
+    product_id UUID NOT NULL REFERENCES products(id),
     quantity INTEGER NOT NULL,
     unit_price DECIMAL(15,2) NOT NULL,
     discount_percent DECIMAL(5,2) DEFAULT 0,

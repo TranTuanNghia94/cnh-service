@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.util.Optional;
 import java.util.List;
 
+import com.cnh.ies.constant.Constant;
+
 import lombok.Data;
 
 @Data
@@ -15,7 +17,7 @@ public class CreateOrderRequest {
     private String contractNumber;
     private LocalDate orderDate;
     private LocalDate deliveryDate;
-    private String status;
+    private String status = Constant.ORDER_STATUS_DRAFT;
     private BigDecimal totalAmount;
     private BigDecimal discountAmount;
     private BigDecimal taxAmount;

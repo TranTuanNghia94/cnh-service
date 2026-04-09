@@ -26,6 +26,7 @@ import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.order.CreateOrderRequest;
 import com.cnh.ies.model.order.CreateOrderLineRequest;
 import com.cnh.ies.model.order.OrderInfo;
+import com.cnh.ies.constant.Constant;
 import com.cnh.ies.entity.customer.CustomerAddressEntity;
 import com.cnh.ies.entity.customer.CustomerEntity;
 import com.cnh.ies.entity.order.OrderEntity;
@@ -189,6 +190,36 @@ public class OrderService {
         }
     }
 
+    @Transactional
+    public OrderInfo updateOrderStatus(String id, String status, String requestId) {
+        log.info("Updating order status with requestId: {} | id: {} | status: {}", requestId, id, status);
+        Optional<OrderEntity> order = orderRepo.findById(UUID.fromString(id));
+        if (order.isEmpty()) {
+            log.error("Order not found with id: {} | RequestId: {}", id, requestId);
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Order not found",
+                    HttpStatus.NOT_FOUND.value(), requestId);
+        }
+
+        if (order.get().getIsDeleted()) {
+            log.error("Order already deleted with id: {} | RequestId: {}", id, requestId);
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Order already deleted",
+                    HttpStatus.NOT_FOUND.value(), requestId);
+        }
+
+        if (order.get().getStatus().equals(status)) {
+            log.warn("Order status already updated with id: {} | RequestId: {}", id, requestId);
+            return orderMapper.toOrderInfo(order.get());
+        }
+
+        order.get().setStatus(getOrderStatusName(status));
+        order.get().setUpdatedBy(RequestContext.getCurrentUsername());
+
+        orderRepo.save(order.get());
+        log.info("Order status updated successfully with requestId: {}", requestId);
+        return orderMapper.toOrderInfo(order.get());
+    }    
+
+    @Transactional
     public OrderInfo updateOrder(CreateOrderRequest request, String requestId) {
         log.info("Updating order with requestId: {} | request: {}", requestId, request);
 
@@ -219,15 +250,13 @@ public class OrderService {
         order.get().setContractNumber(request.getContractNumber());
         order.get().setOrderDate(request.getOrderDate());
         order.get().setDeliveryDate(request.getDeliveryDate());
-        order.get().setStatus(request.getStatus());
+        order.get().setStatus(getOrderStatusName(request.getStatus()));
         order.get().setDiscountAmount(request.getDiscountAmount());
         order.get().setTaxAmount(request.getTaxAmount());
         order.get().setFinalAmount(request.getFinalAmount());
         order.get().setNotes(request.getNotes());
         order.get().setUpdatedBy(RequestContext.getCurrentUsername());
 
-
-        
 
         orderRepo.save(order.get());
         log.info("Order updated successfully with requestId: {}", requestId);
@@ -307,4 +336,7 @@ public class OrderService {
         return entity;
     }
 
+    private String getOrderStatusName(String status) {
+        return Optional.ofNullable(Constant.ORDER_STATUS_MAP.get(status)).orElse(Constant.ORDER_STATUS_DRAFT);
+    }
 }

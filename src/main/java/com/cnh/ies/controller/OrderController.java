@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
@@ -15,6 +16,7 @@ import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.order.CreateOrderRequest;
 import com.cnh.ies.model.order.OrderInfo;
+import com.cnh.ies.model.order.UpdateOrderStatusRequest;
 import com.cnh.ies.service.order.OrderService;
 
 import lombok.RequiredArgsConstructor;
@@ -73,6 +75,19 @@ public class OrderController {
         log.info("Updating order with initiated requestId: {} success with requestId: {}", requestId, requestId);
 
         return ApiResponse.success(response, "Update order success");
+    }
+
+
+    @PostMapping("/update-status/{id}")
+    public ApiResponse<OrderInfo> updateOrderStatus(@PathVariable String id, @RequestBody UpdateOrderStatusRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Updating order status with initiated requestId: {} | id: {} | status: {}", requestId, id, request.getStatus());
+
+        OrderInfo response = orderService.updateOrderStatus(id, request.getStatus(), requestId);
+
+        log.info("Updating order status with initiated requestId: {} success with requestId: {}", requestId, requestId);
+
+        return ApiResponse.success(response, "Update order status success");
     }
 
     @PostMapping("/list")
