@@ -2,6 +2,7 @@ package com.cnh.ies.service.customer;
 
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -132,8 +133,8 @@ public class CustomerAddressService {
             List<CustomerAddressEntity> customerAddress = customerAddressRepo.findByCustomerId(UUID.fromString(customerId));
 
             if (customerAddress.size() == 0) {
-                log.error("Address not found with customerId: {} | RequestId: {}", customerId, requestId);
-                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Address not found", HttpStatus.NOT_FOUND.value(), requestId);
+                log.warn("Address not found with customerId: {} | RequestId: {}", customerId, requestId);
+                return new ArrayList<>();
             }
 
             log.info("Address fetched successfully with customerId: {}", customerId);
