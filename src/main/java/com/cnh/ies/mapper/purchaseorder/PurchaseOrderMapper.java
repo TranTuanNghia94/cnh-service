@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.entity.purchaseorder.PurchaseOrderEntity;
+import com.cnh.ies.mapper.order.OrderMapper;
 import com.cnh.ies.model.purchaseorder.CreatePurchaseOrderRequest;
 import com.cnh.ies.model.purchaseorder.PurchaseOrderInfo;
 import com.cnh.ies.util.RequestContext;
@@ -14,12 +15,17 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PurchaseOrderMapper {
 
+    private final OrderMapper orderMapper;
+
     public PurchaseOrderInfo toPurchaseOrderInfo(PurchaseOrderEntity po) {
         PurchaseOrderInfo info = new PurchaseOrderInfo();
         info.setId(po.getId().toString());
         info.setPoNumber(po.getPoNumber());
         info.setPoPrefix(po.getPoPrefix());
         info.setOrderId(po.getOrder() != null ? po.getOrder().getId().toString() : null);
+        if (po.getOrder() != null) {
+            info.setOrder(orderMapper.toOrderInfo(po.getOrder()));
+        }
         info.setOrderDate(po.getOrderDate());
         info.setExpectedDeliveryDate(po.getExpectedDeliveryDate());
         info.setStatus(po.getStatus());

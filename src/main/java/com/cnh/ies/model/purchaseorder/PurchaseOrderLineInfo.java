@@ -42,4 +42,8 @@ public class PurchaseOrderLineInfo {
     private String deletedAt;
     private String createdBy;
     private String updatedBy;
+    private BigDecimal processPercentage;
+    private BigDecimal purchaseOrderQuantity;
+    private BigDecimal orderDetailQuantity;
+    private String processQuantityDetail;
 }

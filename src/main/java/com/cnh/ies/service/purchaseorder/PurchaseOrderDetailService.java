@@ -1,5 +1,7 @@
 package com.cnh.ies.service.purchaseorder;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -65,7 +67,7 @@ public class PurchaseOrderDetailService {
         purchaseOrderLineRepo.saveAll(poLines);
 
         log.info("Purchase order lines created successfully for purchaseOrderId: {} | requestId: {}", purchaseOrderId, requestId);
-        return purchaseOrderLineMapper.toPurchaseOrderLineInfos(poLines);
+        return enrichLineProgressDetails(poLines);
     }
 
     @Transactional
@@ -90,8 +92,23 @@ public class PurchaseOrderDetailService {
         }
 
         for (UpdatePurchaseOrderLineRequest updateRequest : payload) {
+            if (updateRequest.getId() == null || updateRequest.getId().isBlank()) {
+                PurchaseOrderLineEntity newPoLine = createPurchaseOrderLineFromUpdateRequest(updateRequest, purchaseOrder,
+                        requestId);
+                poLines.add(newPoLine);
+                continue;
+            }
+
+            UUID poLineId;
+            try {
+                poLineId = UUID.fromString(updateRequest.getId());
+            } catch (IllegalArgumentException ex) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid purchase order line id",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+
             PurchaseOrderLineEntity poLine = poLines.stream()
-                    .filter(l -> l.getId() != null && l.getId().equals(UUID.fromString(updateRequest.getId())))
+                    .filter(l -> l.getId() != null && l.getId().equals(poLineId))
                     .findFirst()
                     .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Purchase order line not found",
                             HttpStatus.NOT_FOUND.value(), requestId));
@@ -124,7 +141,7 @@ public class PurchaseOrderDetailService {
         purchaseOrderLineRepo.saveAll(poLines);
 
         log.info("Purchase order lines updated successfully for purchaseOrderId: {} | requestId: {}", purchaseOrderId, requestId);
-        return poLines.stream().map(purchaseOrderLineMapper::toPurchaseOrderLineInfo).collect(Collectors.toList());
+        return enrichLineProgressDetails(poLines);
     }
 
     public String deletePurchaseOrderLines(List<String> ids, UUID purchaseOrderId, String requestId) {
@@ -217,6 +234,75 @@ public class PurchaseOrderDetailService {
                     "Sale order line does not belong to purchase order source order",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
+    }
+
+    private PurchaseOrderLineEntity createPurchaseOrderLineFromUpdateRequest(UpdatePurchaseOrderLineRequest updateRequest,
+            PurchaseOrderEntity purchaseOrder, String requestId) {
+        PurchaseOrderLineEntity entity = new PurchaseOrderLineEntity();
+        entity.setPurchaseOrder(purchaseOrder);
+        entity.setIsDeleted(false);
+        entity.setVersion(1L);
+        entity.setCreatedBy(RequestContext.getCurrentUsername());
+        entity.setUpdatedBy(RequestContext.getCurrentUsername());
+        purchaseOrderLineMapper.applyUpdate(updateRequest, entity);
+
+        if (updateRequest.getProductId() != null) {
+            ProductEntity product = productRepo.findById(UUID.fromString(updateRequest.getProductId()))
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found",
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            entity.setProduct(product);
+        }
+
+        if (updateRequest.getVendorId() != null) {
+            VendorsEntity vendor = vendorsRepo.findById(UUID.fromString(updateRequest.getVendorId()))
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Vendor not found",
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            entity.setVendor(vendor);
+        }
+
+        if (updateRequest.getSaleOrderLineId() != null) {
+            OrderLineEntity saleOrderLine = orderLineRepo.findById(UUID.fromString(updateRequest.getSaleOrderLineId()))
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Sale order line not found",
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            validateSaleOrderLineMatchesPurchaseOrder(purchaseOrder, saleOrderLine, requestId);
+            entity.setSaleOrderLine(saleOrderLine);
+        }
+
+        return entity;
+    }
+
+    private List<PurchaseOrderLineInfo> enrichLineProgressDetails(List<PurchaseOrderLineEntity> poLines) {
+        List<PurchaseOrderLineInfo> lineInfos = purchaseOrderLineMapper.toPurchaseOrderLineInfos(poLines);
+        for (int i = 0; i < poLines.size(); i++) {
+            PurchaseOrderLineEntity poLine = poLines.get(i);
+            PurchaseOrderLineInfo lineInfo = lineInfos.get(i);
+            BigDecimal poQuantity = Optional.ofNullable(poLine.getQuantity()).orElse(BigDecimal.ZERO);
+            BigDecimal orderDetailQuantity = poLine.getSaleOrderLine() != null
+                    ? Optional.ofNullable(poLine.getSaleOrderLine().getQuantity()).orElse(BigDecimal.ZERO)
+                    : BigDecimal.ZERO;
+
+            lineInfo.setPurchaseOrderQuantity(poQuantity);
+            lineInfo.setOrderDetailQuantity(orderDetailQuantity);
+            lineInfo.setProcessQuantityDetail(
+                    poQuantity.stripTrailingZeros().toPlainString() + "/" + orderDetailQuantity.stripTrailingZeros().toPlainString());
+            lineInfo.setProcessPercentage(calculateLineProcessPercentage(poQuantity, orderDetailQuantity));
+        }
+        return lineInfos;
+    }
+
+    private BigDecimal calculateLineProcessPercentage(BigDecimal poQuantity, BigDecimal orderDetailQuantity) {
+        if (orderDetailQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal percentage = poQuantity.multiply(BigDecimal.valueOf(100))
+                .divide(orderDetailQuantity, 2, RoundingMode.HALF_UP);
+        if (percentage.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+        if (percentage.compareTo(BigDecimal.valueOf(100)) > 0) {
+            return BigDecimal.valueOf(100);
+        }
+        return percentage;
     }
 
 }

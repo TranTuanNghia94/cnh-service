@@ -1,5 +1,6 @@
 package com.cnh.ies.model.purchaseorder;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -25,4 +26,5 @@ public class PurchaseOrderInfo {
     private String updatedBy;
     private Set<PurchaseOrderLineInfo> purchaseOrderLines = new CopyOnWriteArraySet<>();
     private OrderInfo order;
+    private BigDecimal processPercentage;
 }

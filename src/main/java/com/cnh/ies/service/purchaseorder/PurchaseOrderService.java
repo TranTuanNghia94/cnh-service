@@ -1,5 +1,7 @@
 package com.cnh.ies.service.purchaseorder;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +29,7 @@ import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.purchaseorder.CreatePurchaseOrderLineRequest;
 import com.cnh.ies.model.purchaseorder.CreatePurchaseOrderRequest;
 import com.cnh.ies.model.purchaseorder.PurchaseOrderInfo;
+import com.cnh.ies.model.purchaseorder.PurchaseOrderLineInfo;
 import com.cnh.ies.repository.order.OrderLineRepo;
 import com.cnh.ies.repository.order.OrderRepo;
 import com.cnh.ies.repository.product.ProductRepo;
@@ -62,6 +65,27 @@ public class PurchaseOrderService {
             List<PurchaseOrderInfo> infos = purchaseOrders.stream()
                     .map(purchaseOrderMapper::toPurchaseOrderInfo)
                     .collect(Collectors.toList());
+            infos.forEach(info -> info.setProcessPercentage(BigDecimal.ZERO));
+            Map<UUID, PurchaseOrderInfo> infoByPurchaseOrderId = infos.stream()
+                    .collect(Collectors.toMap(info -> UUID.fromString(info.getId()), Function.identity()));
+
+            List<UUID> purchaseOrderIds = purchaseOrders.stream().map(PurchaseOrderEntity::getId).collect(Collectors.toList());
+            if (!purchaseOrderIds.isEmpty()) {
+                Map<UUID, List<PurchaseOrderLineEntity>> poLineByPurchaseOrderId = purchaseOrderLineRepo
+                        .findAllByPurchaseOrderIds(purchaseOrderIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(pol -> pol.getPurchaseOrder().getId()));
+                poLineByPurchaseOrderId.forEach((purchaseOrderId, poLines) -> {
+                    PurchaseOrderInfo info = infoByPurchaseOrderId.get(purchaseOrderId);
+                    PurchaseOrderEntity purchaseOrder = purchaseOrders.stream()
+                            .filter(po -> po.getId().equals(purchaseOrderId))
+                            .findFirst()
+                            .orElse(null);
+                    if (info != null) {
+                        info.setProcessPercentage(calculatePurchaseOrderProgressPercentage(purchaseOrder, poLines));
+                    }
+                });
+            }
 
             PaginationModel pagination = PaginationModel.builder()
                     .page(page)
@@ -147,9 +171,19 @@ public class PurchaseOrderService {
 
             List<PurchaseOrderLineEntity> poLines = purchaseOrderLineRepo.findAllByPurchaseOrderId(po.get().getId());
             if (!poLines.isEmpty()) {
+                List<PurchaseOrderLineInfo> poLineInfos = purchaseOrderLineMapper.toPurchaseOrderLineInfos(poLines);
+                for (int i = 0; i < poLines.size(); i++) {
+                    PurchaseOrderLineInfo poLineInfo = poLineInfos.get(i);
+                    PurchaseOrderLineEntity poLineEntity = poLines.get(i);
+                    poLineInfo.setProcessPercentage(calculatePurchaseOrderLineProgressPercentage(poLineEntity));
+                    poLineInfo.setPurchaseOrderQuantity(Optional.ofNullable(poLineEntity.getQuantity()).orElse(BigDecimal.ZERO));
+                    poLineInfo.setOrderDetailQuantity(getOrderDetailQuantity(poLineEntity));
+                    poLineInfo.setProcessQuantityDetail(buildProcessQuantityDetail(poLineEntity));
+                }
                 info.setPurchaseOrderLines(
-                        purchaseOrderLineMapper.toPurchaseOrderLineInfos(poLines).stream().collect(Collectors.toSet()));
+                        poLineInfos.stream().collect(Collectors.toSet()));
             }
+            info.setProcessPercentage(calculatePurchaseOrderProgressPercentage(po.get(), poLines));
 
             log.info("Purchase order fetched successfully with requestId: {}", requestId);
             return info;
@@ -210,9 +244,27 @@ public class PurchaseOrderService {
         po.get().setNotes(request.getNotes());
         po.get().setUpdatedBy(RequestContext.getCurrentUsername());
 
-        purchaseOrderRepo.save(po.get());
+        PurchaseOrderEntity savedPo = purchaseOrderRepo.save(po.get());
+        upsertPurchaseOrderLines(savedPo, request.getPurchaseOrderLines(), requestId);
+
+        PurchaseOrderInfo info = purchaseOrderMapper.toPurchaseOrderInfo(savedPo);
+        List<PurchaseOrderLineEntity> poLines = purchaseOrderLineRepo.findAllByPurchaseOrderId(savedPo.getId());
+        if (!poLines.isEmpty()) {
+            List<PurchaseOrderLineInfo> poLineInfos = purchaseOrderLineMapper.toPurchaseOrderLineInfos(poLines);
+            for (int i = 0; i < poLines.size(); i++) {
+                PurchaseOrderLineInfo poLineInfo = poLineInfos.get(i);
+                PurchaseOrderLineEntity poLineEntity = poLines.get(i);
+                poLineInfo.setProcessPercentage(calculatePurchaseOrderLineProgressPercentage(poLineEntity));
+                poLineInfo.setPurchaseOrderQuantity(Optional.ofNullable(poLineEntity.getQuantity()).orElse(BigDecimal.ZERO));
+                poLineInfo.setOrderDetailQuantity(getOrderDetailQuantity(poLineEntity));
+                poLineInfo.setProcessQuantityDetail(buildProcessQuantityDetail(poLineEntity));
+            }
+            info.setPurchaseOrderLines(poLineInfos.stream().collect(Collectors.toSet()));
+        }
+        info.setProcessPercentage(calculatePurchaseOrderProgressPercentage(savedPo, poLines));
+
         log.info("Purchase order updated successfully with requestId: {}", requestId);
-        return purchaseOrderMapper.toPurchaseOrderInfo(po.get());
+        return info;
     }
 
     @Transactional
@@ -306,5 +358,177 @@ public class PurchaseOrderService {
 
     private String getPoStatusName(String status) {
         return Optional.ofNullable(Constant.PO_STATUS_MAP.get(status)).orElse(Constant.PO_STATUS_DRAFT);
+    }
+
+    private void upsertPurchaseOrderLines(PurchaseOrderEntity purchaseOrder, List<CreatePurchaseOrderLineRequest> requestLines,
+            String requestId) {
+        if (requestLines == null || requestLines.isEmpty()) {
+            return;
+        }
+
+        List<PurchaseOrderLineEntity> existingLines = purchaseOrderLineRepo.findByPurchaseOrderId(purchaseOrder.getId());
+        Map<UUID, PurchaseOrderLineEntity> existingLineById = existingLines.stream()
+                .filter(line -> line.getId() != null)
+                .collect(Collectors.toMap(PurchaseOrderLineEntity::getId, Function.identity()));
+
+        Map<UUID, ProductEntity> productById = loadProductsById(requestLines);
+
+        for (CreatePurchaseOrderLineRequest requestLine : requestLines) {
+            PurchaseOrderLineEntity targetLine;
+            UUID lineId = getOptionalUuid(requestLine.getId(), "purchase order line id", requestId);
+            if (lineId != null) {
+                targetLine = Optional.ofNullable(existingLineById.get(lineId))
+                        .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Purchase order line not found",
+                                HttpStatus.NOT_FOUND.value(), requestId));
+            } else {
+                targetLine = new PurchaseOrderLineEntity();
+                targetLine.setPurchaseOrder(purchaseOrder);
+                targetLine.setVersion(1L);
+                targetLine.setIsDeleted(false);
+                targetLine.setCreatedBy(RequestContext.getCurrentUsername());
+            }
+
+            applyCreatePurchaseOrderLineRequest(targetLine, requestLine);
+            targetLine.setUpdatedBy(RequestContext.getCurrentUsername());
+            applyLineRelations(targetLine, requestLine, purchaseOrder, productById, requestId);
+            purchaseOrderLineRepo.save(targetLine);
+        }
+    }
+
+    private void applyCreatePurchaseOrderLineRequest(PurchaseOrderLineEntity entity, CreatePurchaseOrderLineRequest requestLine) {
+        entity.setLink(requestLine.getLink());
+        entity.setQuantity(requestLine.getQuantity());
+        entity.setUom1(requestLine.getUom1());
+        entity.setUom2(requestLine.getUom2());
+        entity.setUnitPrice(requestLine.getUnitPrice());
+        entity.setIsTaxIncluded(requestLine.getIsTaxIncluded() != null ? requestLine.getIsTaxIncluded() : false);
+        entity.setTax(requestLine.getTax());
+        entity.setTotalBeforeTax(requestLine.getTotalBeforeTax());
+        entity.setTotalPrice(requestLine.getTotalPrice());
+        entity.setCurrency(requestLine.getCurrency());
+        entity.setExchangeRate(requestLine.getExchangeRate());
+        entity.setTotalPriceVnd(requestLine.getTotalPriceVnd());
+        entity.setNote(requestLine.getNote());
+        entity.setQuote(requestLine.getQuote());
+        entity.setInvoice(requestLine.getInvoice());
+        entity.setBillOfLadding(requestLine.getBillOfLadding());
+        entity.setReceiptWarehouse(requestLine.getReceiptWarehouse());
+        entity.setTrackId(requestLine.getTrackId());
+        entity.setPurchaseContractNumber(requestLine.getPurchaseContractNumber());
+    }
+
+    private void applyLineRelations(PurchaseOrderLineEntity entity, CreatePurchaseOrderLineRequest requestLine,
+            PurchaseOrderEntity purchaseOrder, Map<UUID, ProductEntity> productById, String requestId) {
+        if (requestLine.getProductId() != null && requestLine.getProductId().isPresent()
+                && requestLine.getProductId().get() != null && !requestLine.getProductId().get().isBlank()) {
+            UUID productId = UUID.fromString(requestLine.getProductId().get());
+            ProductEntity product = Optional.ofNullable(productById.get(productId))
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found",
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            entity.setProduct(product);
+        } else {
+            entity.setProduct(null);
+        }
+
+        if (requestLine.getVendorId() != null && requestLine.getVendorId().isPresent()
+                && requestLine.getVendorId().get() != null && !requestLine.getVendorId().get().isBlank()) {
+            VendorsEntity vendor = getVendorOrThrow(requestLine.getVendorId().get(), requestId);
+            entity.setVendor(vendor);
+        } else {
+            entity.setVendor(null);
+        }
+
+        if (requestLine.getSaleOrderLineId() != null && requestLine.getSaleOrderLineId().isPresent()
+                && requestLine.getSaleOrderLineId().get() != null && !requestLine.getSaleOrderLineId().get().isBlank()) {
+            UUID saleOrderLineId = UUID.fromString(requestLine.getSaleOrderLineId().get());
+            OrderLineEntity saleOrderLine = orderLineRepo.findById(saleOrderLineId)
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Sale order line not found",
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            validateSaleOrderLineMatchesPurchaseOrder(purchaseOrder, saleOrderLine, requestId);
+            entity.setSaleOrderLine(saleOrderLine);
+        } else {
+            entity.setSaleOrderLine(null);
+        }
+    }
+
+    private UUID getOptionalUuid(Optional<String> value, String fieldName, String requestId) {
+        if (value == null || value.isEmpty() || value.get() == null || value.get().isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value.get());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid " + fieldName,
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+    }
+
+    private BigDecimal calculatePurchaseOrderLineProgressPercentage(PurchaseOrderLineEntity poLine) {
+        if (poLine.getSaleOrderLine() == null || poLine.getSaleOrderLine().getQuantity() == null
+                || poLine.getSaleOrderLine().getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal poQuantity = Optional.ofNullable(poLine.getQuantity()).orElse(BigDecimal.ZERO);
+        BigDecimal orderLineQuantity = poLine.getSaleOrderLine().getQuantity();
+        BigDecimal percentage = poQuantity.multiply(BigDecimal.valueOf(100))
+                .divide(orderLineQuantity, 2, RoundingMode.HALF_UP);
+        return clampPercentage(percentage);
+    }
+
+    private BigDecimal calculatePurchaseOrderProgressPercentage(PurchaseOrderEntity purchaseOrder,
+            List<PurchaseOrderLineEntity> poLines) {
+        if (purchaseOrder == null || purchaseOrder.getOrder() == null || purchaseOrder.getOrder().getId() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        List<OrderLineEntity> orderLines = orderLineRepo.findByOrderId(purchaseOrder.getOrder().getId());
+        BigDecimal totalOrderLineQuantity = orderLines.stream()
+                .map(OrderLineEntity::getQuantity)
+                .filter(quantity -> quantity != null && quantity.compareTo(BigDecimal.ZERO) > 0)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalPurchaseOrderQuantity = BigDecimal.ZERO;
+
+        for (PurchaseOrderLineEntity poLine : poLines) {
+            if (poLine.getSaleOrderLine() == null || poLine.getSaleOrderLine().getQuantity() == null
+                    || poLine.getSaleOrderLine().getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            BigDecimal poQuantity = Optional.ofNullable(poLine.getQuantity()).orElse(BigDecimal.ZERO);
+
+            totalPurchaseOrderQuantity = totalPurchaseOrderQuantity.add(poQuantity.max(BigDecimal.ZERO));
+        }
+
+        if (totalOrderLineQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal percentage = totalPurchaseOrderQuantity.multiply(BigDecimal.valueOf(100))
+                .divide(totalOrderLineQuantity, 2, RoundingMode.HALF_UP);
+        return clampPercentage(percentage);
+    }
+
+    private BigDecimal clampPercentage(BigDecimal value) {
+        if (value.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+        if (value.compareTo(BigDecimal.valueOf(100)) > 0) {
+            return BigDecimal.valueOf(100);
+        }
+        return value;
+    }
+
+    private BigDecimal getOrderDetailQuantity(PurchaseOrderLineEntity poLine) {
+        if (poLine.getSaleOrderLine() == null || poLine.getSaleOrderLine().getQuantity() == null) {
+            return BigDecimal.ZERO;
+        }
+        return poLine.getSaleOrderLine().getQuantity();
+    }
+
+    private String buildProcessQuantityDetail(PurchaseOrderLineEntity poLine) {
+        BigDecimal poQuantity = Optional.ofNullable(poLine.getQuantity()).orElse(BigDecimal.ZERO);
+        BigDecimal orderDetailQuantity = getOrderDetailQuantity(poLine);
+        return poQuantity.stripTrailingZeros().toPlainString() + "/" + orderDetailQuantity.stripTrailingZeros().toPlainString();
     }
 }

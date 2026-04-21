@@ -10,11 +10,13 @@ import com.cnh.ies.repository.BaseRepo;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 
 @Repository
 public interface PurchaseOrderRepo extends BaseRepo<PurchaseOrderEntity, UUID> {
 
+    @EntityGraph(attributePaths = { "order", "order.customer" })
     @Query("SELECT po FROM PurchaseOrderEntity po WHERE po.isDeleted = false")
     Page<PurchaseOrderEntity> findAllAndIsDeletedFalse(Pageable pageable);
 
