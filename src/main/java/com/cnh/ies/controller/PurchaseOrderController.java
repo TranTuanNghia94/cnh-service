@@ -1,6 +1,7 @@
 package com.cnh.ies.controller;
 
 import java.util.UUID;
+import java.util.List;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,8 +15,10 @@ import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.purchaseorder.CreatePurchaseOrderRequest;
+import com.cnh.ies.model.purchaseorder.FindPurchaseOrderLineByDocumentRequest;
 import com.cnh.ies.model.purchaseorder.PurchaseOrderInfo;
 import com.cnh.ies.model.purchaseorder.UpdatePurchaseOrderStatusRequest;
+import com.cnh.ies.model.purchaseorder.PurchaseOrderLineInfo;
 import com.cnh.ies.service.purchaseorder.PurchaseOrderService;
 
 import lombok.RequiredArgsConstructor;
@@ -94,5 +97,17 @@ public class PurchaseOrderController {
 
         log.info("Getting all purchase orders success with requestId: {}", requestId);
         return ApiResponse.success(response, "Get all purchase orders success");
+    }
+
+    @PostMapping("/lines/find-by-document")
+    public ApiResponse<List<PurchaseOrderLineInfo>> findPurchaseOrderLinesByDocument(
+            @RequestBody FindPurchaseOrderLineByDocumentRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Finding purchase order lines by document with initiated requestId: {}", requestId);
+
+        List<PurchaseOrderLineInfo> response = purchaseOrderService.findPurchaseOrderLinesByDocument(request, requestId);
+
+        log.info("Finding purchase order lines by document success with requestId: {}", requestId);
+        return ApiResponse.success(response, "Find purchase order lines by document success");
     }
 }

@@ -28,6 +28,7 @@ import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.purchaseorder.CreatePurchaseOrderLineRequest;
 import com.cnh.ies.model.purchaseorder.CreatePurchaseOrderRequest;
+import com.cnh.ies.model.purchaseorder.FindPurchaseOrderLineByDocumentRequest;
 import com.cnh.ies.model.purchaseorder.PurchaseOrderInfo;
 import com.cnh.ies.model.purchaseorder.PurchaseOrderLineInfo;
 import com.cnh.ies.repository.order.OrderLineRepo;
@@ -138,6 +139,7 @@ public class PurchaseOrderService {
                 log.info("Purchase order lines created successfully 2/3 requestId: {}", requestId);
             }
 
+            refreshPurchaseOrderTotalNote(savedPo);
             log.info("Purchase order created successfully 3/3 requestId: {}", requestId);
             return purchaseOrderMapper.toPurchaseOrderInfo(savedPo);
         } catch (ApiException e) {
@@ -196,6 +198,36 @@ public class PurchaseOrderService {
         }
     }
 
+    public List<PurchaseOrderLineInfo> findPurchaseOrderLinesByDocument(FindPurchaseOrderLineByDocumentRequest request,
+            String requestId) {
+        if (request == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Request is required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        String paperCode = normalizeSearchValue(request.getPaperCode());
+        String paperType = normalizeSearchValue(request.getPaperType());
+
+        if (paperCode == null || paperType == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "paperCode and paperType are required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        List<PurchaseOrderLineEntity> lines = switch (paperType.trim().toUpperCase()) {
+            case "QUOTE" -> purchaseOrderLineRepo.findByQuotePaperCode(paperCode);
+            case "INVOICE" -> purchaseOrderLineRepo.findByInvoicePaperCode(paperCode);
+            case "TRACK_ID", "TRACKID", "TRACE_ID", "TRACEID" -> purchaseOrderLineRepo.findByTrackIdPaperCode(paperCode);
+            case "RECEIPT_WAREHOUSE", "RECEIPTWAREHOUSE" -> purchaseOrderLineRepo.findByReceiptWarehousePaperCode(paperCode);
+            case "BILL_OF_LADDING", "BILLOFLADDING" -> purchaseOrderLineRepo.findByBillOfLaddingPaperCode(paperCode);
+            default -> throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "Invalid paperType. Supported: QUOTE, INVOICE, TRACK_ID, RECEIPT_WAREHOUSE, BILL_OF_LADDING",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        };
+
+        return purchaseOrderLineMapper.toPurchaseOrderLineInfos(lines);
+    }
+
     @Transactional
     public PurchaseOrderInfo updatePurchaseOrderStatus(String id, String status, String requestId) {
         log.info("Updating purchase order status with requestId: {} | id: {} | status: {}", requestId, id, status);
@@ -246,6 +278,7 @@ public class PurchaseOrderService {
 
         PurchaseOrderEntity savedPo = purchaseOrderRepo.save(po.get());
         upsertPurchaseOrderLines(savedPo, request.getPurchaseOrderLines(), requestId);
+        refreshPurchaseOrderTotalNote(savedPo);
 
         PurchaseOrderInfo info = purchaseOrderMapper.toPurchaseOrderInfo(savedPo);
         List<PurchaseOrderLineEntity> poLines = purchaseOrderLineRepo.findAllByPurchaseOrderId(savedPo.getId());
@@ -327,6 +360,8 @@ public class PurchaseOrderService {
             entity.setProduct(product);
         }
 
+        entity.setTotalPriceVnd(calcTotalPriceVnd(line.getTotalPrice(), line.getExchangeRate(), line.getCurrency()));
+
         if (line.getVendorId() != null && line.getVendorId().isPresent()) {
             VendorsEntity vendor = getVendorOrThrow(line.getVendorId().get(), requestId);
             entity.setVendor(vendor);
@@ -407,7 +442,7 @@ public class PurchaseOrderService {
         entity.setTotalPrice(requestLine.getTotalPrice());
         entity.setCurrency(requestLine.getCurrency());
         entity.setExchangeRate(requestLine.getExchangeRate());
-        entity.setTotalPriceVnd(requestLine.getTotalPriceVnd());
+        entity.setTotalPriceVnd(calcTotalPriceVnd(requestLine.getTotalPrice(), requestLine.getExchangeRate(), requestLine.getCurrency()));
         entity.setNote(requestLine.getNote());
         entity.setQuote(requestLine.getQuote());
         entity.setInvoice(requestLine.getInvoice());
@@ -461,6 +496,13 @@ public class PurchaseOrderService {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid " + fieldName,
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
+    }
+
+    private String normalizeSearchValue(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private BigDecimal calculatePurchaseOrderLineProgressPercentage(PurchaseOrderLineEntity poLine) {
@@ -530,5 +572,34 @@ public class PurchaseOrderService {
         BigDecimal poQuantity = Optional.ofNullable(poLine.getQuantity()).orElse(BigDecimal.ZERO);
         BigDecimal orderDetailQuantity = getOrderDetailQuantity(poLine);
         return poQuantity.stripTrailingZeros().toPlainString() + "/" + orderDetailQuantity.stripTrailingZeros().toPlainString();
+    }
+
+    private static final String TOTAL_VND_TAG = "";
+
+    private BigDecimal calcTotalPriceVnd(BigDecimal totalPrice, BigDecimal exchangeRate, String currency) {
+        if (totalPrice == null) {
+            return BigDecimal.ZERO;
+        }
+        if ("VND".equalsIgnoreCase(currency)) {
+            return totalPrice.setScale(0, RoundingMode.HALF_UP);
+        }
+        if (exchangeRate != null && exchangeRate.compareTo(BigDecimal.ZERO) > 0) {
+            return totalPrice.multiply(exchangeRate).setScale(0, RoundingMode.HALF_UP);
+        }
+        return totalPrice.setScale(0, RoundingMode.HALF_UP);
+    }
+
+    private void refreshPurchaseOrderTotalNote(PurchaseOrderEntity po) {
+        List<PurchaseOrderLineEntity> lines = purchaseOrderLineRepo.findAllByPurchaseOrderId(po.getId());
+        BigDecimal totalVnd = lines.stream()
+                .map(line -> Optional.ofNullable(line.getTotalPriceVnd()).orElse(BigDecimal.ZERO))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        String existingNotes = po.getNotes();
+        String cleanedNotes = existingNotes == null ? "" : existingNotes.replaceAll("(?m)^\\[Total VND\\]:.*(\r?\n)?", "").stripTrailing();
+        String totalLine = TOTAL_VND_TAG + " " + String.format("%,.0f VND", totalVnd);
+        po.setNotes(cleanedNotes.isBlank() ? totalLine : cleanedNotes + "\n" + totalLine);
+        purchaseOrderRepo.save(po);
+        log.info("Purchase order total VND note updated: {}", totalLine);
     }
 }
