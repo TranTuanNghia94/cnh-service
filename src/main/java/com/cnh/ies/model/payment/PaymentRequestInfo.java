@@ -17,6 +17,7 @@ public class PaymentRequestInfo {
     private Integer currentApprovalLevel;
     private String currency;
     private BigDecimal exchangeRate;
+    private BigDecimal amount;
     private BigDecimal requestedAmount;
     private BigDecimal requestedAmountVnd;
     private BigDecimal feeAmount;

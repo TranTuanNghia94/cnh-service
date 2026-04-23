@@ -15,6 +15,9 @@ public interface PaymentRequestPurchaseOrderLineRepo extends BaseRepo<PaymentReq
     @Query("SELECT i FROM PaymentRequestPurchaseOrderLineEntity i "
             + "LEFT JOIN FETCH i.purchaseOrderLine pol "
             + "LEFT JOIN FETCH pol.vendor "
+            + "LEFT JOIN FETCH pol.purchaseOrder "
+            + "LEFT JOIN FETCH pol.product "
+            + "LEFT JOIN FETCH pol.saleOrderLine "
             + "WHERE i.paymentRequest.id = :paymentRequestId AND i.isDeleted = false")
     List<PaymentRequestPurchaseOrderLineEntity> findByPaymentRequestId(UUID paymentRequestId);
 }

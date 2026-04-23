@@ -14,7 +14,12 @@ public interface PaymentRequestItemDocumentRepo extends BaseRepo<PaymentRequestI
 
     @Query("SELECT d FROM PaymentRequestItemDocumentEntity d "
             + "JOIN FETCH d.paymentRequestItem i "
-            + "WHERE i.paymentRequest.id = :paymentRequestId AND d.isDeleted = false")
+            + "LEFT JOIN FETCH i.purchaseOrderLine pol "
+            + "LEFT JOIN FETCH pol.vendor "
+            + "LEFT JOIN FETCH pol.purchaseOrder "
+            + "LEFT JOIN FETCH pol.product "
+            + "LEFT JOIN FETCH pol.saleOrderLine "
+            + "WHERE i.paymentRequest.id = :paymentRequestId AND d.isDeleted = false AND i.isDeleted = false")
     List<PaymentRequestItemDocumentEntity> findByPaymentRequestId(UUID paymentRequestId);
 
     @Query("SELECT d FROM PaymentRequestItemDocumentEntity d "

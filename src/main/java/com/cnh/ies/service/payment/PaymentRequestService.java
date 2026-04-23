@@ -1,7 +1,6 @@
 package com.cnh.ies.service.payment;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -19,7 +18,6 @@ import com.cnh.ies.constant.Constant;
 import com.cnh.ies.entity.auth.UserEntity;
 import com.cnh.ies.entity.payment.PaymentRequestApprovalEntity;
 import com.cnh.ies.entity.payment.PaymentRequestEntity;
-import com.cnh.ies.entity.payment.PaymentRequestExtraFeeEntity;
 import com.cnh.ies.entity.payment.PaymentRequestItemDocumentEntity;
 import com.cnh.ies.entity.payment.PaymentRequestPurchaseOrderLineEntity;
 import com.cnh.ies.entity.purchaseorder.PurchaseOrderLineEntity;
@@ -29,15 +27,9 @@ import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.payment.ApprovePaymentRequest;
 import com.cnh.ies.model.payment.CreateOrUpdatePaymentRequest;
 import com.cnh.ies.model.payment.MarkPaymentPaidRequest;
-import com.cnh.ies.model.payment.PaymentBankInfoObject;
-import com.cnh.ies.model.payment.PaymentBankNoteObject;
-import com.cnh.ies.model.payment.PaymentFileObject;
-import com.cnh.ies.model.payment.PaymentRequestApprovalInfo;
-import com.cnh.ies.model.payment.PaymentRequestFeeInfo;
 import com.cnh.ies.model.payment.PaymentRequestFeeRequest;
 import com.cnh.ies.model.payment.PaymentRequestInfo;
 import com.cnh.ies.model.payment.PaymentRequestItemRequest;
-import com.cnh.ies.model.payment.PaymentRequestLineInfo;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
 import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.model.user.UserInfo;
@@ -48,9 +40,11 @@ import com.cnh.ies.repository.payment.PaymentRequestItemDocumentRepo;
 import com.cnh.ies.repository.payment.PaymentRequestPurchaseOrderLineRepo;
 import com.cnh.ies.repository.payment.PaymentRequestRepo;
 import com.cnh.ies.repository.purchaseorder.PurchaseOrderLineRepo;
+import com.cnh.ies.mapper.payment.PaymentRequestMapper;
+import com.cnh.ies.mapper.payment.PaymentRequestMoneyMapper;
+import com.cnh.ies.mapper.payment.PaymentRequestMoneyTotals;
 import com.cnh.ies.service.redis.RedisService;
 import com.cnh.ies.util.RequestContext;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.transaction.Transactional;
@@ -63,6 +57,10 @@ import lombok.extern.slf4j.Slf4j;
 public class PaymentRequestService {
     private static final Set<String> VALID_DOCUMENT_TYPES = Set.of(
             "invoice", "quote", "bill_of_ladding", "track_id", "receipt_warehouse");
+    private static final Set<String> DRAFT_OR_REJECTED = Set.of(
+            Constant.PAYMENT_REQUEST_STATUS_DRAFT,
+            Constant.PAYMENT_REQUEST_STATUS_REJECTED);
+
     private static final Map<String, Set<String>> ALLOWED_STATUS_TRANSITIONS = Map.of(
             Constant.PAYMENT_REQUEST_STATUS_DRAFT, Set.of(
                     Constant.PAYMENT_REQUEST_STATUS_PENDING_ACCOUNTANT_APPROVAL,
@@ -97,10 +95,17 @@ public class PaymentRequestService {
     private final RedisService redisService;
     private final ObjectMapper objectMapper;
     private final PaymentRequestNumberService paymentRequestNumberService;
+    private final PaymentRequestLineSyncService paymentRequestLineSyncService;
+    private final PaymentRequestFeeSyncService paymentRequestFeeSyncService;
+    private final PaymentRequestMapper paymentRequestMapper;
+    private final PaymentRequestMoneyMapper paymentRequestMoneyMapper;
+    private final PaymentRequestLineAmountCalculator paymentRequestLineAmountCalculator;
 
     public ListDataModel<PaymentRequestInfo> getAllPaymentRequests(String requestId, Integer page, Integer limit) {
         Page<PaymentRequestEntity> requests = paymentRequestRepo.findAllAndIsDeletedFalse(PageRequest.of(page, limit));
-        List<PaymentRequestInfo> data = requests.stream().map(this::toInfoWithoutChildren).collect(Collectors.toList());
+        List<PaymentRequestInfo> data = requests.stream()
+                .map(e -> paymentRequestMapper.toSummaryInfoWithAlignedAmounts(e, requestId))
+                .toList();
         PaginationModel pagination = PaginationModel.builder()
                 .page(page)
                 .limit(limit)
@@ -110,9 +115,14 @@ public class PaymentRequestService {
         return ListDataModel.<PaymentRequestInfo>builder().data(data).pagination(pagination).build();
     }
 
+    @Transactional
     public PaymentRequestInfo getById(String id, String requestId) {
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
-        return toInfo(paymentRequest);
+        if (DRAFT_OR_REJECTED.contains(paymentRequest.getStatus())) {
+            recalculateAmountsBeforeSave(paymentRequest, requestId);
+            paymentRequestRepo.saveAndFlush(paymentRequest);
+        }
+        return toInfo(paymentRequest, requestId);
     }
 
     @Transactional
@@ -129,19 +139,25 @@ public class PaymentRequestService {
 
         validateLineDocumentSelection(itemRequests, poLines, requestId);
         validateSameVendor(poLines, requestId);
+        paymentRequestLineAmountCalculator.applyCalculatedRequestedAmounts(request, itemRequests, poLines, requestId);
         BigDecimal requestedAmount = itemRequests.stream()
                 .map(PaymentRequestItemRequest::getRequestedAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal feeAmount = calculateFeeAmount(request.getFees());
+        String payCurrency = paymentRequestMoneyMapper.normalizeCurrency(request.getCurrency());
+        BigDecimal payRate = paymentRequestMoneyMapper.resolveExchangeRate(payCurrency, request.getExchangeRate(), requestId);
+        BigDecimal lineItemsAmount = paymentRequestMoneyMapper.sumPurchaseOrderLinePayables(poLines, payCurrency, payRate, requestId);
 
-        PaymentRequestEntity entity = upsertPaymentRequestMain(request, poLines.get(0), requestedAmount, feeAmount, requestId);
-        replaceItems(entity, itemRequests, poLines);
-        replaceFees(entity, request.getFees());
-        recalculateAmountsBeforeSave(entity, requestId);
+        PaymentRequestEntity entity = upsertPaymentRequestMain(request, poLines.get(0), requestedAmount, feeAmount, lineItemsAmount,
+                requestId);
+        paymentRequestLineSyncService.syncItems(entity, itemRequests, poLines, requestId);
+        paymentRequestFeeSyncService.syncFees(entity, request.getFees(), requestId);
+        paymentRequestRepo.flush();
+        recalculateAmountsBeforeSave(entity, request, requestId);
         rebuildApprovalsIfNeeded(entity, request.getApprovalLevels());
-        paymentRequestRepo.save(entity);
+        paymentRequestRepo.saveAndFlush(entity);
 
-        return toInfo(entity);
+        return toInfo(entity, requestId);
     }
 
     @Transactional
@@ -153,14 +169,13 @@ public class PaymentRequestService {
         paymentRequest.setCurrentApprovalLevel(0);
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         paymentRequestRepo.save(paymentRequest);
-        return toInfo(paymentRequest);
+        return toInfo(paymentRequest, requestId);
     }
 
     @Transactional
     public PaymentRequestInfo cancel(String id, String requestId) {
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
-        if (!Constant.PAYMENT_REQUEST_STATUS_DRAFT.equals(paymentRequest.getStatus())
-                && !Constant.PAYMENT_REQUEST_STATUS_REJECTED.equals(paymentRequest.getStatus())) {
+        if (!DRAFT_OR_REJECTED.contains(paymentRequest.getStatus())) {
             throw new ApiException(ApiException.ErrorCode.CONFLICT, "Only DRAFT/REJECTED can be cancelled",
                     HttpStatus.CONFLICT.value(), requestId);
         }
@@ -168,7 +183,7 @@ public class PaymentRequestService {
         transitionStatus(paymentRequest, Constant.PAYMENT_REQUEST_STATUS_CANCELLED, requestId);
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         paymentRequestRepo.save(paymentRequest);
-        return toInfo(paymentRequest);
+        return toInfo(paymentRequest, requestId);
     }
 
     @Transactional
@@ -177,15 +192,12 @@ public class PaymentRequestService {
         ensureApprovingStatus(paymentRequest, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
 
-        int level = request.getLevel() == null ? paymentRequest.getCurrentApprovalLevel() + 1 : request.getLevel();
+        int level = resolveApprovalLevel(request.getLevel(), paymentRequest);
         if (level <= 0 || level > paymentRequest.getApprovalLevels()) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid approval level", HttpStatus.BAD_REQUEST.value(),
                     requestId);
         }
-        PaymentRequestApprovalEntity approval = paymentRequestApprovalRepo
-                .findByPaymentRequestIdAndLevel(paymentRequest.getId(), level)
-                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Approval level not found",
-                        HttpStatus.NOT_FOUND.value(), requestId));
+        PaymentRequestApprovalEntity approval = approvalAtLevelOrThrow(paymentRequest, level, requestId);
         if (!Constant.PAYMENT_APPROVAL_STATUS_PENDING.equals(approval.getStatus())) {
             throw new ApiException(ApiException.ErrorCode.CONFLICT, "This level was already processed",
                     HttpStatus.CONFLICT.value(), requestId);
@@ -204,7 +216,7 @@ public class PaymentRequestService {
         transitionStatus(paymentRequest, nextStatusAfterApproval(level, paymentRequest.getApprovalLevels()), requestId);
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         paymentRequestRepo.save(paymentRequest);
-        return toInfo(paymentRequest);
+        return toInfo(paymentRequest, requestId);
     }
 
     @Transactional
@@ -213,11 +225,8 @@ public class PaymentRequestService {
         ensureApprovingStatus(paymentRequest, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
 
-        int level = request.getLevel() == null ? paymentRequest.getCurrentApprovalLevel() + 1 : request.getLevel();
-        PaymentRequestApprovalEntity approval = paymentRequestApprovalRepo
-                .findByPaymentRequestIdAndLevel(paymentRequest.getId(), level)
-                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Approval level not found",
-                        HttpStatus.NOT_FOUND.value(), requestId));
+        int level = resolveApprovalLevel(request.getLevel(), paymentRequest);
+        PaymentRequestApprovalEntity approval = approvalAtLevelOrThrow(paymentRequest, level, requestId);
 
         UserEntity currentUser = findUser(requestId);
         validateApproverRole(approval.getApprovalRole(), requestId);
@@ -232,7 +241,7 @@ public class PaymentRequestService {
         transitionStatus(paymentRequest, Constant.PAYMENT_REQUEST_STATUS_REJECTED, requestId);
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         paymentRequestRepo.save(paymentRequest);
-        return toInfo(paymentRequest);
+        return toInfo(paymentRequest, requestId);
     }
 
     @Transactional
@@ -265,7 +274,8 @@ public class PaymentRequestService {
         }
 
         paymentRequest.setPaidAmount(newPaidAmount);
-        paymentRequest.setPaidAmountVnd(paymentRequest.getPaidAmountVnd().add(toVnd(request.getPaidAmount(), exchangeRate)));
+        paymentRequest.setPaidAmountVnd(paymentRequest.getPaidAmountVnd()
+                .add(paymentRequestMoneyMapper.toVnd(request.getPaidAmount(), exchangeRate)));
         paymentRequest.setExchangeRate(exchangeRate);
         paymentRequest.setBankNote(writeJson(request.getBankNote(), requestId));
         paymentRequest.setPaidBy(findUser(requestId));
@@ -278,11 +288,12 @@ public class PaymentRequestService {
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         recalculateAmountsBeforeSave(paymentRequest, requestId);
         paymentRequestRepo.save(paymentRequest);
-        return toInfo(paymentRequest);
+        return toInfo(paymentRequest, requestId);
     }
 
     private PaymentRequestEntity upsertPaymentRequestMain(CreateOrUpdatePaymentRequest request,
-            PurchaseOrderLineEntity firstLine, BigDecimal requestedAmount, BigDecimal feeAmount, String requestId) {
+            PurchaseOrderLineEntity firstLine, BigDecimal requestedAmount, BigDecimal feeAmount, BigDecimal lineItemsAmount,
+            String requestId) {
         PaymentRequestEntity entity;
         if (request.getId() == null || request.getId().isBlank()) {
             entity = new PaymentRequestEntity();
@@ -293,8 +304,7 @@ public class PaymentRequestService {
             entity.setCreatedBy(RequestContext.getCurrentUsername());
         } else {
             entity = findPaymentRequest(request.getId(), requestId);
-            if (!Constant.PAYMENT_REQUEST_STATUS_DRAFT.equals(entity.getStatus())
-                    && !Constant.PAYMENT_REQUEST_STATUS_REJECTED.equals(entity.getStatus())) {
+            if (!DRAFT_OR_REJECTED.contains(entity.getStatus())) {
                 throw new ApiException(ApiException.ErrorCode.CONFLICT,
                         "Only DRAFT/REJECTED payment request can be updated", HttpStatus.CONFLICT.value(), requestId);
             }
@@ -303,95 +313,11 @@ public class PaymentRequestService {
             }
         }
 
-        entity.setRequestor(findUser(requestId));
-        entity.setVendor(firstLine.getVendor());
-        String normalizedCurrency = normalizeCurrency(request.getCurrency());
-        BigDecimal exchangeRate = resolveExchangeRate(normalizedCurrency, request.getExchangeRate(), requestId);
-        entity.setCurrency(normalizedCurrency);
-        entity.setExchangeRate(exchangeRate);
-        BigDecimal requestedAmountVnd = toVnd(requestedAmount, exchangeRate);
-        BigDecimal feeAmountVnd = toVnd(feeAmount, exchangeRate);
-        entity.setPaidPercentage(request.getPaidPercentage() == null ? BigDecimal.ZERO : request.getPaidPercentage());
-        entity.setPurpose(request.getPurpose());
-        entity.setNotes(request.getNotes());
-        entity.setPapers(writeJson(request.getPapers(), requestId));
-        entity.setBankInfo(writeJson(request.getBankInfo(), requestId));
-        entity.setApprovalLevels(request.getApprovalLevels());
-        entity.setRequestedAmount(requestedAmount);
-        entity.setRequestedAmountVnd(requestedAmountVnd);
-        entity.setFeeAmount(feeAmount);
-        entity.setFeeAmountVnd(feeAmountVnd);
-        BigDecimal totalAmount = requestedAmount.add(feeAmount);
-        BigDecimal totalAmountVnd = requestedAmountVnd.add(feeAmountVnd);
-        entity.setTotalAmount(totalAmount);
-        entity.setTotalAmountVnd(totalAmountVnd);
-        entity.setAmount(totalAmount);
-        entity.setUpdatedBy(RequestContext.getCurrentUsername());
+        paymentRequestMapper.applyHeaderFromCreateOrUpdate(entity, request, findUser(requestId), firstLine.getVendor(),
+                requestedAmount, feeAmount, lineItemsAmount, writeJson(request.getPapers(), requestId),
+                writeJson(request.getBankInfo(), requestId),
+                requestId);
         return paymentRequestRepo.save(entity);
-    }
-
-    private void replaceItems(PaymentRequestEntity paymentRequest, List<PaymentRequestItemRequest> itemRequests,
-            List<PurchaseOrderLineEntity> poLines) {
-        List<PaymentRequestPurchaseOrderLineEntity> existing = paymentRequestPurchaseOrderLineRepo
-                .findByPaymentRequestId(paymentRequest.getId());
-        List<UUID> existingItemIds = existing.stream().map(PaymentRequestPurchaseOrderLineEntity::getId).toList();
-        if (!existingItemIds.isEmpty()) {
-            List<PaymentRequestItemDocumentEntity> existingDocs = paymentRequestItemDocumentRepo
-                    .findByPaymentRequestItemIds(existingItemIds);
-            existingDocs.forEach(doc -> doc.setIsDeleted(true));
-            paymentRequestItemDocumentRepo.saveAll(existingDocs);
-            paymentRequestItemDocumentRepo.flush();
-        }
-        existing.forEach(item -> item.setIsDeleted(true));
-        paymentRequestPurchaseOrderLineRepo.saveAll(existing);
-        // Ensure old active rows are soft-deleted in DB before inserting replacement rows
-        // to avoid hitting unique partial index uq_pr_po_line_active.
-        paymentRequestPurchaseOrderLineRepo.flush();
-
-        for (PaymentRequestItemRequest itemRequest : itemRequests) {
-            PurchaseOrderLineEntity line = poLines.stream()
-                    .filter(it -> it.getId().toString().equals(itemRequest.getPurchaseOrderLineId()))
-                    .findFirst()
-                    .orElseThrow();
-            PaymentRequestPurchaseOrderLineEntity item = new PaymentRequestPurchaseOrderLineEntity();
-            item.setPaymentRequest(paymentRequest);
-            item.setPurchaseOrderLine(line);
-            item.setSelectedDocuments(normalizeDocuments(itemRequest.getSelectedDocumentTypes()));
-            item.setRequestedAmount(itemRequest.getRequestedAmount());
-            item.setPaidAmount(BigDecimal.ZERO);
-            item.setNote(itemRequest.getNote());
-            item.setCreatedBy(RequestContext.getCurrentUsername());
-            item.setUpdatedBy(RequestContext.getCurrentUsername());
-            PaymentRequestPurchaseOrderLineEntity savedItem = paymentRequestPurchaseOrderLineRepo.save(item);
-            for (String documentType : normalizeDocumentTypes(itemRequest.getSelectedDocumentTypes())) {
-                PaymentRequestItemDocumentEntity itemDocument = new PaymentRequestItemDocumentEntity();
-                itemDocument.setPaymentRequestItem(savedItem);
-                itemDocument.setDocumentType(documentType);
-                itemDocument.setCreatedBy(RequestContext.getCurrentUsername());
-                itemDocument.setUpdatedBy(RequestContext.getCurrentUsername());
-                paymentRequestItemDocumentRepo.save(itemDocument);
-            }
-        }
-    }
-
-    private void replaceFees(PaymentRequestEntity paymentRequest, List<PaymentRequestFeeRequest> feeRequests) {
-        List<PaymentRequestExtraFeeEntity> existing = paymentRequestExtraFeeRepo.findByPaymentRequestId(paymentRequest.getId());
-        existing.forEach(fee -> fee.setIsDeleted(true));
-        paymentRequestExtraFeeRepo.saveAll(existing);
-        if (feeRequests == null || feeRequests.isEmpty()) {
-            return;
-        }
-        for (PaymentRequestFeeRequest feeRequest : feeRequests) {
-            PaymentRequestExtraFeeEntity fee = new PaymentRequestExtraFeeEntity();
-            fee.setPaymentRequest(paymentRequest);
-            fee.setFeeName(feeRequest.getFeeName());
-            fee.setFeeType(feeRequest.getFeeType());
-            fee.setAmount(feeRequest.getAmount() == null ? BigDecimal.ZERO : feeRequest.getAmount());
-            fee.setNote(feeRequest.getNote());
-            fee.setCreatedBy(RequestContext.getCurrentUsername());
-            fee.setUpdatedBy(RequestContext.getCurrentUsername());
-            paymentRequestExtraFeeRepo.save(fee);
-        }
     }
 
     private void rebuildApprovalsIfNeeded(PaymentRequestEntity paymentRequest, Integer approvalLevels) {
@@ -418,13 +344,11 @@ public class PaymentRequestService {
         if (approvalLevels == 2) {
             return level == 1 ? "ACCOUNTANT" : "HEAD_ACCOUNTANT";
         }
-        if (level == 1) {
-            return "ACCOUNTANT";
-        }
-        if (level == 2) {
-            return "HEAD_ACCOUNTANT";
-        }
-        return "FINAL_APPROVER";
+        return switch (level) {
+            case 1 -> "ACCOUNTANT";
+            case 2 -> "HEAD_ACCOUNTANT";
+            default -> "FINAL_APPROVER";
+        };
     }
 
     private String nextStatusAfterApproval(int approvedLevel, int approvalLevels) {
@@ -438,11 +362,20 @@ public class PaymentRequestService {
     }
 
     private void ensureDraft(PaymentRequestEntity paymentRequest, String requestId) {
-        if (!Constant.PAYMENT_REQUEST_STATUS_DRAFT.equals(paymentRequest.getStatus())
-                && !Constant.PAYMENT_REQUEST_STATUS_REJECTED.equals(paymentRequest.getStatus())) {
+        if (!DRAFT_OR_REJECTED.contains(paymentRequest.getStatus())) {
             throw new ApiException(ApiException.ErrorCode.CONFLICT, "Only DRAFT/REJECTED can be submitted",
                     HttpStatus.CONFLICT.value(), requestId);
         }
+    }
+
+    private static int resolveApprovalLevel(Integer explicitLevel, PaymentRequestEntity pr) {
+        return explicitLevel == null ? pr.getCurrentApprovalLevel() + 1 : explicitLevel;
+    }
+
+    private PaymentRequestApprovalEntity approvalAtLevelOrThrow(PaymentRequestEntity pr, int level, String requestId) {
+        return paymentRequestApprovalRepo.findByPaymentRequestIdAndLevel(pr.getId(), level)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Approval level not found",
+                        HttpStatus.NOT_FOUND.value(), requestId));
     }
 
     private void ensureApprovingStatus(PaymentRequestEntity paymentRequest, String requestId) {
@@ -475,27 +408,12 @@ public class PaymentRequestService {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Duplicate purchaseOrderLineId in items",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
-        String normalizedCurrency = normalizeCurrency(request.getCurrency());
-        resolveExchangeRate(normalizedCurrency, request.getExchangeRate(), requestId);
-    }
-
-    private String normalizeCurrency(String currency) {
-        if (currency == null || currency.isBlank()) {
-            return "VND";
-        }
-        return currency.trim().toUpperCase();
-    }
-
-    private BigDecimal resolveExchangeRate(String currency, BigDecimal exchangeRate, String requestId) {
-        if ("VND".equalsIgnoreCase(currency)) {
-            return BigDecimal.ONE;
-        }
-        if (exchangeRate == null || exchangeRate.compareTo(BigDecimal.ZERO) <= 0) {
+        paymentRequestMoneyMapper.validateCurrencyAndExchangeForCreate(request, requestId);
+        BigDecimal pct = request.getPaidPercentage();
+        if (pct != null && (pct.compareTo(BigDecimal.ZERO) <= 0 || pct.compareTo(BigDecimal.valueOf(100)) > 0)) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
-                    "exchangeRate is required and must be > 0 for non-VND currency",
-                    HttpStatus.BAD_REQUEST.value(), requestId);
+                    "paidPercentage must be between 0 (exclusive) and 100 (inclusive)", HttpStatus.BAD_REQUEST.value(), requestId);
         }
-        return exchangeRate;
     }
 
     private void validateLineDocumentSelection(List<PaymentRequestItemRequest> itemRequests, List<PurchaseOrderLineEntity> poLines,
@@ -506,10 +424,6 @@ public class PaymentRequestService {
                     || item.getSelectedDocumentTypes().size() > 3) {
                 throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
                         "Each line must select 1 to 3 documents", HttpStatus.BAD_REQUEST.value(), requestId);
-            }
-            if (item.getRequestedAmount() == null || item.getRequestedAmount().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "requestedAmount must be > 0",
-                        HttpStatus.BAD_REQUEST.value(), requestId);
             }
             PurchaseOrderLineEntity line = poLines.stream()
                     .filter(it -> it.getId().toString().equals(item.getPurchaseOrderLineId()))
@@ -562,73 +476,53 @@ public class PaymentRequestService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private String normalizeDocuments(List<String> selectedDocumentTypes) {
-        Set<String> normalized = normalizeDocumentTypes(selectedDocumentTypes);
-        return String.join(",", normalized);
-    }
-
-    private Set<String> normalizeDocumentTypes(List<String> selectedDocumentTypes) {
-        return selectedDocumentTypes.stream()
-                .filter(it -> it != null && !it.isBlank())
-                .map(String::trim)
-                .map(String::toLowerCase)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-    }
-
-    private BigDecimal toVnd(BigDecimal amount, BigDecimal exchangeRate) {
-        if (amount == null) {
-            return BigDecimal.ZERO;
-        }
-        return amount.multiply(exchangeRate);
-    }
-
-    private BigDecimal calculatePaidPercentage(BigDecimal paidAmount, BigDecimal totalAmount) {
-        BigDecimal safePaid = paidAmount == null ? BigDecimal.ZERO : paidAmount;
-        BigDecimal safeTotal = totalAmount == null ? BigDecimal.ZERO : totalAmount;
-        if (safeTotal.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
-        }
-        BigDecimal percentage = safePaid.multiply(BigDecimal.valueOf(100))
-                .divide(safeTotal, 2, RoundingMode.HALF_UP);
-        if (percentage.compareTo(BigDecimal.ZERO) < 0) {
-            return BigDecimal.ZERO;
-        }
-        if (percentage.compareTo(BigDecimal.valueOf(100)) > 0) {
-            return BigDecimal.valueOf(100);
-        }
-        return percentage;
-    }
-
     private void recalculateAmountsBeforeSave(PaymentRequestEntity paymentRequest, String requestId) {
+        recalculateAmountsBeforeSave(paymentRequest, null, requestId);
+    }
+
+    /**
+     * Recomputes header money fields from persisted lines and extra fees. After create/update, pass
+     * {@code createOrUpdateRequest} so currency, exchange rate, and (when unpaid) paid percentage match the payload.
+     */
+    private void recalculateAmountsBeforeSave(PaymentRequestEntity paymentRequest, CreateOrUpdatePaymentRequest createOrUpdateRequest,
+            String requestId) {
         if (paymentRequest.getId() == null) {
             return;
         }
-        BigDecimal requestedAmount = paymentRequestPurchaseOrderLineRepo.findByPaymentRequestId(paymentRequest.getId()).stream()
-                .map(item -> item.getRequestedAmount() == null ? BigDecimal.ZERO : item.getRequestedAmount())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal feeAmount = paymentRequestExtraFeeRepo.findByPaymentRequestId(paymentRequest.getId()).stream()
-                .map(fee -> fee.getAmount() == null ? BigDecimal.ZERO : fee.getAmount())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<PaymentRequestPurchaseOrderLineEntity> lineItems = paymentRequestPurchaseOrderLineRepo
+                .findByPaymentRequestId(paymentRequest.getId());
+        BigDecimal requestedAmount = paymentRequestMoneyMapper.sumLineRequestedAmounts(lineItems);
+        BigDecimal feeAmount = paymentRequestMoneyMapper.sumExtraFeeAmounts(
+                paymentRequestExtraFeeRepo.findByPaymentRequestId(paymentRequest.getId()));
 
-        String normalizedCurrency = normalizeCurrency(paymentRequest.getCurrency());
-        BigDecimal exchangeRate = resolveExchangeRate(normalizedCurrency, paymentRequest.getExchangeRate(), requestId);
-        BigDecimal totalAmount = requestedAmount.add(feeAmount);
+        String currencyForTotals = createOrUpdateRequest != null
+                ? createOrUpdateRequest.getCurrency()
+                : paymentRequest.getCurrency();
+        BigDecimal exchangeRateForTotals = createOrUpdateRequest != null
+                ? createOrUpdateRequest.getExchangeRate()
+                : paymentRequest.getExchangeRate();
 
-        if (paymentRequest.getPaidAmount() != null && paymentRequest.getPaidAmount().compareTo(totalAmount) > 0) {
+        BigDecimal lineItemsAmount = paymentRequestMoneyMapper.sumLineItemPayableAmounts(lineItems, currencyForTotals,
+                exchangeRateForTotals, requestId);
+
+        PaymentRequestMoneyTotals totals = paymentRequestMoneyMapper.computeMoneyTotals(requestedAmount, feeAmount,
+                currencyForTotals, exchangeRateForTotals, requestId);
+
+        if (paymentRequest.getPaidAmount() != null && paymentRequest.getPaidAmount().compareTo(totals.totalAmount()) > 0) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Paid amount exceeds recalculated total amount",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
 
-        paymentRequest.setCurrency(normalizedCurrency);
-        paymentRequest.setExchangeRate(exchangeRate);
-        paymentRequest.setRequestedAmount(requestedAmount);
-        paymentRequest.setFeeAmount(feeAmount);
-        paymentRequest.setTotalAmount(totalAmount);
-        paymentRequest.setRequestedAmountVnd(toVnd(requestedAmount, exchangeRate));
-        paymentRequest.setFeeAmountVnd(toVnd(feeAmount, exchangeRate));
-        paymentRequest.setTotalAmountVnd(toVnd(totalAmount, exchangeRate));
-        paymentRequest.setPaidPercentage(calculatePaidPercentage(paymentRequest.getPaidAmount(), totalAmount));
-        paymentRequest.setAmount(totalAmount);
+        paymentRequestMoneyMapper.applyMoneyTotals(paymentRequest, totals);
+        BigDecimal paid = paymentRequest.getPaidAmount() == null ? BigDecimal.ZERO : paymentRequest.getPaidAmount();
+        if (paid.compareTo(BigDecimal.ZERO) > 0) {
+            paymentRequest.setPaidPercentage(paymentRequestMoneyMapper.calculatePaidPercentage(
+                    paymentRequest.getPaidAmount(), totals.totalAmount()));
+        } else if (createOrUpdateRequest != null) {
+            paymentRequest.setPaidPercentage(createOrUpdateRequest.getPaidPercentage() == null ? BigDecimal.valueOf(100)
+                    : createOrUpdateRequest.getPaidPercentage());
+        }
+        paymentRequest.setAmount(lineItemsAmount);
     }
 
     private void transitionStatus(PaymentRequestEntity entity, String targetStatus, String requestId) {
@@ -655,17 +549,6 @@ public class PaymentRequestService {
         } catch (Exception e) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid JSON object format",
                     HttpStatus.BAD_REQUEST.value(), requestId);
-        }
-    }
-
-    private <T> T readJson(String value, TypeReference<T> typeReference) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(value, typeReference);
-        } catch (Exception e) {
-            return null;
         }
     }
 
@@ -709,89 +592,16 @@ public class PaymentRequestService {
                         HttpStatus.NOT_FOUND.value(), requestId));
     }
 
-    private PaymentRequestInfo toInfoWithoutChildren(PaymentRequestEntity entity) {
-        PaymentRequestInfo info = new PaymentRequestInfo();
-        info.setId(entity.getId().toString());
-        info.setRequestNumber(entity.getRequestNumber());
-        info.setRequestDate(entity.getRequestDate() == null ? null : entity.getRequestDate().toString());
-        info.setRequestorId(entity.getRequestor() == null ? null : entity.getRequestor().getId().toString());
-        info.setVendorId(entity.getVendor() == null ? null : entity.getVendor().getId().toString());
-        info.setStatus(entity.getStatus());
-        info.setApprovalLevels(entity.getApprovalLevels());
-        info.setCurrentApprovalLevel(entity.getCurrentApprovalLevel());
-        info.setCurrency(entity.getCurrency());
-        info.setExchangeRate(entity.getExchangeRate());
-        info.setRequestedAmount(entity.getRequestedAmount());
-        info.setRequestedAmountVnd(entity.getRequestedAmountVnd());
-        info.setFeeAmount(entity.getFeeAmount());
-        info.setFeeAmountVnd(entity.getFeeAmountVnd());
-        info.setTotalAmount(entity.getTotalAmount());
-        info.setTotalAmountVnd(entity.getTotalAmountVnd());
-        info.setPaidAmount(entity.getPaidAmount());
-        info.setPaidPercentage(entity.getPaidPercentage());
-        info.setPaidAmountVnd(entity.getPaidAmountVnd());
-        info.setPurpose(entity.getPurpose());
-        info.setNotes(entity.getNotes());
-        info.setCreatedBy(entity.getCreatedBy());
-        return info;
-    }
-
-    private PaymentRequestInfo toInfo(PaymentRequestEntity entity) {
-        PaymentRequestInfo info = toInfoWithoutChildren(entity);
-        info.setPapers(readJson(entity.getPapers(), new TypeReference<List<PaymentFileObject>>() {
-        }));
-        info.setBankInfo(readJson(entity.getBankInfo(), new TypeReference<PaymentBankInfoObject>() {
-        }));
-        info.setBankNote(readJson(entity.getBankNote(), new TypeReference<PaymentBankNoteObject>() {
-        }));
-        info.setPaidBy(entity.getPaidBy() == null ? null : entity.getPaidBy().getId().toString());
-        info.setPaidAt(entity.getPaidAt() == null ? null : entity.getPaidAt().toString());
-
-        List<PaymentRequestPurchaseOrderLineEntity> itemEntities = paymentRequestPurchaseOrderLineRepo
-                .findByPaymentRequestId(entity.getId());
-        List<PaymentRequestItemDocumentEntity> docEntities = paymentRequestItemDocumentRepo.findByPaymentRequestId(entity.getId());
-        List<PaymentRequestLineInfo> items = itemEntities.stream()
-                .map(item -> {
-                    PaymentRequestLineInfo lineInfo = new PaymentRequestLineInfo();
-                    lineInfo.setId(item.getId().toString());
-                    lineInfo.setPurchaseOrderLineId(item.getPurchaseOrderLine().getId().toString());
-                    String selectedDocuments = docEntities.stream()
-                            .filter(doc -> doc.getPaymentRequestItem().getId().equals(item.getId()))
-                            .map(PaymentRequestItemDocumentEntity::getDocumentType)
-                            .collect(Collectors.joining(","));
-                    lineInfo.setSelectedDocuments(selectedDocuments.isBlank() ? item.getSelectedDocuments() : selectedDocuments);
-                    lineInfo.setRequestedAmount(item.getRequestedAmount());
-                    lineInfo.setPaidAmount(item.getPaidAmount());
-                    lineInfo.setNote(item.getNote());
-                    return lineInfo;
-                }).toList();
-        info.setItems(items);
-
-        List<PaymentRequestFeeInfo> fees = paymentRequestExtraFeeRepo.findByPaymentRequestId(entity.getId()).stream().map(fee -> {
-            PaymentRequestFeeInfo feeInfo = new PaymentRequestFeeInfo();
-            feeInfo.setId(fee.getId().toString());
-            feeInfo.setFeeName(fee.getFeeName());
-            feeInfo.setFeeType(fee.getFeeType());
-            feeInfo.setAmount(fee.getAmount());
-            feeInfo.setNote(fee.getNote());
-            return feeInfo;
-        }).toList();
-        info.setFees(fees);
-
-        List<PaymentRequestApprovalInfo> approvals = paymentRequestApprovalRepo.findByPaymentRequestId(entity.getId()).stream()
-                .map(approval -> {
-                    PaymentRequestApprovalInfo approvalInfo = new PaymentRequestApprovalInfo();
-                    approvalInfo.setId(approval.getId().toString());
-                    approvalInfo.setLevel(approval.getApprovalLevel());
-                    approvalInfo.setRole(approval.getApprovalRole());
-                    approvalInfo.setApproverId(approval.getApprover() == null ? null : approval.getApprover().getId().toString());
-                    approvalInfo.setStatus(approval.getStatus());
-                    approvalInfo.setApprovedAt(approval.getApprovedAt() == null ? null : approval.getApprovedAt().toString());
-                    approvalInfo.setRejectionReason(approval.getRejectionReason());
-                    approvalInfo.setNote(approval.getNote());
-                    return approvalInfo;
-                }).toList();
-        info.setApprovals(approvals);
-        return info;
+    private PaymentRequestInfo toInfo(PaymentRequestEntity entity, String requestId) {
+        UUID id = entity.getId();
+        // Load item documents first so payment-line entities enter the PC with purchaseOrderLine fetched
+        // (avoids a second query re-loading lines without associations before mapping).
+        List<PaymentRequestItemDocumentEntity> documents = paymentRequestItemDocumentRepo.findByPaymentRequestId(id);
+        List<PaymentRequestPurchaseOrderLineEntity> lines = paymentRequestPurchaseOrderLineRepo.findByPaymentRequestId(id);
+        return paymentRequestMapper.toDetailInfo(entity, lines,
+                paymentRequestExtraFeeRepo.findByPaymentRequestId(id),
+                documents,
+                paymentRequestApprovalRepo.findByPaymentRequestId(id),
+                requestId);
     }
 }
