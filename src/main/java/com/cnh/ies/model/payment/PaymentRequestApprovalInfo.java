@@ -12,4 +12,5 @@ public class PaymentRequestApprovalInfo {
     private String approvedAt;
     private String rejectionReason;
     private String note;
+    private String updatedBy;
 }

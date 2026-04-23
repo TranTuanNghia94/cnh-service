@@ -2,9 +2,11 @@ package com.cnh.ies.service.file;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -13,12 +15,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.cnh.ies.constant.Constant;
 import com.cnh.ies.entity.file.FileInfoEntity;
+import com.cnh.ies.entity.payment.PaymentRequestEntity;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.model.payment.PaymentFileAttachmentType;
 import com.cnh.ies.model.payment.PaymentFileUploadInfo;
 import com.cnh.ies.repository.file.FileInfoRepo;
 import com.cnh.ies.repository.payment.PaymentRequestRepo;
+import com.cnh.ies.util.RequestContext;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +43,11 @@ public class FileService {
 
     private static final String DEFAULT_S3_PATH_PREFIX = "payment-requests";
     private static final Duration PRESIGN_DURATION = Duration.ofHours(24);
+
+    /** Statuses from which a BANK_NOTE upload can mark the request as PAID. */
+    private static final Set<String> BANK_NOTE_PAYABLE_STATUSES = Set.of(
+            Constant.PAYMENT_REQUEST_STATUS_APPROVED,
+            Constant.PAYMENT_REQUEST_STATUS_PARTIALLY_PAID);
 
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
@@ -124,6 +134,11 @@ public class FileService {
             info.setAttachmentType(type.name());
             PaymentFileUploadInfo saved = saveFileInfo(info, requestId);
             log.info("File uploaded successfully: id={} path={}", saved.getId(), saved.getFilePath());
+
+            if (type == PaymentFileAttachmentType.BANK_NOTE && paymentRequestId != null) {
+                markPaymentRequestPaid(paymentRequestId, requestId);
+            }
+
             return saved;
         } catch (IOException e) {
             log.error("Cannot read file '{}' for S3 upload", originalFileName, e);
@@ -200,6 +215,32 @@ public class FileService {
             return category.trim().toLowerCase(Locale.ROOT);
         }
         return attachmentType == PaymentFileAttachmentType.BANK_NOTE ? "bank-note" : "papers";
+    }
+
+    /**
+     * Transitions the payment request to {@code PAID} when a bank note is uploaded.
+     * Only allowed from {@code APPROVED} or {@code PARTIALLY_PAID}; throws {@code CONFLICT} otherwise.
+     */
+    private void markPaymentRequestPaid(UUID paymentRequestId, String requestId) {
+        PaymentRequestEntity entity = paymentRequestRepo.findByIdAndIsDeletedFalse(paymentRequestId)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND,
+                        "Payment request not found", HttpStatus.NOT_FOUND.value(), requestId));
+
+        if (!BANK_NOTE_PAYABLE_STATUSES.contains(entity.getStatus())) {
+            throw new ApiException(ApiException.ErrorCode.CONFLICT,
+                    "Bank note can only be attached to an APPROVED or PARTIALLY_PAID payment request (current: "
+                            + entity.getStatus() + ")",
+                    HttpStatus.CONFLICT.value(), requestId);
+        }
+
+        String prevStatus = entity.getStatus();
+        entity.setStatus(Constant.PAYMENT_REQUEST_STATUS_PAID);
+        entity.setPaidAt(Instant.now());
+        entity.setUpdatedBy(RequestContext.getCurrentUsername());
+        paymentRequestRepo.save(entity);
+
+        log.info("Payment request auto-marked PAID after bank note upload [id={}, prevStatus={}, rid={}]",
+                paymentRequestId, prevStatus, requestId);
     }
 
     private PaymentFileUploadInfo saveFileInfo(PaymentFileUploadInfo info, String requestId) {

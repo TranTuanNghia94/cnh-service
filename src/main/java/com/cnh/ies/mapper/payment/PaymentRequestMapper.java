@@ -193,6 +193,7 @@ public class PaymentRequestMapper {
         approvalInfo.setApprovedAt(approval.getApprovedAt() == null ? null : approval.getApprovedAt().toString());
         approvalInfo.setRejectionReason(approval.getRejectionReason());
         approvalInfo.setNote(approval.getNote());
+        approvalInfo.setUpdatedBy(approval.getUpdatedBy());
         return approvalInfo;
     }
 

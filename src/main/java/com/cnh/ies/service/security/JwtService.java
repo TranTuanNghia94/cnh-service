@@ -1,10 +1,13 @@
 package com.cnh.ies.service.security;
 
 import java.security.Key;
-import java.util.HashMap;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -66,10 +69,29 @@ public class JwtService {
     
     public String generateAccessToken(UserInfo userInfo) {
         log.debug("Generating access token for user '{}'", userInfo.getUsername());
+
+        List<String> roles = userInfo.getRoles() == null ? List.of()
+                : userInfo.getRoles().stream()
+                        .map(r -> r.getCode())
+                        .sorted()
+                        .collect(Collectors.toList());
+
+        Set<String> permissions = userInfo.getRoles() == null ? Set.of()
+                : userInfo.getRoles().stream()
+                        .filter(r -> r.getPermissions() != null)
+                        .flatMap(r -> r.getPermissions().stream())
+                        .map(p -> p.getCode())
+                        .collect(Collectors.toSet());
+
         Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userInfo.getId() != null ? userInfo.getId().toString() : null);
         claims.put("username", userInfo.getUsername());
         claims.put("fullName", userInfo.getFullName());
         claims.put("email", userInfo.getEmail());
+        claims.put("roles", roles);
+        claims.put("permissions", permissions);
+
+        log.debug("JWT claims — roles: {}, permissions: {}", roles, permissions);
         return generate(claims, userInfo.getUsername());
     }
 

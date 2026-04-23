@@ -31,6 +31,7 @@ import com.cnh.ies.model.payment.PaymentRequestFeeRequest;
 import com.cnh.ies.model.payment.PaymentRequestInfo;
 import com.cnh.ies.model.payment.PaymentRequestItemRequest;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
+import com.cnh.ies.model.payment.SendToAccountantRequest;
 import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.repository.auth.UserRepo;
@@ -61,12 +62,38 @@ public class PaymentRequestService {
             Constant.PAYMENT_REQUEST_STATUS_DRAFT,
             Constant.PAYMENT_REQUEST_STATUS_REJECTED);
 
+    /** Statuses the owner can cancel from. */
+    private static final Set<String> CANCELLABLE_STATUSES = Set.of(
+            Constant.PAYMENT_REQUEST_STATUS_DRAFT,
+            Constant.PAYMENT_REQUEST_STATUS_REJECTED,
+            Constant.PAYMENT_REQUEST_STATUS_SUBMITTED);
+
+    /*
+     * Full status-transition graph:
+     *
+     *  DRAFT ──sendToAccountant──► SUBMITTED ──approve──► PENDING_ACC_APPROVAL
+     *    │                              │                         │
+     *    └──cancel──► CANCELLED         └──cancel──► CANCELLED   └──approve──► PENDING_HEAD_ACC_APR
+     *                                                                               │
+     *  REJECTED ──sendToAccountant──► SUBMITTED                               └──approve──► PENDING_FINAL_APR
+     *    └──cancel──► CANCELLED                                                        │
+     *                                                                             └──approve──► APPROVED
+     *                                                                                               │
+     *                                                                                   ┌──────────┴────────┐
+     *                                                                              PARTIALLY_PAID       PAID
+     *
+     *  Any approving stage can also be rejected → REJECTED.
+     */
     private static final Map<String, Set<String>> ALLOWED_STATUS_TRANSITIONS = Map.of(
             Constant.PAYMENT_REQUEST_STATUS_DRAFT, Set.of(
-                    Constant.PAYMENT_REQUEST_STATUS_PENDING_ACCOUNTANT_APPROVAL,
+                    Constant.PAYMENT_REQUEST_STATUS_SUBMITTED,
                     Constant.PAYMENT_REQUEST_STATUS_CANCELLED),
             Constant.PAYMENT_REQUEST_STATUS_REJECTED, Set.of(
+                    Constant.PAYMENT_REQUEST_STATUS_SUBMITTED,
+                    Constant.PAYMENT_REQUEST_STATUS_CANCELLED),
+            Constant.PAYMENT_REQUEST_STATUS_SUBMITTED, Set.of(
                     Constant.PAYMENT_REQUEST_STATUS_PENDING_ACCOUNTANT_APPROVAL,
+                    Constant.PAYMENT_REQUEST_STATUS_REJECTED,
                     Constant.PAYMENT_REQUEST_STATUS_CANCELLED),
             Constant.PAYMENT_REQUEST_STATUS_PENDING_ACCOUNTANT_APPROVAL, Set.of(
                     Constant.PAYMENT_REQUEST_STATUS_PENDING_HEAD_ACCOUNTANT_APPROVAL,
@@ -174,10 +201,39 @@ public class PaymentRequestService {
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
         ensureDraft(paymentRequest, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
-        transitionStatus(paymentRequest, Constant.PAYMENT_REQUEST_STATUS_PENDING_ACCOUNTANT_APPROVAL, requestId);
-        paymentRequest.setCurrentApprovalLevel(0);
+        transitionStatus(paymentRequest, Constant.PAYMENT_REQUEST_STATUS_SUBMITTED, requestId);
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         paymentRequestRepo.save(paymentRequest);
+        return toInfo(paymentRequest, requestId);
+    }
+
+    /**
+     * Owner action: send a {@code DRAFT} or {@code REJECTED} payment request to the accountant.
+     * The request moves to {@code SUBMITTED} so the accountant can see it and formally start the
+     * approval process (SUBMITTED → PENDING_ACC_APPROVAL).
+     * An optional {@code note} is saved so the accountant knows the context.
+     *
+     * <p>Status transition: {@code DRAFT / REJECTED → SUBMITTED}</p>
+     */
+    @Transactional
+    public PaymentRequestInfo sendToAccountant(String id, SendToAccountantRequest request, String requestId) {
+        String currentUser = RequestContext.getCurrentUsername();
+        log.info("Sending payment request to accountant [id={}, by={}, rid={}]", id, currentUser, requestId);
+
+        PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
+        ensureDraft(paymentRequest, requestId);
+        recalculateAmountsBeforeSave(paymentRequest, requestId);
+
+        if (request != null && request.getNote() != null && !request.getNote().isBlank()) {
+            paymentRequest.setNotes(request.getNote().trim());
+        }
+
+        transitionStatus(paymentRequest, Constant.PAYMENT_REQUEST_STATUS_SUBMITTED, requestId);
+        paymentRequest.setUpdatedBy(currentUser);
+        paymentRequestRepo.save(paymentRequest);
+
+        log.info("Payment request submitted [id={}, number={}, status=SUBMITTED, rid={}]",
+                paymentRequest.getId(), paymentRequest.getRequestNumber(), requestId);
         return toInfo(paymentRequest, requestId);
     }
 
@@ -185,8 +241,9 @@ public class PaymentRequestService {
     public PaymentRequestInfo cancel(String id, String requestId) {
         log.info("Cancelling payment request [id={}, rid={}]", id, requestId);
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
-        if (!DRAFT_OR_REJECTED.contains(paymentRequest.getStatus())) {
-            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Only DRAFT/REJECTED can be cancelled",
+        if (!CANCELLABLE_STATUSES.contains(paymentRequest.getStatus())) {
+            throw new ApiException(ApiException.ErrorCode.CONFLICT,
+                    "Only DRAFT/REJECTED/SUBMITTED can be cancelled",
                     HttpStatus.CONFLICT.value(), requestId);
         }
         recalculateAmountsBeforeSave(paymentRequest, requestId);
@@ -202,6 +259,13 @@ public class PaymentRequestService {
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
         ensureApprovingStatus(paymentRequest, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
+
+        // SUBMITTED → accountant begins formal review; step through PENDING_ACC_APPROVAL
+        // so the level-1 approval logic can proceed from the expected status.
+        if (Constant.PAYMENT_REQUEST_STATUS_SUBMITTED.equals(paymentRequest.getStatus())) {
+            transitionStatus(paymentRequest, Constant.PAYMENT_REQUEST_STATUS_PENDING_ACCOUNTANT_APPROVAL, requestId);
+            paymentRequest.setCurrentApprovalLevel(0);
+        }
 
         int level = resolveApprovalLevel(request.getLevel(), paymentRequest);
         if (level <= 0 || level > paymentRequest.getApprovalLevels()) {

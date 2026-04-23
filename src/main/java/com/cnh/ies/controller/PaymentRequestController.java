@@ -21,6 +21,7 @@ import com.cnh.ies.model.payment.MarkPaymentPaidRequest;
 import com.cnh.ies.model.payment.PaymentFileUploadInfo;
 import com.cnh.ies.model.payment.PaymentRequestInfo;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
+import com.cnh.ies.model.payment.SendToAccountantRequest;
 import com.cnh.ies.service.file.FileService;
 import com.cnh.ies.service.payment.PaymentRequestService;
 
@@ -75,6 +76,17 @@ public class PaymentRequestController {
         log.info("POST /payment-request/submit/{} [rid={}]", id, requestId);
         PaymentRequestInfo response = paymentRequestService.submit(id, requestId);
         return ApiResponse.success(response, "Submit payment request success");
+    }
+
+
+    @PostMapping("/{id}/send-to-accountant")
+    public ApiResponse<PaymentRequestInfo> sendToAccountant(
+            @PathVariable String id,
+            @RequestBody(required = false) SendToAccountantRequest request) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("POST /payment-request/{}/send-to-accountant [rid={}]", id, requestId);
+        PaymentRequestInfo response = paymentRequestService.sendToAccountant(id, request, requestId);
+        return ApiResponse.success(response, "Payment request sent to accountant successfully");
     }
 
     @PostMapping("/cancel/{id}")
