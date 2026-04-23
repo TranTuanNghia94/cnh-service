@@ -65,6 +65,7 @@ public class JwtService {
     }
     
     public String generateAccessToken(UserInfo userInfo) {
+        log.debug("Generating access token for user '{}'", userInfo.getUsername());
         Map<String, Object> claims = new HashMap<>();
         claims.put("username", userInfo.getUsername());
         claims.put("fullName", userInfo.getFullName());
@@ -88,10 +89,15 @@ public class JwtService {
         final String tokenUsername = extractUsername(token);
 
         String redisToken = (String) redisService.get(RedisKey.ACCESS_TOKEN_PREFIX + username);
-        if (redisToken == null || !redisToken.equals(token)) {
+        if (redisToken == null) {
+            log.warn("Token validation failed: no active session found for user '{}'", username);
+            return false;
+        }
+        if (!redisToken.equals(token)) {
+            log.warn("Token validation failed: token mismatch for user '{}' (possible reuse of revoked token)", username);
             return false;
         }
 
-        return (tokenUsername.equals(username));
+        return tokenUsername.equals(username);
     }
 }

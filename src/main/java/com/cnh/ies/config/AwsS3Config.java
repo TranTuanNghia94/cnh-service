@@ -17,8 +17,8 @@ public class AwsS3Config {
     @Bean
     public S3Client s3Client(
             @Value("${aws.region}") String region,
-            @Value("${aws.access-key:${AWS_ACCESS_KEY:}}") String accessKey,
-            @Value("${aws.secret-key:${AWS_SECRET_KEY:}}") String secretKey) {
+            @Value("${aws.access-key:abc123}") String accessKey,
+            @Value("${aws.secret-key:def456}") String secretKey) {
         if (StringUtils.hasText(accessKey) && StringUtils.hasText(secretKey)) {
             return S3Client.builder()
                     .region(Region.of(region))

@@ -16,30 +16,37 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiResponse<Object>> handleApiException(ApiException ex, WebRequest request) {
-        log.error("ApiException occurred: {}", ex.toString());
-        
+        int status = ex.getHttpStatus();
+        if (status >= 500) {
+            log.error("[rid={}] Server error {} (HTTP {}): {}",
+                    ex.getRequestId(), ex.getErrorCode(), status, ex.getErrorMessage(), ex);
+        } else {
+            log.warn("[rid={}] Client error {} (HTTP {}): {}",
+                    ex.getRequestId(), ex.getErrorCode(), status, ex.getErrorMessage());
+        }
+
         ApiResponse<Object> response = ApiResponse.<Object>builder()
                 .success(false)
                 .error(ex.getErrorMessage())
                 .errorCode(ex.getErrorCode())
-                .status(ex.getHttpStatus())
+                .status(status)
                 .requestId(ex.getRequestId())
                 .build();
-        
-        return ResponseEntity.status(ex.getHttpStatus()).body(response);
+
+        return ResponseEntity.status(status).body(response);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex, WebRequest request) {
-        log.error("Unexpected error occurred", ex);
-        
+        log.error("Unhandled exception on {}: {}", request.getDescription(false), ex.getMessage(), ex);
+
         ApiResponse<Object> response = ApiResponse.<Object>builder()
                 .success(false)
                 .error("An unexpected error occurred")
                 .errorCode(ApiException.ErrorCode.INTERNAL_ERROR)
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .build();
-        
+
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }

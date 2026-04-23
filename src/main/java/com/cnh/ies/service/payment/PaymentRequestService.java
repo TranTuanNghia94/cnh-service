@@ -127,6 +127,12 @@ public class PaymentRequestService {
 
     @Transactional
     public PaymentRequestInfo createOrUpdate(CreateOrUpdatePaymentRequest request, String requestId) {
+        boolean isUpdate = request.getId() != null && !request.getId().isBlank();
+        log.info("{} payment request [requestorId={}, items={}, rid={}]",
+                isUpdate ? "Updating" : "Creating",
+                request.getRequestorId(),
+                request.getItems() == null ? 0 : request.getItems().size(),
+                requestId);
         validateCreateRequest(request, requestId);
 
         List<PaymentRequestItemRequest> itemRequests = request.getItems();
@@ -156,12 +162,15 @@ public class PaymentRequestService {
         recalculateAmountsBeforeSave(entity, request, requestId);
         rebuildApprovalsIfNeeded(entity, request.getApprovalLevels());
         paymentRequestRepo.saveAndFlush(entity);
+        log.info("Payment request saved [id={}, number={}, status={}, rid={}]",
+                entity.getId(), entity.getRequestNumber(), entity.getStatus(), requestId);
 
         return toInfo(entity, requestId);
     }
 
     @Transactional
     public PaymentRequestInfo submit(String id, String requestId) {
+        log.info("Submitting payment request [id={}, rid={}]", id, requestId);
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
         ensureDraft(paymentRequest, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
@@ -174,6 +183,7 @@ public class PaymentRequestService {
 
     @Transactional
     public PaymentRequestInfo cancel(String id, String requestId) {
+        log.info("Cancelling payment request [id={}, rid={}]", id, requestId);
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
         if (!DRAFT_OR_REJECTED.contains(paymentRequest.getStatus())) {
             throw new ApiException(ApiException.ErrorCode.CONFLICT, "Only DRAFT/REJECTED can be cancelled",
@@ -188,6 +198,7 @@ public class PaymentRequestService {
 
     @Transactional
     public PaymentRequestInfo approve(String id, ApprovePaymentRequest request, String requestId) {
+        log.info("Approving payment request [id={}, level={}, rid={}]", id, request.getLevel(), requestId);
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
         ensureApprovingStatus(paymentRequest, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
@@ -221,6 +232,7 @@ public class PaymentRequestService {
 
     @Transactional
     public PaymentRequestInfo reject(String id, RejectPaymentRequest request, String requestId) {
+        log.info("Rejecting payment request [id={}, rid={}]", id, requestId);
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
         ensureApprovingStatus(paymentRequest, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
@@ -246,6 +258,8 @@ public class PaymentRequestService {
 
     @Transactional
     public PaymentRequestInfo markPaid(String id, MarkPaymentPaidRequest request, String requestId) {
+        log.info("Marking payment request as paid [id={}, paidAmount={}, rid={}]",
+                id, request.getPaidAmount(), requestId);
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
         if (!Constant.PAYMENT_REQUEST_STATUS_APPROVED.equals(paymentRequest.getStatus())
@@ -529,14 +543,19 @@ public class PaymentRequestService {
         String currentStatus = entity.getStatus();
         if (currentStatus == null) {
             entity.setStatus(targetStatus);
+            log.info("Payment request status initialized to '{}' [id={}]", targetStatus, entity.getId());
             return;
         }
         Set<String> allowedTargets = ALLOWED_STATUS_TRANSITIONS.getOrDefault(currentStatus, Set.of());
         if (!allowedTargets.contains(targetStatus)) {
+            log.warn("Invalid status transition '{}' -> '{}' [id={}, rid={}]",
+                    currentStatus, targetStatus, entity.getId(), requestId);
             throw new ApiException(ApiException.ErrorCode.CONFLICT,
                     "Invalid payment request status transition: " + currentStatus + " -> " + targetStatus,
                     HttpStatus.CONFLICT.value(), requestId);
         }
+        log.info("Payment request status transition '{}' -> '{}' [id={}]",
+                currentStatus, targetStatus, entity.getId());
         entity.setStatus(targetStatus);
     }
 

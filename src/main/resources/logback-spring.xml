@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <!--
+        %clr is a Spring Boot extension. In a custom logback-spring.xml it must be
+        declared explicitly; Spring Boot only auto-registers it when it loads its own
+        defaults.xml (base.xml). Without this declaration the app fails to start.
+    -->
+    <conversionRule conversionWord="clr"
+                    converterClass="org.springframework.boot.logging.logback.ColorConverter"/>
+    <conversionRule conversionWord="wex"
+                    converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter"/>
+    <conversionRule conversionWord="wEx"
+                    converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter"/>
+
+    <!-- Read values from Spring Environment (application.yml / env vars) -->
+    <springProperty scope="context" name="APP_NAME"      source="spring.application.name"       defaultValue="cnh-be-service"/>
+    <springProperty scope="context" name="APP_LOG_LEVEL" source="logging.level.com.cnh.ies"     defaultValue="INFO"/>
+
+    <property name="LOG_DIR"     value="logs"/>
+    <property name="LOG_FILE"    value="${LOG_DIR}/${APP_NAME}.log"/>
+    <property name="ARCHIVE_DIR" value="${LOG_DIR}/archive"/>
+
+    <!--
+        Both patterns include MDC keys injected by LoggingInterceptor:
+          rid  = X-Request-ID (unique per request)
+          cid  = X-Correlation-ID (propagated from caller or same as rid)
+          uid  = authenticated userId
+    -->
+    <property name="LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [rid=%X{requestId:-?} cid=%X{correlationId:-?} uid=%X{userId:-?}] - %msg%n"/>
+
+    <property name="COLOR_PATTERN"
+              value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){magenta} %clr(%-5level){highlight} %clr(%logger{36}){cyan} %clr([rid=%X{requestId:-?} cid=%X{correlationId:-?} uid=%X{userId:-?}]){blue} - %msg%n"/>
+
+    <!-- ─── Console appender: colored in dev, plain elsewhere ─────────── -->
+    <springProfile name="dev">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${COLOR_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <springProfile name="!dev">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${LOG_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- ─── Rolling file appender ─────────────────────────────────────── -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily roll + size cap; compressed archives -->
+            <fileNamePattern>${ARCHIVE_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>3GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Async wrapper keeps request threads unblocked during file I/O -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <discardingThreshold>0</discardingThreshold>
+        <queueSize>512</queueSize>
+        <includeCallerData>false</includeCallerData>
+        <appender-ref ref="FILE"/>
+    </appender>
+
+    <!-- ─── Application loggers ───────────────────────────────────────── -->
+    <logger name="com.cnh.ies" level="${APP_LOG_LEVEL}" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+
+    <!-- Spring Security: INFO everywhere -->
+    <logger name="org.springframework.security" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+
+    <!--
+        Hibernate SQL — DEV: full SQL + bound parameters; PROD: silent to avoid data leaks.
+
+        Hibernate 6 (Spring Boot 3.x) changed the parameter-binding logger:
+          Hibernate 5 → org.hibernate.type.descriptor.sql.BasicBinder  (TRACE)
+          Hibernate 6 → org.hibernate.orm.jdbc.bind                     (TRACE)
+        Both are listed so it works regardless of the Hibernate version on the classpath.
+    -->
+    <springProfile name="dev">
+        <logger name="org.hibernate.SQL" level="TRACE" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </logger>
+        <!-- Hibernate 6 binding logger (Spring Boot 3.x) -->
+        <logger name="org.hibernate.orm.jdbc.bind" level="TRACE" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </logger>
+        <!-- Hibernate 5 binding logger (kept for compatibility) -->
+        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </logger>
+    </springProfile>
+
+    <springProfile name="!dev">
+        <logger name="org.hibernate.SQL" level="WARN" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </logger>
+        <logger name="org.hibernate.orm.jdbc.bind" level="WARN" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </logger>
+    </springProfile>
+
+    <!-- Suppress chatty framework noise -->
+    <logger name="org.springframework.web.servlet.mvc.method.annotation" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+    <logger name="com.zaxxer.hikari" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+
+    <!-- ─── Root ──────────────────────────────────────────────────────── -->
+    <root level="WARN">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </root>
+
+</configuration>

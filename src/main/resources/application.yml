@@ -7,8 +7,8 @@ spring:
   
   datasource:
     url: jdbc:postgresql://localhost:5432/cnh_wms
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:password}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -20,11 +20,13 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: false
+    show-sql: false   # SQL is logged via SLF4J (logback-spring.xml), not stdout
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        format_sql: true          # Pretty-print SQL in logs
+        highlight_sql: false      # ANSI color codes in SQL are noisy in log files
+        use_sql_comments: true    # Adds /* entity */ hints above each SQL statement
         jdbc:
           batch_size: 20
         order_inserts: true
@@ -34,7 +36,7 @@ spring:
   redis:
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD:}
+    password: ${REDIS_PASSWORD}
     database: 0
     timeout: 2000ms
     lettuce:
@@ -52,14 +54,14 @@ spring:
   
   security:
     user:
-      name: ${ADMIN_USERNAME:admin}
-      password: ${ADMIN_PASSWORD:admin123}
+      name: ${ADMIN_USERNAME}
+      password: ${ADMIN_PASSWORD}
   
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -78,47 +80,40 @@ server:
     min-response-size: 1024
 
 # Logging Configuration
+# Patterns, appenders, and rolling policy are managed in logback-spring.xml.
+# Only levels are declared here so they can be overridden via LOG_LEVEL env var.
 logging:
   level:
     com.cnh.ies: ${LOG_LEVEL:INFO}
     org.springframework.security: INFO
-    org.hibernate.SQL: INFO
-    org.hibernate.type.descriptor.sql.BasicBinder: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: logs/cnh-be-service.log
-    max-size: 100MB
-    max-history: 30
 
 # JWT Configuration
 jwt:
-  secret: ${JWT_SECRET:your-secret-key-here-make-it-long-and-secure}
-  expiration: ${JWT_EXPIRATION:14400000} # 4 * 60 * 60 * 1000 = 4 hours in milliseconds
-  refresh-expiration: ${JWT_REFRESH_EXPIRATION:28800000} # 8 * 60 * 60 * 1000 = 8 hours in milliseconds
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:14400000}         # 4 h in ms
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:28800000} # 8 h in ms
 
-# AWS Configuration
+# AWS Configuration (credentials injected via .env; never hardcode keys here)
 aws:
-  region: ${AWS_REGION:us-east-1}
+  region: ${AWS_REGION:ap-southeast-1}
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
   s3:
-    bucket-name: ${AWS_S3_BUCKET:cnh-wms-bucket}
-    access-key: ${AWS_ACCESS_KEY:}
-    secret-key: ${AWS_SECRET_KEY:}
+    bucket-name: ${AWS_S3_BUCKET}
   ses:
-    from-email: ${AWS_SES_FROM_EMAIL:}
+    from-email: ${AWS_SES_FROM_EMAIL}
     region: ${AWS_SES_REGION:us-east-1}
 
 # Azure Configuration
 azure:
   storage:
-    connection-string: ${AZURE_STORAGE_CONNECTION_STRING:}
+    connection-string: ${AZURE_STORAGE_CONNECTION_STRING}
     container-name: ${AZURE_STORAGE_CONTAINER:cnh-wms}
 
 # SendGrid Configuration
 sendgrid:
-  api-key: ${SENDGRID_API_KEY:}
-  from-email: ${SENDGRID_FROM_EMAIL:}
+  api-key: ${SENDGRID_API_KEY}
+  from-email: ${SENDGRID_FROM_EMAIL}
 
 # File Upload Configuration
 file:

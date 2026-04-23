@@ -79,12 +79,13 @@ temp/
 *.tmp
 *.temp
 
-# Environment files
+# Environment files — secrets live here, NEVER commit these
 .env
 .env.local
 .env.development
 .env.test
 .env.production
+# .env.example is intentionally NOT ignored (safe placeholder template)
 
 # Docker
 .dockerignore
