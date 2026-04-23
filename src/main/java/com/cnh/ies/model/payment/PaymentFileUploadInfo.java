@@ -15,8 +15,10 @@ public class PaymentFileUploadInfo {
     private String fileName;
     /** S3 object key stored in DB (e.g. {@code payment-requests/papers/2025/1/15/<uuid>_invoice.pdf}). */
     private String filePath;
-    /** Full S3 URL built at runtime from {@link #filePath}; not persisted. */
+    /** Permanent S3 URL (not signed). Only accessible if the bucket/object is public. */
     private String fileUrl;
+    /** Pre-signed URL valid for 24 hours — use this to view or download the file. */
+    private String viewUrl;
     private String contentType;
     private Long size;
     private String category;

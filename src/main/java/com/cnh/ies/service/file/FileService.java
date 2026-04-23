@@ -1,6 +1,7 @@
 package com.cnh.ies.service.file;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
@@ -24,8 +25,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -33,8 +37,10 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class FileService {
 
     private static final String DEFAULT_S3_PATH_PREFIX = "payment-requests";
+    private static final Duration PRESIGN_DURATION = Duration.ofHours(24);
 
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
     private final FileInfoRepo fileInfoRepo;
     private final PaymentRequestRepo paymentRequestRepo;
 
@@ -113,6 +119,7 @@ public class FileService {
             info.setCategory(safeCategory);
             info.setFilePath(key);
             info.setFileUrl(buildS3Url(key));
+            info.setViewUrl(presignGetUrl(key));
             info.setPaymentRequestId(paymentRequestId);
             info.setAttachmentType(type.name());
             PaymentFileUploadInfo saved = saveFileInfo(info, requestId);
@@ -227,10 +234,32 @@ public class FileService {
         info.setFileName(entity.getFileName());
         info.setFilePath(entity.getFilePath());
         info.setFileUrl(buildS3Url(entity.getFilePath()));
+        info.setViewUrl(presignGetUrl(entity.getFilePath()));
         info.setContentType(entity.getContentType());
         info.setSize(entity.getFileSizeBytes());
         info.setCategory(entity.getCategory());
         return info;
+    }
+
+    /**
+     * Generates a pre-signed GET URL for the given S3 key, valid for {@value #PRESIGN_DURATION} (24 h).
+     * Returns an empty string if presigning fails so the rest of the response is still usable.
+     */
+    private String presignGetUrl(String key) {
+        if (key == null || key.isBlank()) return "";
+        try {
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(PRESIGN_DURATION)
+                    .getObjectRequest(GetObjectRequest.builder()
+                            .bucket(bucketName)
+                            .key(key)
+                            .build())
+                    .build();
+            return s3Presigner.presignGetObject(presignRequest).url().toString();
+        } catch (Exception e) {
+            log.warn("Failed to generate pre-signed URL for key '{}': {}", key, e.getMessage());
+            return "";
+        }
     }
 
     private String buildS3Key(String pathPrefix, String category, String originalFileName) {

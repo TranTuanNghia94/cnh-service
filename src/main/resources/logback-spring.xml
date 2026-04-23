@@ -97,17 +97,17 @@
         Both are listed so it works regardless of the Hibernate version on the classpath.
     -->
     <springProfile name="dev">
-        <logger name="org.hibernate.SQL" level="TRACE" additivity="false">
+        <logger name="org.hibernate.SQL" level="ERROR" additivity="false">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="ASYNC_FILE"/>
         </logger>
         <!-- Hibernate 6 binding logger (Spring Boot 3.x) -->
-        <logger name="org.hibernate.orm.jdbc.bind" level="TRACE" additivity="false">
+        <logger name="org.hibernate.orm.jdbc.bind" level="ERROR" additivity="false">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="ASYNC_FILE"/>
         </logger>
         <!-- Hibernate 5 binding logger (kept for compatibility) -->
-        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" additivity="false">
+        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="ERROR" additivity="false">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="ASYNC_FILE"/>
         </logger>
