@@ -11,17 +11,23 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.purchaseorder.CreatePurchaseOrderLineRequest;
+import com.cnh.ies.model.purchaseorder.FindPurchaseOrderLineByDocumentRequest;
+import com.cnh.ies.model.purchaseorder.POLinePaymentHistoryInfo;
 import com.cnh.ies.model.purchaseorder.PurchaseOrderLineInfo;
 import com.cnh.ies.model.purchaseorder.UpdatePurchaseOrderLineRequest;
 import com.cnh.ies.service.purchaseorder.PurchaseOrderDetailService;
+import com.cnh.ies.util.RequestContext;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Purchase Order Line REST Controller.
+ * 
+ * Note: Request/response logging is handled automatically by RequestResponseLoggingFilter.
+ */
 @RestController
 @RequestMapping("/purchase-order-line")
 @RequiredArgsConstructor
-@Slf4j
 public class PurchaseOrderLineController {
 
     private final PurchaseOrderDetailService purchaseOrderDetailService;
@@ -30,13 +36,8 @@ public class PurchaseOrderLineController {
     public ApiResponse<List<PurchaseOrderLineInfo>> createPurchaseOrderLines(
             @RequestBody List<CreatePurchaseOrderLineRequest> payload,
             @PathVariable String purchaseOrderId) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Creating purchase order lines for purchaseOrderId: {} | payload: {}", purchaseOrderId, payload);
-
         List<PurchaseOrderLineInfo> response = purchaseOrderDetailService.createPurchaseOrderLines(
-                payload, UUID.fromString(purchaseOrderId), requestId);
-
-        log.info("Creating purchase order lines success with requestId: {}", requestId);
+                payload, UUID.fromString(purchaseOrderId), RequestContext.getRequestId());
         return ApiResponse.success(response, "Create purchase order lines success");
     }
 
@@ -44,13 +45,8 @@ public class PurchaseOrderLineController {
     public ApiResponse<List<PurchaseOrderLineInfo>> updatePurchaseOrderLines(
             @RequestBody List<UpdatePurchaseOrderLineRequest> payload,
             @PathVariable String purchaseOrderId) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Updating purchase order lines for purchaseOrderId: {} | payload: {}", purchaseOrderId, payload);
-
         List<PurchaseOrderLineInfo> response = purchaseOrderDetailService.updatePurchaseOrderLines(
-                payload, UUID.fromString(purchaseOrderId), requestId);
-
-        log.info("Updating purchase order lines success with requestId: {}", requestId);
+                payload, UUID.fromString(purchaseOrderId), RequestContext.getRequestId());
         return ApiResponse.success(response, "Update purchase order lines success");
     }
 
@@ -58,13 +54,18 @@ public class PurchaseOrderLineController {
     public ApiResponse<String> deletePurchaseOrderLines(
             @RequestBody List<String> ids,
             @PathVariable String purchaseOrderId) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Deleting purchase order lines for purchaseOrderId: {} | ids: {}", purchaseOrderId, ids);
-
         String response = purchaseOrderDetailService.deletePurchaseOrderLines(
-                ids, UUID.fromString(purchaseOrderId), requestId);
-
-        log.info("Deleting purchase order lines success with requestId: {}", requestId);
+                ids, UUID.fromString(purchaseOrderId), RequestContext.getRequestId());
         return ApiResponse.success(response, "Delete purchase order lines success");
+    }
+
+
+
+    @PostMapping("/payment-history")
+    public ApiResponse<POLinePaymentHistoryInfo> getPaymentHistory(
+            @RequestBody FindPurchaseOrderLineByDocumentRequest request) {
+        POLinePaymentHistoryInfo response = purchaseOrderDetailService.getPaymentHistoryByDocument(
+                request, RequestContext.getRequestId());
+        return ApiResponse.success(response, "Get payment history success");
     }
 }

@@ -85,7 +85,10 @@ server:
 logging:
   level:
     com.cnh.ies: ${LOG_LEVEL:INFO}
-    org.springframework.security: INFO
+    org.springframework.security: WARN
+  http:
+    include-headers: ${LOG_INCLUDE_HEADERS:true}
+    include-response-body: ${LOG_INCLUDE_RESPONSE_BODY:true}
 
 # JWT Configuration
 jwt:

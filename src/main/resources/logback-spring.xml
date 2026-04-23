@@ -2,9 +2,7 @@
 <configuration scan="true" scanPeriod="30 seconds">
 
     <!--
-        %clr is a Spring Boot extension. In a custom logback-spring.xml it must be
-        declared explicitly; Spring Boot only auto-registers it when it loads its own
-        defaults.xml (base.xml). Without this declaration the app fails to start.
+        Spring Boot color converter extensions.
     -->
     <conversionRule conversionWord="clr"
                     converterClass="org.springframework.boot.logging.logback.ColorConverter"/>
@@ -16,24 +14,33 @@
     <!-- Read values from Spring Environment (application.yml / env vars) -->
     <springProperty scope="context" name="APP_NAME"      source="spring.application.name"       defaultValue="cnh-be-service"/>
     <springProperty scope="context" name="APP_LOG_LEVEL" source="logging.level.com.cnh.ies"     defaultValue="INFO"/>
+    <springProperty scope="context" name="APP_ENV"       source="spring.profiles.active"        defaultValue="dev"/>
 
     <property name="LOG_DIR"     value="logs"/>
     <property name="LOG_FILE"    value="${LOG_DIR}/${APP_NAME}.log"/>
     <property name="ARCHIVE_DIR" value="${LOG_DIR}/archive"/>
 
     <!--
-        Both patterns include MDC keys injected by LoggingInterceptor:
-          rid  = X-Request-ID (unique per request)
-          cid  = X-Correlation-ID (propagated from caller or same as rid)
-          uid  = authenticated userId
+        MDC Keys available in all logs (set by RequestResponseLoggingFilter):
+          - requestId: unique per request (shortened UUID)
+          - correlationId: propagated from caller or same as requestId
+          - userId: authenticated user
+          - method: HTTP method
+          - uri: request URI
+          - elapsedMs: request duration
+          - status: HTTP status code
     -->
     <property name="LOG_PATTERN"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [rid=%X{requestId:-?} cid=%X{correlationId:-?} uid=%X{userId:-?}] - %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [rid=%X{requestId:-} cid=%X{correlationId:-} uid=%X{userId:-}] - %msg%n"/>
 
     <property name="COLOR_PATTERN"
-              value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){magenta} %clr(%-5level){highlight} %clr(%logger{36}){cyan} %clr([rid=%X{requestId:-?} cid=%X{correlationId:-?} uid=%X{userId:-?}]){blue} - %msg%n"/>
+              value="%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level){highlight} %clr([%X{requestId:-}]){blue} %clr(%logger{24}){cyan} - %msg%n"/>
 
-    <!-- ─── Console appender: colored in dev, plain elsewhere ─────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CONSOLE APPENDERS
+         ═══════════════════════════════════════════════════════════════════ -->
+    
+    <!-- DEV: Colored, human-readable console output -->
     <springProfile name="dev">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
@@ -43,7 +50,25 @@
         </appender>
     </springProfile>
 
-    <springProfile name="!dev">
+    <!-- PROD/STAGING: JSON structured logging for ELK/Datadog/CloudWatch -->
+    <springProfile name="prod,staging,production">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>correlationId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <includeMdcKeyName>method</includeMdcKeyName>
+                <includeMdcKeyName>uri</includeMdcKeyName>
+                <includeMdcKeyName>elapsedMs</includeMdcKeyName>
+                <includeMdcKeyName>status</includeMdcKeyName>
+                <customFields>{"service":"${APP_NAME}","env":"${APP_ENV}"}</customFields>
+                <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSSZ</timestampPattern>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- Fallback for other profiles: plain text -->
+    <springProfile name="!dev &amp; !prod &amp; !staging &amp; !production">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <pattern>${LOG_PATTERN}</pattern>
@@ -52,62 +77,114 @@
         </appender>
     </springProfile>
 
-    <!-- ─── Rolling file appender ─────────────────────────────────────── -->
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_FILE}</file>
-        <encoder>
-            <pattern>${LOG_PATTERN}</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <!-- Daily roll + size cap; compressed archives -->
-            <fileNamePattern>${ARCHIVE_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-            <maxFileSize>100MB</maxFileSize>
-            <maxHistory>30</maxHistory>
-            <totalSizeCap>3GB</totalSizeCap>
-        </rollingPolicy>
-    </appender>
+    <!-- ═══════════════════════════════════════════════════════════════════
+         FILE APPENDERS
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Plain text file for dev -->
+    <springProfile name="dev">
+        <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_FILE}</file>
+            <encoder>
+                <pattern>${LOG_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${ARCHIVE_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>100MB</maxFileSize>
+                <maxHistory>7</maxHistory>
+                <totalSizeCap>1GB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+    </springProfile>
+
+    <!-- JSON file for prod (easier to parse with log aggregators) -->
+    <springProfile name="prod,staging,production">
+        <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_FILE}</file>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>correlationId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <includeMdcKeyName>method</includeMdcKeyName>
+                <includeMdcKeyName>uri</includeMdcKeyName>
+                <includeMdcKeyName>elapsedMs</includeMdcKeyName>
+                <includeMdcKeyName>status</includeMdcKeyName>
+                <customFields>{"service":"${APP_NAME}","env":"${APP_ENV}"}</customFields>
+            </encoder>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${ARCHIVE_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>100MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>5GB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+    </springProfile>
+
+    <!-- Fallback FILE for other profiles -->
+    <springProfile name="!dev &amp; !prod &amp; !staging &amp; !production">
+        <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_FILE}</file>
+            <encoder>
+                <pattern>${LOG_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${ARCHIVE_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>100MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>3GB</totalSizeCap>
+            </rollingPolicy>
+        </appender>
+    </springProfile>
 
     <!-- Async wrapper keeps request threads unblocked during file I/O -->
     <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
         <discardingThreshold>0</discardingThreshold>
-        <queueSize>512</queueSize>
+        <queueSize>1024</queueSize>
         <includeCallerData>false</includeCallerData>
         <appender-ref ref="FILE"/>
     </appender>
 
-    <!-- ─── Application loggers ───────────────────────────────────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════
+         APPLICATION LOGGERS
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Main application logger -->
     <logger name="com.cnh.ies" level="${APP_LOG_LEVEL}" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ASYNC_FILE"/>
     </logger>
 
-    <!-- Spring Security: INFO everywhere -->
-    <logger name="org.springframework.security" level="INFO" additivity="false">
+    <!-- HTTP logging filter - always INFO to capture request/response -->
+    <logger name="com.cnh.ies.config.RequestResponseLoggingFilter" level="INFO" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ASYNC_FILE"/>
     </logger>
 
-    <!--
-        Hibernate SQL — DEV: full SQL + bound parameters; PROD: silent to avoid data leaks.
+    <!-- Service method logging (AOP) -->
+    <logger name="com.cnh.ies.config.LoggingAspect" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
 
-        Hibernate 6 (Spring Boot 3.x) changed the parameter-binding logger:
-          Hibernate 5 → org.hibernate.type.descriptor.sql.BasicBinder  (TRACE)
-          Hibernate 6 → org.hibernate.orm.jdbc.bind                     (TRACE)
-        Both are listed so it works regardless of the Hibernate version on the classpath.
-    -->
+    <!-- Spring Security -->
+    <logger name="org.springframework.security" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         HIBERNATE SQL LOGGING
+         ═══════════════════════════════════════════════════════════════════ -->
+
     <springProfile name="dev">
+        <!-- Set to DEBUG to see SQL, TRACE to see bound parameters -->
         <logger name="org.hibernate.SQL" level="ERROR" additivity="false">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="ASYNC_FILE"/>
         </logger>
-        <!-- Hibernate 6 binding logger (Spring Boot 3.x) -->
         <logger name="org.hibernate.orm.jdbc.bind" level="ERROR" additivity="false">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="ASYNC_FILE"/>
-        </logger>
-        <!-- Hibernate 5 binding logger (kept for compatibility) -->
-        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="ERROR" additivity="false">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="ASYNC_FILE"/>
         </logger>
@@ -124,7 +201,10 @@
         </logger>
     </springProfile>
 
-    <!-- Suppress chatty framework noise -->
+    <!-- ═══════════════════════════════════════════════════════════════════
+         FRAMEWORK NOISE SUPPRESSION
+         ═══════════════════════════════════════════════════════════════════ -->
+
     <logger name="org.springframework.web.servlet.mvc.method.annotation" level="WARN" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ASYNC_FILE"/>
@@ -133,8 +213,19 @@
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ASYNC_FILE"/>
     </logger>
+    <logger name="org.apache.catalina" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+    <logger name="org.springframework.boot.actuate" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
 
-    <!-- ─── Root ──────────────────────────────────────────────────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════
+         ROOT LOGGER
+         ═══════════════════════════════════════════════════════════════════ -->
+
     <root level="WARN">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ASYNC_FILE"/>

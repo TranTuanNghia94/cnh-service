@@ -3,10 +3,14 @@ package com.cnh.ies.config;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.core.Authentication;
@@ -16,6 +20,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,28 +31,54 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Servlet filter that:
- * <ul>
- *   <li>Sets MDC context (requestId, correlationId, userId) for every request so that
- *       ALL downstream log statements automatically carry these fields.</li>
- *   <li>Caches request / response bodies (via {@link ContentCachingRequestWrapper}) so
- *       they can be read for logging without consuming the stream.</li>
- *   <li>Logs request input (method, URI, query, body) and response output
- *       (status, elapsed ms, body) at the end of each request.</li>
- * </ul>
- *
- * Ordered after Spring Security (-100) so {@link SecurityContextHolder} is already
- * populated when this filter runs, allowing the username to be captured.
+ * Comprehensive HTTP request/response logging filter for effective tracing.
+ * 
+ * Features:
+ * - MDC context (requestId, correlationId, userId) for all downstream logs
+ * - Request/response body logging at INFO level
+ * - Important HTTP headers logging
+ * - Sensitive data masking for security endpoints
+ * - Performance timing for each request
+ * 
+ * MDC Keys available in all logs:
+ * - requestId: unique per request
+ * - correlationId: propagated from caller or same as requestId
+ * - userId: authenticated user (if available)
+ * - method: HTTP method
+ * - uri: request URI
  */
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE - 10)
 @Slf4j
 public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 
-    private static final int MAX_BODY_SIZE = 3000;
+    private static final int MAX_PAYLOAD_SIZE = 5000;
+    private static final int MAX_RESPONSE_PAYLOAD_SIZE = 3000;
 
-    /** Paths where request body should never be logged (sensitive data). */
-    private static final Set<String> SENSITIVE_PATHS = Set.of("/auth/login", "/auth/register", "/auth/refresh-token");
+    private static final Set<String> SENSITIVE_PATHS = Set.of(
+        "/auth/login", "/auth/register", "/auth/refresh-token", "/auth/change-password"
+    );
+
+    private static final Set<String> IMPORTANT_REQUEST_HEADERS = Set.of(
+        "Content-Type", "Accept", "User-Agent", "X-Forwarded-For", "X-Real-IP", "Origin", "Referer"
+    );
+
+    private static final Set<String> SKIP_RESPONSE_BODY_CONTENT_TYPES = Set.of(
+        "application/octet-stream", "image/", "video/", "audio/", "application/pdf"
+    );
+
+    private final ObjectMapper objectMapper;
+
+    @Value("${logging.http.include-headers:true}")
+    private boolean includeHeaders;
+
+    @Value("${logging.http.include-response-body:true}")
+    private boolean includeResponseBody;
+
+    public RequestResponseLoggingFilter() {
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
+    }
 
     @Override
     @SuppressWarnings("null")
@@ -52,8 +86,15 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
+        // Skip actuator and health endpoints for cleaner logs
+        String uri = request.getRequestURI();
+        if (shouldSkipLogging(uri)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // ── 1. Build request / correlation IDs ─────────────────────────
-        String requestId    = UUID.randomUUID().toString();
+        String requestId = UUID.randomUUID().toString().substring(0, 8);
         String correlationId = request.getHeader("X-Correlation-ID");
         if (correlationId == null || correlationId.isBlank()) {
             correlationId = requestId;
@@ -62,84 +103,171 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
         // ── 2. Populate MDC — all downstream log calls carry these fields
         MDC.put(LoggingInterceptor.REQUEST_ID_MDC_KEY, requestId);
         MDC.put(LoggingInterceptor.CORRELATION_ID_MDC_KEY, correlationId);
+        MDC.put("method", request.getMethod());
+        MDC.put("uri", uri);
         resolveUsername().ifPresent(u -> MDC.put(LoggingInterceptor.USER_ID_MDC_KEY, u));
 
-        // ── 3. Propagate IDs — request attribute read by RequestContext / controllers
+        // ── 3. Propagate IDs via headers
         request.setAttribute(LoggingInterceptor.REQUEST_ID_ATTRIBUTE, requestId);
         response.setHeader("X-Request-ID", requestId);
         response.setHeader("X-Correlation-ID", correlationId);
 
         // ── 4. Wrap for body caching ────────────────────────────────────
-        ContentCachingRequestWrapper  cachedReq = wrapRequest(request);
+        ContentCachingRequestWrapper cachedReq = wrapRequest(request);
         ContentCachingResponseWrapper cachedRes = new ContentCachingResponseWrapper(response);
 
-        long startMs = System.currentTimeMillis();
+        long startNanos = System.nanoTime();
+        Throwable error = null;
+
         try {
             chain.doFilter(cachedReq, cachedRes);
+        } catch (Throwable t) {
+            error = t;
+            throw t;
         } finally {
-            long elapsedMs = System.currentTimeMillis() - startMs;
+            long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+            MDC.put("elapsedMs", String.valueOf(elapsedMs));
+            MDC.put("status", String.valueOf(cachedRes.getStatus()));
 
-            // ── 5. Log request + response ──────────────────────────────
-            logRequest(cachedReq, requestId);
-            logResponse(cachedRes, elapsedMs);
+            // Log in a single structured statement for easy parsing
+            logRequestResponse(cachedReq, cachedRes, elapsedMs, error);
 
-            // MUST forward the cached body to the actual response
             cachedRes.copyBodyToResponse();
-
-            // ── 6. Clean MDC ───────────────────────────────────────────
             MDC.clear();
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    //  Request logging
-    // ─────────────────────────────────────────────────────────────────────
-
-    private void logRequest(ContentCachingRequestWrapper req, String requestId) {
+    private void logRequestResponse(ContentCachingRequestWrapper req,
+                                    ContentCachingResponseWrapper res,
+                                    long elapsedMs,
+                                    Throwable error) {
         String method = req.getMethod();
-        String uri    = req.getRequestURI();
-        String query  = req.getQueryString();
-        String path   = query != null ? uri + "?" + query : uri;
+        String uri = req.getRequestURI();
+        String query = req.getQueryString();
+        String fullPath = query != null ? uri + "?" + query : uri;
+        int status = res.getStatus();
+        boolean isSensitive = SENSITIVE_PATHS.stream().anyMatch(uri::contains);
 
-        if (isMultipart(req)) {
-            log.info(">>> {} {} [multipart/file-upload, rid={}]", method, path, requestId);
-            return;
+        Map<String, Object> logData = new LinkedHashMap<>();
+        logData.put("type", "HTTP");
+        logData.put("direction", "IN/OUT");
+        logData.put("method", method);
+        logData.put("path", fullPath);
+        logData.put("status", status);
+        logData.put("elapsedMs", elapsedMs);
+
+        // Request headers
+        if (includeHeaders) {
+            logData.put("requestHeaders", extractImportantHeaders(req));
         }
 
-        String body = readBody(req.getContentAsByteArray(), req.getCharacterEncoding());
-        boolean hasSensitivePath = SENSITIVE_PATHS.stream().anyMatch(uri::contains);
-
-        if (hasSensitivePath) {
-            log.info(">>> {} {} [body hidden for security, rid={}]", method, path, requestId);
-        } else if (body.isBlank()) {
-            log.info(">>> {} {} [rid={}]", method, path, requestId);
-        } else {
-            log.info(">>> {} {} | input: {} [rid={}]", method, path, truncate(body), requestId);
+        // Request body
+        if (!isMultipart(req) && !isSensitive) {
+            String requestBody = readBody(req.getContentAsByteArray(), req.getCharacterEncoding(), MAX_PAYLOAD_SIZE);
+            if (!requestBody.isBlank()) {
+                logData.put("requestBody", compactJson(requestBody));
+            }
+        } else if (isMultipart(req)) {
+            logData.put("requestBody", "[multipart/file-upload]");
+        } else if (isSensitive) {
+            logData.put("requestBody", "[hidden:sensitive]");
         }
-    }
 
-    // ─────────────────────────────────────────────────────────────────────
-    //  Response logging
-    // ─────────────────────────────────────────────────────────────────────
+        // Response body
+        if (includeResponseBody && !shouldSkipResponseBody(res)) {
+            String responseBody = readBody(res.getContentAsByteArray(), res.getCharacterEncoding(), MAX_RESPONSE_PAYLOAD_SIZE);
+            if (!responseBody.isBlank()) {
+                logData.put("responseBody", compactJson(responseBody));
+            }
+        }
 
-    private void logResponse(ContentCachingResponseWrapper res, long elapsedMs) {
-        int    status = res.getStatus();
-        String body   = readBody(res.getContentAsByteArray(), res.getCharacterEncoding());
+        // Client info
+        String clientIp = getClientIp(req);
+        if (clientIp != null) {
+            logData.put("clientIp", clientIp);
+        }
 
-        if (status >= 500) {
-            log.error("<<< status={} | {}ms | output: {}", status, elapsedMs, truncate(body));
+        // Error info
+        if (error != null) {
+            logData.put("error", error.getClass().getSimpleName() + ": " + error.getMessage());
+        }
+
+        // Log at appropriate level with structured data
+        String logMessage = formatLogMessage(logData);
+
+        if (error != null || status >= 500) {
+            log.error("HTTP {} {} → {} ({}ms) | {}", method, fullPath, status, elapsedMs, logMessage);
         } else if (status >= 400) {
-            log.warn("<<< status={} | {}ms | output: {}", status, elapsedMs, truncate(body));
-        } else if (log.isDebugEnabled()) {
-            log.debug("<<< status={} | {}ms | output: {}", status, elapsedMs, truncate(body));
+            log.warn("HTTP {} {} → {} ({}ms) | {}", method, fullPath, status, elapsedMs, logMessage);
         } else {
-            log.info("<<< status={} | {}ms", status, elapsedMs);
+            log.info("HTTP {} {} → {} ({}ms) | {}", method, fullPath, status, elapsedMs, logMessage);
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    //  Helpers
-    // ─────────────────────────────────────────────────────────────────────
+    private String formatLogMessage(Map<String, Object> data) {
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            return data.toString();
+        }
+    }
+
+    private String compactJson(String json) {
+        if (json == null || json.isBlank()) return json;
+        try {
+            Object parsed = objectMapper.readValue(json, Object.class);
+            return objectMapper.writeValueAsString(parsed);
+        } catch (Exception e) {
+            return json.replaceAll("\\s+", " ").trim();
+        }
+    }
+
+    private Map<String, String> extractImportantHeaders(HttpServletRequest req) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        Enumeration<String> headerNames = req.getHeaderNames();
+        while (headerNames != null && headerNames.hasMoreElements()) {
+            String name = headerNames.nextElement();
+            if (IMPORTANT_REQUEST_HEADERS.stream().anyMatch(h -> h.equalsIgnoreCase(name))) {
+                String value = req.getHeader(name);
+                if (name.equalsIgnoreCase("Authorization")) {
+                    value = maskAuthHeader(value);
+                }
+                headers.put(name, value);
+            }
+        }
+        return headers;
+    }
+
+    private String maskAuthHeader(String value) {
+        if (value == null) return null;
+        if (value.toLowerCase().startsWith("bearer ") && value.length() > 20) {
+            return "Bearer " + value.substring(7, 15) + "...";
+        }
+        return "[masked]";
+    }
+
+    private String getClientIp(HttpServletRequest req) {
+        String ip = req.getHeader("X-Forwarded-For");
+        if (ip != null && !ip.isBlank()) {
+            return ip.split(",")[0].trim();
+        }
+        ip = req.getHeader("X-Real-IP");
+        if (ip != null && !ip.isBlank()) {
+            return ip;
+        }
+        return req.getRemoteAddr();
+    }
+
+    private boolean shouldSkipLogging(String uri) {
+        return uri.contains("/actuator") || uri.contains("/health") || uri.contains("/swagger") 
+            || uri.contains("/v3/api-docs") || uri.endsWith("/favicon.ico");
+    }
+
+    private boolean shouldSkipResponseBody(ContentCachingResponseWrapper res) {
+        String contentType = res.getContentType();
+        if (contentType == null) return false;
+        return SKIP_RESPONSE_BODY_CONTENT_TYPES.stream().anyMatch(contentType::contains);
+    }
 
     private ContentCachingRequestWrapper wrapRequest(HttpServletRequest request) {
         return (request instanceof ContentCachingRequestWrapper cached)
@@ -154,7 +282,6 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
                 return java.util.Optional.ofNullable(auth.getName());
             }
         } catch (Exception ignored) {
-            // SecurityContext may not be available in all filter paths
         }
         return java.util.Optional.empty();
     }
@@ -164,22 +291,19 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
         return ct != null && ct.startsWith("multipart/");
     }
 
-    private String readBody(byte[] bytes, String encoding) {
+    private String readBody(byte[] bytes, String encoding, int maxSize) {
         if (bytes == null || bytes.length == 0) return "";
         try {
             Charset charset = (encoding != null && !encoding.isBlank())
                     ? Charset.forName(encoding)
                     : StandardCharsets.UTF_8;
-            return new String(bytes, charset).strip();
+            String body = new String(bytes, charset).strip();
+            if (body.length() > maxSize) {
+                return body.substring(0, maxSize) + "...[truncated:" + (body.length() - maxSize) + "chars]";
+            }
+            return body;
         } catch (Exception e) {
-            return "[unreadable body]";
+            return "[unreadable]";
         }
-    }
-
-    private String truncate(String s) {
-        if (s == null || s.isBlank()) return "";
-        return s.length() > MAX_BODY_SIZE
-                ? s.substring(0, MAX_BODY_SIZE) + " … [+" + (s.length() - MAX_BODY_SIZE) + " chars]"
-                : s;
     }
 }
