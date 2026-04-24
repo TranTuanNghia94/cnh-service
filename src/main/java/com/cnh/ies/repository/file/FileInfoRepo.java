@@ -12,4 +12,6 @@ import com.cnh.ies.repository.BaseRepo;
 public interface FileInfoRepo extends BaseRepo<FileInfoEntity, UUID> {
 
     List<FileInfoEntity> findByPaymentRequestIdAndIsDeletedFalseOrderByCreatedAtAsc(UUID paymentRequestId);
+
+    List<FileInfoEntity> findByWarehouseInboundReceiptIdAndIsDeletedFalseOrderByCreatedAtAsc(UUID warehouseInboundReceiptId);
 }

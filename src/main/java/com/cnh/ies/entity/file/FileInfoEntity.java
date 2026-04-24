@@ -37,6 +37,9 @@ public class FileInfoEntity extends BaseEntity {
     @Column(name = "payment_request_id")
     private UUID paymentRequestId;
 
+    @Column(name = "warehouse_inbound_receipt_id")
+    private UUID warehouseInboundReceiptId;
+
     @Column(name = "attachment_type", nullable = false, length = 50)
     private String attachmentType = PaymentFileAttachmentType.PAPER.name();
 }

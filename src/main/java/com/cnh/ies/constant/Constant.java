@@ -88,4 +88,17 @@ public class Constant {
     public static final String ROLE_CS = "CS";
     public static final String ROLE_CS_MANAGER = "CS_MANAGER";
     public static final String ROLE_WAREHOUSE_KEEPER = "WAREHOUSE_KEEPER";
+
+    /** Warehouse inbound receipt lifecycle (N-level approvals, same mechanics as payment request). */
+    public static final String WAREHOUSE_INBOUND_STATUS_DRAFT = "DRAFT";
+    public static final String WAREHOUSE_INBOUND_STATUS_SUBMITTED = "SUBMITTED";
+    public static final String WAREHOUSE_INBOUND_STATUS_APPROVED = "APPROVED";
+    public static final String WAREHOUSE_INBOUND_STATUS_REJECTED = "REJECTED";
+    public static final String WAREHOUSE_INBOUND_STATUS_CANCELLED = "CANCELLED";
+
+    /** Stock ledger directions (warehouse_stock_transactions.direction). */
+    public static final String WAREHOUSE_STOCK_DIRECTION_INBOUND = "INBOUND";
+    public static final String WAREHOUSE_STOCK_DIRECTION_OUTBOUND = "OUTBOUND";
+
+    public static final String WAREHOUSE_STOCK_REF_INBOUND_RECEIPT_LINE = "WAREHOUSE_INBOUND_RECEIPT_LINE";
 }

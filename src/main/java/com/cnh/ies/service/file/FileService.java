@@ -23,6 +23,7 @@ import com.cnh.ies.model.payment.PaymentFileAttachmentType;
 import com.cnh.ies.model.payment.PaymentFileUploadInfo;
 import com.cnh.ies.repository.file.FileInfoRepo;
 import com.cnh.ies.repository.payment.PaymentRequestRepo;
+import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptRepo;
 import com.cnh.ies.util.RequestContext;
 
 import jakarta.transaction.Transactional;
@@ -53,6 +54,7 @@ public class FileService {
     private final S3Presigner s3Presigner;
     private final FileInfoRepo fileInfoRepo;
     private final PaymentRequestRepo paymentRequestRepo;
+    private final WarehouseInboundReceiptRepo warehouseInboundReceiptRepo;
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
@@ -186,6 +188,57 @@ public class FileService {
         return files;
     }
 
+    /**
+     * Lists uploads linked to a warehouse inbound receipt (after confirmation).
+     */
+    @Transactional
+    public List<PaymentFileUploadInfo> listUploadedFilesForWarehouseInboundReceipt(String receiptId, String requestId) {
+        UUID id;
+        try {
+            id = UUID.fromString(receiptId);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "receiptId must be a valid UUID",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        warehouseInboundReceiptRepo.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Warehouse inbound receipt not found",
+                        HttpStatus.NOT_FOUND.value(), requestId));
+        return fileInfoRepo.findByWarehouseInboundReceiptIdAndIsDeletedFalseOrderByCreatedAtAsc(id).stream()
+                .map(this::toUploadInfo)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Associates existing {@code file_infos} rows (already tied to the payment request) with a warehouse inbound receipt.
+     */
+    @Transactional
+    public void linkFilesToWarehouseInboundReceipt(List<UUID> fileIds, UUID paymentRequestId, UUID receiptId, String requestId) {
+        if (fileIds == null || fileIds.isEmpty()) {
+            return;
+        }
+        warehouseInboundReceiptRepo.findByIdAndPaymentRequestId(receiptId, paymentRequestId)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND,
+                        "Warehouse inbound receipt not found for this payment request",
+                        HttpStatus.NOT_FOUND.value(), requestId));
+        for (UUID fileId : fileIds) {
+            FileInfoEntity f = fileInfoRepo.findById(fileId)
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "File not found: " + fileId,
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            if (Boolean.TRUE.equals(f.getIsDeleted())) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "File is deleted: " + fileId,
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            if (f.getPaymentRequestId() == null || !f.getPaymentRequestId().equals(paymentRequestId)) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                        "File must belong to the same payment request before linking to inbound receipt: " + fileId,
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            f.setWarehouseInboundReceiptId(receiptId);
+            f.setUpdatedBy(RequestContext.getCurrentUsername());
+            fileInfoRepo.save(f);
+        }
+    }
+
     private static UUID parseOptionalPaymentRequestId(String raw, String requestId) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -271,6 +324,7 @@ public class FileService {
         PaymentFileUploadInfo info = new PaymentFileUploadInfo();
         info.setId(entity.getId());
         info.setPaymentRequestId(entity.getPaymentRequestId());
+        info.setWarehouseInboundReceiptId(entity.getWarehouseInboundReceiptId());
         info.setAttachmentType(entity.getAttachmentType());
         info.setFileName(entity.getFileName());
         info.setFilePath(entity.getFilePath());

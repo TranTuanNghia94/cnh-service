@@ -1,6 +1,7 @@
 package com.cnh.ies.repository.payment;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.Query;
@@ -54,4 +55,32 @@ public interface PaymentRequestPurchaseOrderLineRepo extends BaseRepo<PaymentReq
             + "ORDER BY pr.requestDate DESC")
     List<PaymentRequestPurchaseOrderLineEntity> findPaymentHistoryByPurchaseOrderLineId(
             @Param("purchaseOrderLineId") UUID purchaseOrderLineId);
+
+    @Query("SELECT DISTINCT prpol.paymentRequest.id FROM PaymentRequestPurchaseOrderLineEntity prpol "
+            + "WHERE prpol.isDeleted = false AND prpol.paymentRequest.isDeleted = false "
+            + "AND prpol.purchaseOrderLine.id IN :purchaseOrderLineIds")
+    List<UUID> findPaymentRequestIdsByPurchaseOrderLineIds(
+            @Param("purchaseOrderLineIds") List<UUID> purchaseOrderLineIds);
+
+    @Query("SELECT DISTINCT prpol.paymentRequest.id FROM PaymentRequestPurchaseOrderLineEntity prpol "
+            + "JOIN prpol.purchaseOrderLine pol "
+            + "WHERE prpol.isDeleted = false AND prpol.paymentRequest.isDeleted = false AND ("
+            + "LOWER(COALESCE(pol.quote, '')) LIKE LOWER(CONCAT('%', :code, '%')) OR "
+            + "LOWER(COALESCE(pol.invoice, '')) LIKE LOWER(CONCAT('%', :code, '%')) OR "
+            + "LOWER(COALESCE(pol.trackId, '')) LIKE LOWER(CONCAT('%', :code, '%')) OR "
+            + "LOWER(COALESCE(pol.receiptWarehouse, '')) LIKE LOWER(CONCAT('%', :code, '%')) OR "
+            + "LOWER(COALESCE(pol.billOfLadding, '')) LIKE LOWER(CONCAT('%', :code, '%'))"
+            + ")")
+    List<UUID> findPaymentRequestIdsByAnyLinkedPaperCode(@Param("code") String code);
+
+    @Query("SELECT DISTINCT prpol.paymentRequest.id FROM PaymentRequestPurchaseOrderLineEntity prpol "
+            + "WHERE prpol.isDeleted = false AND prpol.paymentRequest.isDeleted = false "
+            + "AND LOWER(COALESCE(prpol.note, '')) LIKE LOWER(CONCAT('%', :q, '%'))")
+    List<UUID> findPaymentRequestIdsByPaymentRequestLineNoteContaining(@Param("q") String q);
+
+    @Query("SELECT prpol FROM PaymentRequestPurchaseOrderLineEntity prpol "
+            + "JOIN FETCH prpol.purchaseOrderLine pol LEFT JOIN FETCH pol.product "
+            + "WHERE prpol.id = :id AND prpol.paymentRequest.id = :paymentRequestId AND prpol.isDeleted = false")
+    Optional<PaymentRequestPurchaseOrderLineEntity> findByIdAndPaymentRequestId(
+            @Param("id") UUID id, @Param("paymentRequestId") UUID paymentRequestId);
 }
