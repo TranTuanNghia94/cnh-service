@@ -44,6 +44,7 @@ import com.cnh.ies.repository.purchaseorder.PurchaseOrderLineRepo;
 import com.cnh.ies.mapper.payment.PaymentRequestMapper;
 import com.cnh.ies.mapper.payment.PaymentRequestMoneyMapper;
 import com.cnh.ies.mapper.payment.PaymentRequestMoneyTotals;
+import com.cnh.ies.service.notification.NotificationService;
 import com.cnh.ies.service.redis.RedisService;
 import com.cnh.ies.util.RequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,18 +70,6 @@ public class PaymentRequestService {
             Constant.PAYMENT_REQUEST_STATUS_SUBMITTED);
 
     /*
-     * Full status-transition graph:
-     *
-     *  DRAFT ──sendToAccountant──► SUBMITTED ──approve──► PENDING_ACC_APPROVAL
-     *    │                              │                         │
-     *    └──cancel──► CANCELLED         └──cancel──► CANCELLED   └──approve──► PENDING_HEAD_ACC_APR
-     *                                                                               │
-     *  REJECTED ──sendToAccountant──► SUBMITTED                               └──approve──► PENDING_FINAL_APR
-     *    └──cancel──► CANCELLED                                                        │
-     *                                                                             └──approve──► APPROVED
-     *                                                                                               │
-     *                                                                                   ┌──────────┴────────┐
-     *                                                                              PARTIALLY_PAID       PAID
      *
      *  Any approving stage can also be rejected → REJECTED.
      */
@@ -127,6 +116,7 @@ public class PaymentRequestService {
     private final PaymentRequestMapper paymentRequestMapper;
     private final PaymentRequestMoneyMapper paymentRequestMoneyMapper;
     private final PaymentRequestLineAmountCalculator paymentRequestLineAmountCalculator;
+    private final NotificationService notificationService;
 
     public ListDataModel<PaymentRequestInfo> getAllPaymentRequests(String requestId, Integer page, Integer limit) {
         Page<PaymentRequestEntity> requests = paymentRequestRepo.findAllAndIsDeletedFalse(PageRequest.of(page, limit));
@@ -234,6 +224,22 @@ public class PaymentRequestService {
 
         log.info("Payment request submitted [id={}, number={}, status=SUBMITTED, rid={}]",
                 paymentRequest.getId(), paymentRequest.getRequestNumber(), requestId);
+
+        // Send notification to all accountants
+        notifyUsersWithRole(
+                Constant.ROLE_ACCOUNTANT,
+                "Yêu cầu thanh toán chờ duyệt",
+                String.format("Đề xuất thanh toán %s đã được gửi và chờ duyệt. Số tiền: %s %s",
+                        paymentRequest.getRequestNumber(),
+                        paymentRequest.getTotalAmount(),
+                        paymentRequest.getCurrency()),
+                NotificationService.NotificationType.APPROVAL,
+                NotificationService.NotificationCategory.PAYMENT_REQUEST,
+                paymentRequest.getId().toString(),
+                NotificationService.ReferenceType.PAYMENT_REQUEST,
+                "/payment/" + paymentRequest.getId()
+        );
+
         return toInfo(paymentRequest, requestId);
     }
 
@@ -288,9 +294,14 @@ public class PaymentRequestService {
         paymentRequestApprovalRepo.save(approval);
 
         paymentRequest.setCurrentApprovalLevel(level);
-        transitionStatus(paymentRequest, nextStatusAfterApproval(level, paymentRequest.getApprovalLevels()), requestId);
+        String newStatus = nextStatusAfterApproval(level, paymentRequest.getApprovalLevels());
+        transitionStatus(paymentRequest, newStatus, requestId);
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         paymentRequestRepo.save(paymentRequest);
+
+        // Send notification based on the new status
+        sendApprovalNotification(paymentRequest, newStatus, level);
+
         return toInfo(paymentRequest, requestId);
     }
 
@@ -317,6 +328,15 @@ public class PaymentRequestService {
         transitionStatus(paymentRequest, Constant.PAYMENT_REQUEST_STATUS_REJECTED, requestId);
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         paymentRequestRepo.save(paymentRequest);
+
+        String reason = request.getReason() != null ? request.getReason() : "No reason provided";
+        notifyPaymentRequestOwner(
+                paymentRequest,
+                "Payment Request Rejected",
+                String.format("Your payment request %s has been rejected. Reason: %s",
+                        paymentRequest.getRequestNumber(), reason),
+                NotificationService.NotificationType.ERROR);
+
         return toInfo(paymentRequest, requestId);
     }
 
@@ -686,5 +706,100 @@ public class PaymentRequestService {
                 documents,
                 paymentRequestApprovalRepo.findByPaymentRequestId(id),
                 requestId);
+    }
+
+    private void notifyUsersWithRole(String roleCode, String title, String message, 
+            String type, String category, String referenceId, String referenceType, String actionUrl) {
+        try {
+            List<UserEntity> users = userRepo.findByRoleCode(roleCode);
+            if (users.isEmpty()) {
+                log.warn("No users found with role {} to notify", roleCode);
+                return;
+            }
+
+            List<UUID> userIds = users.stream().map(UserEntity::getId).toList();
+            notificationService.sendNotificationToUsers(userIds, title, message, type, category, referenceId, referenceType, actionUrl);
+            log.info("Sent notification to {} users with role {}", userIds.size(), roleCode);
+        } catch (Exception e) {
+            log.error("Failed to send notification to users with role {}: {}", roleCode, e.getMessage());
+        }
+    }
+
+    private void sendApprovalNotification(PaymentRequestEntity paymentRequest, String newStatus, int approvedLevel) {
+        String prNumber = paymentRequest.getRequestNumber();
+        String prId = paymentRequest.getId().toString();
+        String amount = paymentRequest.getTotalAmount() + " " + paymentRequest.getCurrency();
+        String actionUrl = "/payment/" + prId;
+
+        switch (newStatus) {
+            case Constant.PAYMENT_REQUEST_STATUS_PENDING_HEAD_ACCOUNTANT_APPROVAL -> {
+                // Accountant approved (level 1) → notify Accountant Manager (Kế toán trưởng)
+                notifyUsersWithRole(
+                        Constant.ROLE_ACCOUNTANT_MANAGER,
+                        "Yêu cầu thanh toán chờ duyệt",
+                        String.format("Đề xuất thanh toán %s đã được duyệt bởi kế toán và chờ duyệt của kế toán trưởng. Số tiền: %s", prNumber, amount),
+                        NotificationService.NotificationType.APPROVAL,
+                        NotificationService.NotificationCategory.PAYMENT_REQUEST,
+                        prId,
+                        NotificationService.ReferenceType.PAYMENT_REQUEST,
+                        actionUrl
+                );
+                notifyPaymentRequestOwner(
+                        paymentRequest,
+                        "Yêu cầu thanh toán chờ duyệt",
+                        String.format("Đề xuất thanh toán %s đã được duyệt bởi kế toán và chờ duyệt của kế toán trưởng. Số tiền: %s",
+                                prNumber, amount),
+                        NotificationService.NotificationType.APPROVAL);
+            }
+            case Constant.PAYMENT_REQUEST_STATUS_PENDING_FINAL_APPROVAL -> {
+                // Accountant Manager approved → notify Admin for final approval
+                notifyUsersWithRole(
+                        Constant.ROLE_ADMIN,
+                        "Đề xuất thanh toán chờ duyệt",
+                        String.format("Đề xuất thanh toán %s đã được duyệt bởi kế toán trưởng và chờ duyệt cuối cùng. Số tiền: %s", prNumber, amount),
+                        NotificationService.NotificationType.APPROVAL,
+                        NotificationService.NotificationCategory.PAYMENT_REQUEST,
+                        prId,
+                        NotificationService.ReferenceType.PAYMENT_REQUEST,
+                        actionUrl
+                );
+                notifyPaymentRequestOwner(
+                        paymentRequest,
+                        "Đề xuất thanh toán đã được duyệt",
+                        String.format("Đề xuất thanh toán %s đã được duyệt bởi kế toán trưởng và chờ duyệt cuối cùng. Số tiền: %s",
+                                prNumber, amount),
+                        NotificationService.NotificationType.APPROVAL);
+            }
+            case Constant.PAYMENT_REQUEST_STATUS_APPROVED -> {
+                notifyPaymentRequestOwner(
+                        paymentRequest,
+                        "Đề xuất thanh toán đã được duyệt",
+                        String.format("Đề xuất thanh toán %s đã được duyệt. Số tiền: %s", prNumber, amount),
+                        NotificationService.NotificationType.SUCCESS);
+            }
+            default -> log.debug("No notification needed for status {}", newStatus);
+        }
+    }
+
+    private void notifyPaymentRequestOwner(PaymentRequestEntity paymentRequest, String title, String message, String type) {
+        UUID requestorId = paymentRequest.getRequestor() != null ? paymentRequest.getRequestor().getId() : null;
+        if (requestorId == null) {
+            return;
+        }
+        String prId = paymentRequest.getId().toString();
+        String actionUrl = "/payment/" + prId;
+        try {
+            notificationService.sendNotification(
+                    requestorId,
+                    title,
+                    message,
+                    type,
+                    NotificationService.NotificationCategory.PAYMENT_REQUEST,
+                    prId,
+                    NotificationService.ReferenceType.PAYMENT_REQUEST,
+                    actionUrl);
+        } catch (Exception e) {
+            log.warn("Failed to notify payment request owner {}: {}", requestorId, e.getMessage());
+        }
     }
 }

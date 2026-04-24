@@ -80,4 +80,12 @@ public class Constant {
     public static final String PAYMENT_APPROVAL_STATUS_PENDING = "PENDING";
     public static final String PAYMENT_APPROVAL_STATUS_APPROVED = "APPROVED";
     public static final String PAYMENT_APPROVAL_STATUS_REJECTED = "REJECTED";
+
+    // Role codes (from database)
+    public static final String ROLE_ADMIN = "ADMIN";
+    public static final String ROLE_ACCOUNTANT = "ACCOUNTANT";
+    public static final String ROLE_ACCOUNTANT_MANAGER = "ACCOUNTANT_MANAGER";
+    public static final String ROLE_CS = "CS";
+    public static final String ROLE_CS_MANAGER = "CS_MANAGER";
+    public static final String ROLE_WAREHOUSE_KEEPER = "WAREHOUSE_KEEPER";
 }

@@ -1,6 +1,5 @@
 package com.cnh.ies.service.security;
 
-import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Service;
 
 import org.springframework.security.core.userdetails.UserDetails;
@@ -34,8 +33,8 @@ public class CustomUserService implements UserDetailsService {
             if (userInfo == null) {
                 throw new UsernameNotFoundException("User not found");
             }
-            
-            return User.withUsername(userInfo.getUsername()).password("").roles("USER").build();
+
+            return new AuthenticationUserDetails(userInfo);
         } catch (Exception e) {
             log.error("Error loading user by username: {} | \nError: {}", username, e.getMessage());
             throw new UsernameNotFoundException(e.getMessage());
