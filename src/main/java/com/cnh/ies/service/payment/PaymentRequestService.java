@@ -71,7 +71,7 @@ public class PaymentRequestService {
 
     /*
      *
-     *  Any approving stage can also be rejected → REJECTED.
+     * Any approving stage can also be rejected → REJECTED.
      */
     private static final Map<String, Set<String>> ALLOWED_STATUS_TRANSITIONS = Map.of(
             Constant.PAYMENT_REQUEST_STATUS_DRAFT, Set.of(
@@ -168,10 +168,13 @@ public class PaymentRequestService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal feeAmount = calculateFeeAmount(request.getFees());
         String payCurrency = paymentRequestMoneyMapper.normalizeCurrency(request.getCurrency());
-        BigDecimal payRate = paymentRequestMoneyMapper.resolveExchangeRate(payCurrency, request.getExchangeRate(), requestId);
-        BigDecimal lineItemsAmount = paymentRequestMoneyMapper.sumPurchaseOrderLinePayables(poLines, payCurrency, payRate, requestId);
+        BigDecimal payRate = paymentRequestMoneyMapper.resolveExchangeRate(payCurrency, request.getExchangeRate(),
+                requestId);
+        BigDecimal lineItemsAmount = paymentRequestMoneyMapper.sumPurchaseOrderLinePayables(poLines, payCurrency,
+                payRate, requestId);
 
-        PaymentRequestEntity entity = upsertPaymentRequestMain(request, poLines.get(0), requestedAmount, feeAmount, lineItemsAmount,
+        PaymentRequestEntity entity = upsertPaymentRequestMain(request, poLines.get(0), requestedAmount, feeAmount,
+                lineItemsAmount,
                 requestId);
         paymentRequestLineSyncService.syncItems(entity, itemRequests, poLines, requestId);
         paymentRequestFeeSyncService.syncFees(entity, request.getFees(), requestId);
@@ -198,12 +201,16 @@ public class PaymentRequestService {
     }
 
     /**
-     * Owner action: send a {@code DRAFT} or {@code REJECTED} payment request to the accountant.
-     * The request moves to {@code SUBMITTED} so the accountant can see it and formally start the
+     * Owner action: send a {@code DRAFT} or {@code REJECTED} payment request to the
+     * accountant.
+     * The request moves to {@code SUBMITTED} so the accountant can see it and
+     * formally start the
      * approval process (SUBMITTED → PENDING_ACC_APPROVAL).
      * An optional {@code note} is saved so the accountant knows the context.
      *
-     * <p>Status transition: {@code DRAFT / REJECTED → SUBMITTED}</p>
+     * <p>
+     * Status transition: {@code DRAFT / REJECTED → SUBMITTED}
+     * </p>
      */
     @Transactional
     public PaymentRequestInfo sendToAccountant(String id, SendToAccountantRequest request, String requestId) {
@@ -237,8 +244,7 @@ public class PaymentRequestService {
                 NotificationService.NotificationCategory.PAYMENT_REQUEST,
                 paymentRequest.getId().toString(),
                 NotificationService.ReferenceType.PAYMENT_REQUEST,
-                "/payment/" + paymentRequest.getId()
-        );
+                "/payment/" + paymentRequest.getId());
 
         return toInfo(paymentRequest, requestId);
     }
@@ -266,7 +272,8 @@ public class PaymentRequestService {
         ensureApprovingStatus(paymentRequest, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);
 
-        // SUBMITTED → accountant begins formal review; step through PENDING_ACC_APPROVAL
+        // SUBMITTED → accountant begins formal review; step through
+        // PENDING_ACC_APPROVAL
         // so the level-1 approval logic can proceed from the expected status.
         if (Constant.PAYMENT_REQUEST_STATUS_SUBMITTED.equals(paymentRequest.getStatus())) {
             transitionStatus(paymentRequest, Constant.PAYMENT_REQUEST_STATUS_PENDING_ACCOUNTANT_APPROVAL, requestId);
@@ -275,7 +282,8 @@ public class PaymentRequestService {
 
         int level = resolveApprovalLevel(request.getLevel(), paymentRequest);
         if (level <= 0 || level > paymentRequest.getApprovalLevels()) {
-            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid approval level", HttpStatus.BAD_REQUEST.value(),
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid approval level",
+                    HttpStatus.BAD_REQUEST.value(),
                     requestId);
         }
         PaymentRequestApprovalEntity approval = approvalAtLevelOrThrow(paymentRequest, level, requestId);
@@ -332,8 +340,8 @@ public class PaymentRequestService {
         String reason = request.getReason() != null ? request.getReason() : "No reason provided";
         notifyPaymentRequestOwner(
                 paymentRequest,
-                "Payment Request Rejected",
-                String.format("Your payment request %s has been rejected. Reason: %s",
+                "Yêu cầu thanh toán đã bị từ chối",
+                String.format("Đề xuất thanh toán %s đã bị từ chối. Lý do: %s",
                         paymentRequest.getRequestNumber(), reason),
                 NotificationService.NotificationType.ERROR);
 
@@ -386,11 +394,25 @@ public class PaymentRequestService {
         paymentRequest.setUpdatedBy(RequestContext.getCurrentUsername());
         recalculateAmountsBeforeSave(paymentRequest, requestId);
         paymentRequestRepo.save(paymentRequest);
+
+        String prNumber = paymentRequest.getRequestNumber();
+        BigDecimal paidTotal = paymentRequest.getPaidAmount();
+        String currency = paymentRequest.getCurrency();
+
+        notifyPaymentRequestOwner(
+                paymentRequest,
+                "Đã thanh toán",
+                String.format(
+                        "Đề xuất thanh toán %s: kế toán đã cập nhật chứng từ ngân hàng và ghi nhận đã thanh toán %s %s. Tổng số tiền: %s %s.",
+                        prNumber, paidTotal, currency, paymentRequest.getTotalAmount(), paymentRequest.getCurrency()),
+                NotificationService.NotificationType.SUCCESS);
+
         return toInfo(paymentRequest, requestId);
     }
 
     private PaymentRequestEntity upsertPaymentRequestMain(CreateOrUpdatePaymentRequest request,
-            PurchaseOrderLineEntity firstLine, BigDecimal requestedAmount, BigDecimal feeAmount, BigDecimal lineItemsAmount,
+            PurchaseOrderLineEntity firstLine, BigDecimal requestedAmount, BigDecimal feeAmount,
+            BigDecimal lineItemsAmount,
             String requestId) {
         PaymentRequestEntity entity;
         if (request.getId() == null || request.getId().isBlank()) {
@@ -419,7 +441,8 @@ public class PaymentRequestService {
     }
 
     private void rebuildApprovalsIfNeeded(PaymentRequestEntity paymentRequest, Integer approvalLevels) {
-        List<PaymentRequestApprovalEntity> existing = paymentRequestApprovalRepo.findByPaymentRequestId(paymentRequest.getId());
+        List<PaymentRequestApprovalEntity> existing = paymentRequestApprovalRepo
+                .findByPaymentRequestId(paymentRequest.getId());
         if (!existing.isEmpty() && existing.size() == approvalLevels) {
             return;
         }
@@ -501,7 +524,8 @@ public class PaymentRequestService {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "approvalLevels must be 2 or 3",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
-        List<String> lineIds = request.getItems().stream().map(PaymentRequestItemRequest::getPurchaseOrderLineId).toList();
+        List<String> lineIds = request.getItems().stream().map(PaymentRequestItemRequest::getPurchaseOrderLineId)
+                .toList();
         if (lineIds.size() != new LinkedHashSet<>(lineIds).size()) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Duplicate purchaseOrderLineId in items",
                     HttpStatus.BAD_REQUEST.value(), requestId);
@@ -510,11 +534,13 @@ public class PaymentRequestService {
         BigDecimal pct = request.getPaidPercentage();
         if (pct != null && (pct.compareTo(BigDecimal.ZERO) <= 0 || pct.compareTo(BigDecimal.valueOf(100)) > 0)) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
-                    "paidPercentage must be between 0 (exclusive) and 100 (inclusive)", HttpStatus.BAD_REQUEST.value(), requestId);
+                    "paidPercentage must be between 0 (exclusive) and 100 (inclusive)", HttpStatus.BAD_REQUEST.value(),
+                    requestId);
         }
     }
 
-    private void validateLineDocumentSelection(List<PaymentRequestItemRequest> itemRequests, List<PurchaseOrderLineEntity> poLines,
+    private void validateLineDocumentSelection(List<PaymentRequestItemRequest> itemRequests,
+            List<PurchaseOrderLineEntity> poLines,
             String requestId) {
         for (PaymentRequestItemRequest item : itemRequests) {
             if (item.getSelectedDocumentTypes() == null
@@ -526,8 +552,9 @@ public class PaymentRequestService {
             PurchaseOrderLineEntity line = poLines.stream()
                     .filter(it -> it.getId().toString().equals(item.getPurchaseOrderLineId()))
                     .findFirst()
-                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Purchase order line not found",
-                            HttpStatus.NOT_FOUND.value(), requestId));
+                    .orElseThrow(
+                            () -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Purchase order line not found",
+                                    HttpStatus.NOT_FOUND.value(), requestId));
             for (String doc : item.getSelectedDocumentTypes()) {
                 if (!VALID_DOCUMENT_TYPES.contains(doc)) {
                     throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid document type: " + doc,
@@ -561,7 +588,8 @@ public class PaymentRequestService {
                 .collect(Collectors.toSet());
         if (vendorIds.size() != 1 || vendorIds.contains(null)) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
-                    "All selected purchase order lines must belong to same vendor", HttpStatus.BAD_REQUEST.value(), requestId);
+                    "All selected purchase order lines must belong to same vendor", HttpStatus.BAD_REQUEST.value(),
+                    requestId);
         }
     }
 
@@ -579,10 +607,13 @@ public class PaymentRequestService {
     }
 
     /**
-     * Recomputes header money fields from persisted lines and extra fees. After create/update, pass
-     * {@code createOrUpdateRequest} so currency, exchange rate, and (when unpaid) paid percentage match the payload.
+     * Recomputes header money fields from persisted lines and extra fees. After
+     * create/update, pass
+     * {@code createOrUpdateRequest} so currency, exchange rate, and (when unpaid)
+     * paid percentage match the payload.
      */
-    private void recalculateAmountsBeforeSave(PaymentRequestEntity paymentRequest, CreateOrUpdatePaymentRequest createOrUpdateRequest,
+    private void recalculateAmountsBeforeSave(PaymentRequestEntity paymentRequest,
+            CreateOrUpdatePaymentRequest createOrUpdateRequest,
             String requestId) {
         if (paymentRequest.getId() == null) {
             return;
@@ -606,7 +637,8 @@ public class PaymentRequestService {
         PaymentRequestMoneyTotals totals = paymentRequestMoneyMapper.computeMoneyTotals(requestedAmount, feeAmount,
                 currencyForTotals, exchangeRateForTotals, requestId);
 
-        if (paymentRequest.getPaidAmount() != null && paymentRequest.getPaidAmount().compareTo(totals.totalAmount()) > 0) {
+        if (paymentRequest.getPaidAmount() != null
+                && paymentRequest.getPaidAmount().compareTo(totals.totalAmount()) > 0) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Paid amount exceeds recalculated total amount",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
@@ -674,7 +706,8 @@ public class PaymentRequestService {
             allowed = roleCodes.contains("ADMIN") || roleCodes.contains("ACCOUNTANT_MANAGER");
         }
         if (!allowed) {
-            throw new ApiException(ApiException.ErrorCode.FORBIDDEN, "Current user does not have role for this approval level",
+            throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
+                    "Current user does not have role for this approval level",
                     HttpStatus.FORBIDDEN.value(), requestId);
         }
     }
@@ -697,10 +730,12 @@ public class PaymentRequestService {
 
     private PaymentRequestInfo toInfo(PaymentRequestEntity entity, String requestId) {
         UUID id = entity.getId();
-        // Load item documents first so payment-line entities enter the PC with purchaseOrderLine fetched
+        // Load item documents first so payment-line entities enter the PC with
+        // purchaseOrderLine fetched
         // (avoids a second query re-loading lines without associations before mapping).
         List<PaymentRequestItemDocumentEntity> documents = paymentRequestItemDocumentRepo.findByPaymentRequestId(id);
-        List<PaymentRequestPurchaseOrderLineEntity> lines = paymentRequestPurchaseOrderLineRepo.findByPaymentRequestId(id);
+        List<PaymentRequestPurchaseOrderLineEntity> lines = paymentRequestPurchaseOrderLineRepo
+                .findByPaymentRequestId(id);
         return paymentRequestMapper.toDetailInfo(entity, lines,
                 paymentRequestExtraFeeRepo.findByPaymentRequestId(id),
                 documents,
@@ -708,7 +743,7 @@ public class PaymentRequestService {
                 requestId);
     }
 
-    private void notifyUsersWithRole(String roleCode, String title, String message, 
+    private void notifyUsersWithRole(String roleCode, String title, String message,
             String type, String category, String referenceId, String referenceType, String actionUrl) {
         try {
             List<UserEntity> users = userRepo.findByRoleCode(roleCode);
@@ -718,7 +753,8 @@ public class PaymentRequestService {
             }
 
             List<UUID> userIds = users.stream().map(UserEntity::getId).toList();
-            notificationService.sendNotificationToUsers(userIds, title, message, type, category, referenceId, referenceType, actionUrl);
+            notificationService.sendNotificationToUsers(userIds, title, message, type, category, referenceId,
+                    referenceType, actionUrl);
             log.info("Sent notification to {} users with role {}", userIds.size(), roleCode);
         } catch (Exception e) {
             log.error("Failed to send notification to users with role {}: {}", roleCode, e.getMessage());
@@ -737,17 +773,19 @@ public class PaymentRequestService {
                 notifyUsersWithRole(
                         Constant.ROLE_ACCOUNTANT_MANAGER,
                         "Yêu cầu thanh toán chờ duyệt",
-                        String.format("Đề xuất thanh toán %s đã được duyệt bởi kế toán và chờ duyệt của kế toán trưởng. Số tiền: %s", prNumber, amount),
+                        String.format(
+                                "Đề xuất thanh toán %s đã được duyệt bởi kế toán và chờ duyệt của kế toán trưởng. Số tiền: %s",
+                                prNumber, amount),
                         NotificationService.NotificationType.APPROVAL,
                         NotificationService.NotificationCategory.PAYMENT_REQUEST,
                         prId,
                         NotificationService.ReferenceType.PAYMENT_REQUEST,
-                        actionUrl
-                );
+                        actionUrl);
                 notifyPaymentRequestOwner(
                         paymentRequest,
                         "Yêu cầu thanh toán chờ duyệt",
-                        String.format("Đề xuất thanh toán %s đã được duyệt bởi kế toán và chờ duyệt của kế toán trưởng. Số tiền: %s",
+                        String.format(
+                                "Đề xuất thanh toán %s đã được duyệt bởi kế toán và chờ duyệt của kế toán trưởng. Số tiền: %s",
                                 prNumber, amount),
                         NotificationService.NotificationType.APPROVAL);
             }
@@ -756,17 +794,19 @@ public class PaymentRequestService {
                 notifyUsersWithRole(
                         Constant.ROLE_ADMIN,
                         "Đề xuất thanh toán chờ duyệt",
-                        String.format("Đề xuất thanh toán %s đã được duyệt bởi kế toán trưởng và chờ duyệt cuối cùng. Số tiền: %s", prNumber, amount),
+                        String.format(
+                                "Đề xuất thanh toán %s đã được duyệt bởi kế toán trưởng và chờ duyệt cuối cùng. Số tiền: %s",
+                                prNumber, amount),
                         NotificationService.NotificationType.APPROVAL,
                         NotificationService.NotificationCategory.PAYMENT_REQUEST,
                         prId,
                         NotificationService.ReferenceType.PAYMENT_REQUEST,
-                        actionUrl
-                );
+                        actionUrl);
                 notifyPaymentRequestOwner(
                         paymentRequest,
                         "Đề xuất thanh toán đã được duyệt",
-                        String.format("Đề xuất thanh toán %s đã được duyệt bởi kế toán trưởng và chờ duyệt cuối cùng. Số tiền: %s",
+                        String.format(
+                                "Đề xuất thanh toán %s đã được duyệt bởi kế toán trưởng và chờ duyệt cuối cùng. Số tiền: %s",
                                 prNumber, amount),
                         NotificationService.NotificationType.APPROVAL);
             }
@@ -781,7 +821,8 @@ public class PaymentRequestService {
         }
     }
 
-    private void notifyPaymentRequestOwner(PaymentRequestEntity paymentRequest, String title, String message, String type) {
+    private void notifyPaymentRequestOwner(PaymentRequestEntity paymentRequest, String title, String message,
+            String type) {
         UUID requestorId = paymentRequest.getRequestor() != null ? paymentRequest.getRequestor().getId() : null;
         if (requestorId == null) {
             return;
