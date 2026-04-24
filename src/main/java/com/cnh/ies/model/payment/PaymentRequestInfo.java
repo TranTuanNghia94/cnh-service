@@ -3,6 +3,8 @@ package com.cnh.ies.model.payment;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.cnh.ies.model.purchaseorder.PurchaseOrderInfo;
+
 import lombok.Data;
 
 @Data
@@ -39,4 +41,5 @@ public class PaymentRequestInfo {
     private List<PaymentRequestLineInfo> items;
     private List<PaymentRequestFeeInfo> fees;
     private List<PaymentRequestApprovalInfo> approvals;
+    private List<PurchaseOrderInfo> purchaseOrders;
 }

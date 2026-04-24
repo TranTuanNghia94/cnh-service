@@ -40,6 +40,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/auth/**", "/health/**", "/actuator/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/v1/auth/**", "/api/v1/health/**").permitAll()
+                // Boot forwards/includes here on failure; must be public or ERROR dispatch gets AuthorizationDeniedException
+                .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -84,6 +86,9 @@ public class SecurityConfig {
             public void handle(HttpServletRequest request, HttpServletResponse response, 
                              org.springframework.security.access.AccessDeniedException accessDeniedException) 
                              throws IOException, ServletException {
+                if (response.isCommitted()) {
+                    return;
+                }
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 response.setContentType("application/json");
                 response.setCharacterEncoding("UTF-8");
@@ -105,6 +110,9 @@ public class SecurityConfig {
             public void commence(HttpServletRequest request, HttpServletResponse response, 
                                org.springframework.security.core.AuthenticationException authException) 
                                throws IOException, ServletException {
+                if (response.isCommitted()) {
+                    return;
+                }
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
                 response.setCharacterEncoding("UTF-8");

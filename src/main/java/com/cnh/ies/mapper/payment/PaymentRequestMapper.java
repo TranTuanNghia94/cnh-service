@@ -1,8 +1,11 @@
 package com.cnh.ies.mapper.payment;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -13,8 +16,11 @@ import com.cnh.ies.entity.payment.PaymentRequestEntity;
 import com.cnh.ies.entity.payment.PaymentRequestExtraFeeEntity;
 import com.cnh.ies.entity.payment.PaymentRequestItemDocumentEntity;
 import com.cnh.ies.entity.payment.PaymentRequestPurchaseOrderLineEntity;
+import com.cnh.ies.entity.purchaseorder.PurchaseOrderEntity;
+import com.cnh.ies.entity.purchaseorder.PurchaseOrderLineEntity;
 import com.cnh.ies.entity.vendors.VendorsEntity;
 import com.cnh.ies.mapper.purchaseorder.PurchaseOrderLineMapper;
+import com.cnh.ies.mapper.purchaseorder.PurchaseOrderMapper;
 import com.cnh.ies.repository.payment.PaymentRequestExtraFeeRepo;
 import com.cnh.ies.repository.payment.PaymentRequestPurchaseOrderLineRepo;
 import com.cnh.ies.model.payment.CreateOrUpdatePaymentRequest;
@@ -25,6 +31,7 @@ import com.cnh.ies.model.payment.PaymentRequestApprovalInfo;
 import com.cnh.ies.model.payment.PaymentRequestFeeInfo;
 import com.cnh.ies.model.payment.PaymentRequestInfo;
 import com.cnh.ies.model.payment.PaymentRequestLineInfo;
+import com.cnh.ies.model.purchaseorder.PurchaseOrderInfo;
 import com.cnh.ies.util.RequestContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,6 +47,7 @@ public class PaymentRequestMapper {
     private final PaymentRequestPurchaseOrderLineRepo paymentRequestPurchaseOrderLineRepo;
     private final PaymentRequestExtraFeeRepo paymentRequestExtraFeeRepo;
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
+    private final PurchaseOrderMapper purchaseOrderMapper;
 
     public void applyHeaderFromCreateOrUpdate(PaymentRequestEntity entity, CreateOrUpdatePaymentRequest request,
             UserEntity requestor, VendorsEntity vendor, BigDecimal requestedAmount, BigDecimal feeAmount,
@@ -147,6 +155,19 @@ public class PaymentRequestMapper {
                 requestId));
 
         info.setApprovals(approvalEntities.stream().map(PaymentRequestMapper::toApprovalInfo).toList());
+
+        List<PurchaseOrderInfo> purchaseOrders = itemEntities.stream()
+                .map(PaymentRequestPurchaseOrderLineEntity::getPurchaseOrderLine)
+                .filter(Objects::nonNull)
+                .map(PurchaseOrderLineEntity::getPurchaseOrder)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(PurchaseOrderEntity::getId, Function.identity(), (a, b) -> a, LinkedHashMap::new))
+                .values()
+                .stream()
+                .map(purchaseOrderMapper::toPurchaseOrderInfo)
+                .toList();
+        info.setPurchaseOrders(purchaseOrders);
+
         return info;
     }
 
