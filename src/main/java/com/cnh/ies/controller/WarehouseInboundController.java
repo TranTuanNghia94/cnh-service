@@ -36,7 +36,7 @@ public class WarehouseInboundController {
     private final WarehouseInboundService warehouseInboundService;
 
     @GetMapping("/search")
-    @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
+    // @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
     public ApiResponse<WarehouseInboundSearchResponse> search(
             @RequestParam(name = "notesContains", required = false) String notesContains,
             @RequestParam(name = "paperType", required = false) String paperType,
@@ -47,7 +47,7 @@ public class WarehouseInboundController {
     }
 
     @GetMapping("/payment-request/{paymentRequestId}")
-    @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
+    // @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
     public ApiResponse<PaymentRequestInfo> getPaymentRequest(@PathVariable String paymentRequestId) {
         PaymentRequestInfo response = warehouseInboundService.getPaymentRequestDetail(paymentRequestId,
                 RequestContext.getRequestId());
@@ -55,21 +55,21 @@ public class WarehouseInboundController {
     }
 
     @PostMapping("/confirm")
-    @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
+    // @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
     public ApiResponse<WarehouseInboundReceiptInfo> confirm(@RequestBody WarehouseInboundConfirmRequest request) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.confirmInbound(request, RequestContext.getRequestId());
         return ApiResponse.success(response, "Warehouse inbound saved as draft; submit for approval when ready");
     }
 
     @PostMapping("/receipt/{receiptId}/submit")
-    @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
+    // @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
     public ApiResponse<WarehouseInboundReceiptInfo> submitForApproval(@PathVariable String receiptId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.submitForApproval(receiptId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Warehouse inbound submitted for approval");
     }
 
     @PostMapping("/receipt/{receiptId}/approve")
-    @PreAuthorize("isAuthenticated()")
+    // @PreAuthorize("isAuthenticated()")
     public ApiResponse<WarehouseInboundReceiptInfo> approve(
             @PathVariable String receiptId,
             @RequestBody(required = false) ApprovePaymentRequest request) {
@@ -78,7 +78,7 @@ public class WarehouseInboundController {
     }
 
     @PostMapping("/receipt/{receiptId}/reject")
-    @PreAuthorize("isAuthenticated()")
+    // @PreAuthorize("isAuthenticated()")
     public ApiResponse<WarehouseInboundReceiptInfo> reject(
             @PathVariable String receiptId,
             @RequestBody RejectPaymentRequest request) {
@@ -87,14 +87,14 @@ public class WarehouseInboundController {
     }
 
     @PostMapping("/receipt/{receiptId}/cancel")
-    @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
+    // @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
     public ApiResponse<WarehouseInboundReceiptInfo> cancel(@PathVariable String receiptId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.cancel(receiptId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Warehouse inbound cancelled");
     }
 
     @DeleteMapping("/receipt/{receiptId}/lines/{lineId}")
-    @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
+    // @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
     public ApiResponse<WarehouseInboundReceiptInfo> deleteLine(@PathVariable String receiptId, @PathVariable String lineId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.deleteInboundLine(receiptId, lineId,
                 RequestContext.getRequestId());
@@ -102,7 +102,7 @@ public class WarehouseInboundController {
     }
 
     @PostMapping("/receipt/{receiptId}/lines")
-    @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
+    // @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
     public ApiResponse<WarehouseInboundReceiptInfo> addLine(
             @PathVariable String receiptId,
             @RequestBody WarehouseInboundAddLineRequest body) {
@@ -112,7 +112,7 @@ public class WarehouseInboundController {
     }
 
     @PatchMapping("/receipt/{receiptId}/lines/{lineId}")
-    @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
+    // @PreAuthorize("hasRole('" + Constant.ROLE_WAREHOUSE_KEEPER + "')")
     public ApiResponse<WarehouseInboundReceiptInfo> patchLine(
             @PathVariable String receiptId,
             @PathVariable String lineId,
@@ -123,7 +123,7 @@ public class WarehouseInboundController {
     }
 
     @GetMapping("/payment-request/{paymentRequestId}/receipts")
-    @PreAuthorize("isAuthenticated()")
+    // @PreAuthorize("isAuthenticated()")
     public ApiResponse<List<WarehouseInboundReceiptInfo>> listReceipts(@PathVariable String paymentRequestId) {
         List<WarehouseInboundReceiptInfo> response = warehouseInboundService.listReceiptsForPaymentRequest(paymentRequestId,
                 RequestContext.getRequestId());
@@ -131,7 +131,7 @@ public class WarehouseInboundController {
     }
 
     @GetMapping("/receipt/{receiptId}")
-    @PreAuthorize("isAuthenticated()")
+    // @PreAuthorize("isAuthenticated()")
     public ApiResponse<WarehouseInboundReceiptInfo> getReceipt(@PathVariable String receiptId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.getReceipt(receiptId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Get warehouse inbound receipt success");
