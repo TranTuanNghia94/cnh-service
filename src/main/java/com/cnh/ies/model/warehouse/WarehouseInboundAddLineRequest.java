@@ -7,6 +7,7 @@ import lombok.Data;
 @Data
 public class WarehouseInboundAddLineRequest {
     private String paymentRequestPurchaseOrderLineId;
+    private String purchaseOrderLineId;
     private BigDecimal quantityReceived;
     private BigDecimal taxPercent;
     private String lineNote;

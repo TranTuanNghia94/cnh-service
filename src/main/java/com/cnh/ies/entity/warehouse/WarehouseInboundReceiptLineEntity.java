@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 import com.cnh.ies.entity.BaseEntity;
 import com.cnh.ies.entity.payment.PaymentRequestPurchaseOrderLineEntity;
+import com.cnh.ies.entity.purchaseorder.PurchaseOrderLineEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -25,8 +26,12 @@ public class WarehouseInboundReceiptLineEntity extends BaseEntity {
     private WarehouseInboundReceiptEntity receipt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payment_request_purchase_order_line_id", nullable = false)
+    @JoinColumn(name = "payment_request_purchase_order_line_id")
     private PaymentRequestPurchaseOrderLineEntity paymentRequestPurchaseOrderLine;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_order_line_id")
+    private PurchaseOrderLineEntity purchaseOrderLine;
 
     @Column(name = "quantity_expected", precision = 15, scale = 3)
     private BigDecimal quantityExpected;

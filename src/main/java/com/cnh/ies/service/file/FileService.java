@@ -189,6 +189,65 @@ public class FileService {
     }
 
     /**
+     * Uploads a file directly linked to a warehouse inbound receipt (works for both PR-based and PO-direct receipts).
+     */
+    @Transactional
+    public PaymentFileUploadInfo uploadFileForWarehouseInbound(MultipartFile file, String category,
+            String receiptIdRaw, String requestId) {
+        if (file == null || file.isEmpty()) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "File is required", HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        UUID receiptId;
+        try {
+            receiptId = UUID.fromString(receiptIdRaw.trim());
+        } catch (Exception e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "receiptId must be a valid UUID",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        warehouseInboundReceiptRepo.findByIdAndIsDeletedFalse(receiptId)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Warehouse inbound receipt not found",
+                        HttpStatus.NOT_FOUND.value(), requestId));
+
+        String safeCategory = category != null && !category.isBlank() ? category.trim().toLowerCase(Locale.ROOT) : "warehouse-inbound";
+        String originalFileName = file.getOriginalFilename() == null ? "file" : file.getOriginalFilename();
+        String key = buildS3Key("warehouse-inbound", safeCategory, originalFileName);
+
+        log.info("Uploading warehouse inbound file '{}' ({} bytes) to s3://{}/{}",
+                originalFileName, file.getSize(), bucketName, key);
+
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .contentType(file.getContentType())
+                    .build();
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(file.getBytes()));
+
+            FileInfoEntity entity = new FileInfoEntity();
+            entity.setFileName(originalFileName);
+            entity.setFilePath(key);
+            entity.setContentType(file.getContentType());
+            entity.setFileSizeBytes(file.getSize());
+            entity.setCategory(safeCategory);
+            entity.setWarehouseInboundReceiptId(receiptId);
+            entity.setAttachmentType(PaymentFileAttachmentType.PAPER.name());
+            FileInfoEntity saved = fileInfoRepo.save(entity);
+
+            PaymentFileUploadInfo info = toUploadInfo(saved);
+            log.info("Warehouse inbound file uploaded: id={} path={}", saved.getId(), saved.getFilePath());
+            return info;
+        } catch (IOException e) {
+            log.error("Cannot read file '{}' for S3 upload", originalFileName, e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Cannot read upload file",
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        } catch (S3Exception e) {
+            log.error("S3 upload failed for key '{}': {}", key, e.getMessage(), e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Upload to S3 failed: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    /**
      * Lists uploads linked to a warehouse inbound receipt (after confirmation).
      */
     @Transactional

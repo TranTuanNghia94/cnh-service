@@ -2,6 +2,7 @@ package com.cnh.ies.entity.warehouse;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 import com.cnh.ies.constant.Constant;
 import com.cnh.ies.entity.BaseEntity;
@@ -22,8 +23,11 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class WarehouseInboundReceiptEntity extends BaseEntity {
 
+    @Column(name = "receipt_number", unique = true, length = 50)
+    private String receiptNumber;
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payment_request_id", nullable = false)
+    @JoinColumn(name = "payment_request_id")
     private PaymentRequestEntity paymentRequest;
 
     @Column(name = "currency", length = 10)
@@ -53,7 +57,9 @@ public class WarehouseInboundReceiptEntity extends BaseEntity {
     @Column(name = "current_approval_level", nullable = false)
     private Integer currentApprovalLevel = 0;
 
-    /** When set, inbound quantities were applied to {@code warehouse_inventory} (idempotent). */
+    @Column(name = "received_date")
+    private LocalDate receivedDate;
+
     @Column(name = "inventory_posted_at")
     private Instant inventoryPostedAt;
 }

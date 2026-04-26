@@ -64,8 +64,11 @@ public class WarehouseInventoryService {
             if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            PurchaseOrderLineEntity pol = line.getPaymentRequestPurchaseOrderLine() == null ? null
-                    : line.getPaymentRequestPurchaseOrderLine().getPurchaseOrderLine();
+            PurchaseOrderLineEntity pol = line.getPurchaseOrderLine() != null
+                    ? line.getPurchaseOrderLine()
+                    : (line.getPaymentRequestPurchaseOrderLine() != null
+                            ? line.getPaymentRequestPurchaseOrderLine().getPurchaseOrderLine()
+                            : null);
             if (pol == null || pol.getProduct() == null) {
                 log.warn("Skipping inbound line without product [lineId={}, rid={}]", line.getId(), requestId);
                 continue;

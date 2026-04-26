@@ -11,6 +11,7 @@ import lombok.Data;
 @Data
 public class WarehouseInboundReceiptInfo {
     private String id;
+    private String receiptNumber;
     private String paymentRequestId;
     private String status;
     private Integer approvalLevels;
@@ -18,12 +19,16 @@ public class WarehouseInboundReceiptInfo {
     private String currency;
     private BigDecimal exchangeRate;
     private BigDecimal feeAmount;
+    private List<WarehouseInboundFeeInfo> fees;
     private BigDecimal realBillAmount;
     private BigDecimal billOnPaperAmount;
     private String note;
+    private String receivedDate;
     private String inventoryPostedAt;
     private String createdAt;
     private List<WarehouseInboundReceiptLineInfo> lines;
+    private List<WarehouseInboundPurchaseOrderInfo> purchaseOrders;
+    private List<WarehouseInboundOrderInfo> orders;
     private List<PaymentFileUploadInfo> attachments;
     private List<PaymentRequestApprovalInfo> approvals;
 }

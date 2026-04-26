@@ -2,6 +2,7 @@ package com.cnh.ies.service.warehouse;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,18 +15,26 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.cnh.ies.constant.Constant;
 import com.cnh.ies.entity.auth.UserEntity;
+import com.cnh.ies.entity.order.OrderEntity;
+import com.cnh.ies.entity.order.OrderLineEntity;
 import com.cnh.ies.entity.payment.PaymentRequestEntity;
 import com.cnh.ies.entity.payment.PaymentRequestPurchaseOrderLineEntity;
+import com.cnh.ies.entity.purchaseorder.PurchaseOrderEntity;
 import com.cnh.ies.entity.purchaseorder.PurchaseOrderLineEntity;
 import com.cnh.ies.entity.warehouse.WarehouseInboundReceiptApprovalEntity;
 import com.cnh.ies.entity.warehouse.WarehouseInboundReceiptEntity;
+import com.cnh.ies.entity.warehouse.WarehouseInboundReceiptFeeEntity;
 import com.cnh.ies.entity.warehouse.WarehouseInboundReceiptLineEntity;
 import com.cnh.ies.exception.ApiException;
+import com.cnh.ies.model.general.ListDataModel;
+import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.payment.ApprovePaymentRequest;
 import com.cnh.ies.model.payment.PaymentFileUploadInfo;
 import com.cnh.ies.model.payment.PaymentRequestApprovalInfo;
@@ -36,7 +45,11 @@ import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.model.warehouse.WarehouseInboundAddLineRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundConfirmLineRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundConfirmRequest;
+import com.cnh.ies.model.warehouse.WarehouseInboundFeeInfo;
+import com.cnh.ies.model.warehouse.WarehouseInboundFeeRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundLinePatchRequest;
+import com.cnh.ies.model.warehouse.WarehouseInboundOrderInfo;
+import com.cnh.ies.model.warehouse.WarehouseInboundPurchaseOrderInfo;
 import com.cnh.ies.model.warehouse.WarehouseInboundReceiptInfo;
 import com.cnh.ies.model.warehouse.WarehouseInboundReceiptLineInfo;
 import com.cnh.ies.model.warehouse.WarehouseInboundSearchHit;
@@ -45,10 +58,13 @@ import com.cnh.ies.repository.auth.UserRepo;
 import com.cnh.ies.repository.payment.PaymentRequestPurchaseOrderLineRepo;
 import com.cnh.ies.repository.payment.PaymentRequestRepo;
 import com.cnh.ies.repository.purchaseorder.PurchaseOrderLineRepo;
+import com.cnh.ies.repository.purchaseorder.PurchaseOrderRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptApprovalRepo;
+import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptFeeRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptLineRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptRepo;
 import com.cnh.ies.service.file.FileService;
+import com.cnh.ies.service.notification.NotificationService;
 import com.cnh.ies.service.payment.PaymentRequestService;
 import com.cnh.ies.service.redis.RedisService;
 import com.cnh.ies.util.RequestContext;
@@ -69,16 +85,24 @@ public class WarehouseInboundService {
     private final PaymentRequestRepo paymentRequestRepo;
     private final PaymentRequestPurchaseOrderLineRepo paymentRequestPurchaseOrderLineRepo;
     private final PurchaseOrderLineRepo purchaseOrderLineRepo;
+    private final PurchaseOrderRepo purchaseOrderRepo;
     private final PaymentRequestService paymentRequestService;
     private final WarehouseInboundReceiptRepo warehouseInboundReceiptRepo;
     private final WarehouseInboundReceiptLineRepo warehouseInboundReceiptLineRepo;
     private final WarehouseInboundReceiptApprovalRepo warehouseInboundReceiptApprovalRepo;
+    private final WarehouseInboundReceiptFeeRepo warehouseInboundReceiptFeeRepo;
     private final WarehouseInventoryService warehouseInventoryService;
+    private final WarehouseInboundNumberService warehouseInboundNumberService;
     private final FileService fileService;
+    private final NotificationService notificationService;
     private final UserRepo userRepo;
     private final RedisService redisService;
     private final ObjectMapper objectMapper;
 
+
+    // ──────────────────────────────────────────────────────────────
+    // Search
+    // ──────────────────────────────────────────────────────────────
 
     public WarehouseInboundSearchResponse search(String notesContains, String paperType, String paperCode, String requestId) {
         String notesQ = normalize(notesContains);
@@ -127,21 +151,69 @@ public class WarehouseInboundService {
         return response;
     }
 
-    /**
-     * Full payment request payload for inbound: PO lines include product, vendor, and sales order context (same shape as finance detail).
-     */
+    // ──────────────────────────────────────────────────────────────
+    // List (Fix #4: no N+1, Fix #8: filtering)
+    // ──────────────────────────────────────────────────────────────
+
+    public ListDataModel<WarehouseInboundReceiptInfo> list(String requestId, Integer page, Integer limit,
+            String status, String search) {
+        int safePage = page == null ? 0 : page;
+        int safeLimit = limit == null ? 10 : limit;
+        if (safePage < 0) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "page must be >= 0",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        if (safeLimit <= 0) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "limit must be > 0",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        String statusFilter = normalize(status) != null ? normalize(status) : "";
+        String searchFilter = normalize(search) != null ? normalize(search) : "";
+
+        Page<WarehouseInboundReceiptEntity> receipts = warehouseInboundReceiptRepo
+                .findAllFiltered(statusFilter, searchFilter, PageRequest.of(safePage, safeLimit));
+        List<WarehouseInboundReceiptInfo> data = receipts.stream()
+                .map(receipt -> toReceiptInfo(receipt.getId(), requestId))
+                .toList();
+
+        PaginationModel pagination = PaginationModel.builder()
+                .page(safePage)
+                .limit(safeLimit)
+                .total(receipts.getTotalElements())
+                .totalPage(receipts.getTotalPages())
+                .build();
+
+        return ListDataModel.<WarehouseInboundReceiptInfo>builder()
+                .data(data)
+                .pagination(pagination)
+                .build();
+    }
+
     public PaymentRequestInfo getPaymentRequestDetail(String paymentRequestId, String requestId) {
         return paymentRequestService.getById(paymentRequestId, requestId);
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // Confirm inbound (supports both PaymentRequest and direct PO)
+    // ──────────────────────────────────────────────────────────────
+
     @Transactional
     public WarehouseInboundReceiptInfo confirmInbound(WarehouseInboundConfirmRequest request, String requestId) {
-        if (request == null || request.getPaymentRequestId() == null || request.getPaymentRequestId().isBlank()) {
-            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "paymentRequestId is required",
+        if (request == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Request body is required",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
         if (request.getLines() == null || request.getLines().isEmpty()) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "At least one line is required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        boolean hasPR = request.getPaymentRequestId() != null && !request.getPaymentRequestId().isBlank();
+        boolean hasPO = request.getPurchaseOrderId() != null && !request.getPurchaseOrderId().isBlank();
+        if (!hasPR && !hasPO) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "Either paymentRequestId or purchaseOrderId is required",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
 
@@ -158,11 +230,58 @@ public class WarehouseInboundService {
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
 
-        UUID prId = parseUuid(request.getPaymentRequestId(), "paymentRequestId", requestId);
-        PaymentRequestEntity pr = paymentRequestRepo.findByIdAndIsDeletedFalse(prId)
-                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Payment request not found",
-                        HttpStatus.NOT_FOUND.value(), requestId));
+        BigDecimal exchangeRate = request.getExchangeRate();
+        BigDecimal fee = resolveFees(request, requestId);
 
+        WarehouseInboundReceiptEntity receipt = new WarehouseInboundReceiptEntity();
+        receipt.setReceiptNumber(warehouseInboundNumberService.generateReceiptNumber());
+        receipt.setCurrency(resolveCurrency(request, hasPR, requestId));
+        receipt.setExchangeRate(resolveExchangeRate(exchangeRate, request, hasPR, requestId));
+        receipt.setFeeAmount(fee);
+        receipt.setRealBillAmount(request.getRealBillAmount());
+        receipt.setBillOnPaperAmount(request.getBillOnPaperAmount());
+        receipt.setNote(request.getNote());
+        receipt.setReceivedDate(request.getReceivedDate() != null ? request.getReceivedDate() : LocalDate.now());
+        receipt.setStatus(Constant.WAREHOUSE_INBOUND_STATUS_DRAFT);
+        receipt.setApprovalLevels(approvalLevels);
+        receipt.setCurrentApprovalLevel(0);
+        receipt.setCreatedBy(RequestContext.getCurrentUsername());
+        receipt.setUpdatedBy(RequestContext.getCurrentUsername());
+        receipt.setIsDeleted(false);
+
+        if (hasPR) {
+            UUID prId = parseUuid(request.getPaymentRequestId(), "paymentRequestId", requestId);
+            PaymentRequestEntity pr = paymentRequestRepo.findByIdAndIsDeletedFalse(prId)
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Payment request not found",
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            receipt.setPaymentRequest(pr);
+            if (receipt.getCurrency() == null) receipt.setCurrency(pr.getCurrency());
+        }
+        warehouseInboundReceiptRepo.save(receipt);
+
+        saveFeeEntities(receipt, request.getFees());
+        seedApprovals(receipt, approvalLevels, customRoles, requestId);
+
+        if (hasPR) {
+            createLinesFromPaymentRequest(receipt, request, requestId);
+        } else {
+            createLinesFromPurchaseOrder(receipt, request, requestId);
+        }
+
+        if (hasPR) {
+            UUID prId = parseUuid(request.getPaymentRequestId(), "paymentRequestId", requestId);
+            List<UUID> fileIds = parseFileIds(request.getAttachedFileIds(), requestId);
+            fileService.linkFilesToWarehouseInboundReceipt(fileIds, prId, receipt.getId(), requestId);
+        }
+
+        log.info("Warehouse inbound receipt created [receiptId={}, source={}, approvalLevels={}, rid={}]",
+                receipt.getId(), hasPR ? "PR" : "PO", approvalLevels, requestId);
+        return toReceiptInfo(receipt.getId(), requestId);
+    }
+
+    private void createLinesFromPaymentRequest(WarehouseInboundReceiptEntity receipt,
+            WarehouseInboundConfirmRequest request, String requestId) {
+        UUID prId = receipt.getPaymentRequest().getId();
         List<PaymentRequestPurchaseOrderLineEntity> dbLines = paymentRequestPurchaseOrderLineRepo.findByPaymentRequestId(prId);
         if (dbLines.isEmpty()) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Payment request has no purchase order lines",
@@ -187,48 +306,9 @@ public class WarehouseInboundService {
                         "paymentRequestPurchaseOrderLineId is not on this payment request: " + lid,
                         HttpStatus.BAD_REQUEST.value(), requestId);
             }
+            validateLineQuantity(line, requestId);
             byId.put(lid, line);
         }
-
-        for (WarehouseInboundConfirmLineRequest line : request.getLines()) {
-            if (line.getQuantityReceived() == null) {
-                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "quantityReceived is required on each line",
-                        HttpStatus.BAD_REQUEST.value(), requestId);
-            }
-            if (line.getQuantityReceived().compareTo(BigDecimal.ZERO) < 0) {
-                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "quantityReceived cannot be negative",
-                        HttpStatus.BAD_REQUEST.value(), requestId);
-            }
-        }
-
-        BigDecimal exchangeRate = request.getExchangeRate() != null ? request.getExchangeRate() : pr.getExchangeRate();
-        if (exchangeRate == null || exchangeRate.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "exchangeRate must be positive",
-                    HttpStatus.BAD_REQUEST.value(), requestId);
-        }
-        BigDecimal fee = request.getFeeAmount() != null ? request.getFeeAmount() : BigDecimal.ZERO;
-        if (fee.compareTo(BigDecimal.ZERO) < 0) {
-            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "feeAmount cannot be negative",
-                    HttpStatus.BAD_REQUEST.value(), requestId);
-        }
-
-        WarehouseInboundReceiptEntity receipt = new WarehouseInboundReceiptEntity();
-        receipt.setPaymentRequest(pr);
-        receipt.setCurrency(pr.getCurrency());
-        receipt.setExchangeRate(exchangeRate);
-        receipt.setFeeAmount(fee);
-        receipt.setRealBillAmount(request.getRealBillAmount());
-        receipt.setBillOnPaperAmount(request.getBillOnPaperAmount());
-        receipt.setNote(request.getNote());
-        receipt.setStatus(Constant.WAREHOUSE_INBOUND_STATUS_DRAFT);
-        receipt.setApprovalLevels(approvalLevels);
-        receipt.setCurrentApprovalLevel(0);
-        receipt.setCreatedBy(RequestContext.getCurrentUsername());
-        receipt.setUpdatedBy(RequestContext.getCurrentUsername());
-        receipt.setIsDeleted(false);
-        warehouseInboundReceiptRepo.save(receipt);
-
-        seedApprovals(receipt, approvalLevels, customRoles, requestId);
 
         String username = RequestContext.getCurrentUsername();
         for (Map.Entry<UUID, WarehouseInboundConfirmLineRequest> e : byId.entrySet()) {
@@ -239,9 +319,14 @@ public class WarehouseInboundService {
             BigDecimal tax = lr.getTaxPercent() != null ? lr.getTaxPercent()
                     : (pol != null && pol.getTax() != null ? pol.getTax() : BigDecimal.ZERO);
 
+            if (pol != null) {
+                validateNotOverReceiving(pol.getId(), lr.getQuantityReceived(), qtyExpected, requestId);
+            }
+
             WarehouseInboundReceiptLineEntity lineEntity = new WarehouseInboundReceiptLineEntity();
             lineEntity.setReceipt(receipt);
             lineEntity.setPaymentRequestPurchaseOrderLine(prpol);
+            lineEntity.setPurchaseOrderLine(pol);
             lineEntity.setQuantityExpected(qtyExpected);
             lineEntity.setQuantityReceived(lr.getQuantityReceived());
             lineEntity.setTaxPercent(tax);
@@ -251,14 +336,93 @@ public class WarehouseInboundService {
             lineEntity.setIsDeleted(false);
             warehouseInboundReceiptLineRepo.save(lineEntity);
         }
-
-        List<UUID> fileIds = parseFileIds(request.getAttachedFileIds(), requestId);
-        fileService.linkFilesToWarehouseInboundReceipt(fileIds, prId, receipt.getId(), requestId);
-
-        log.info("Warehouse inbound receipt created [receiptId={}, paymentRequestId={}, approvalLevels={}, rid={}]",
-                receipt.getId(), prId, approvalLevels, requestId);
-        return toReceiptInfo(receipt.getId(), requestId);
     }
+
+    private void createLinesFromPurchaseOrder(WarehouseInboundReceiptEntity receipt,
+            WarehouseInboundConfirmRequest request, String requestId) {
+        UUID poId = parseUuid(request.getPurchaseOrderId(), "purchaseOrderId", requestId);
+        purchaseOrderRepo.findByIdAndIsDeletedFalse(poId)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Purchase order not found",
+                        HttpStatus.NOT_FOUND.value(), requestId));
+
+        List<PurchaseOrderLineEntity> polList = purchaseOrderLineRepo.findAllByPurchaseOrderId(poId);
+        Map<UUID, PurchaseOrderLineEntity> polById = polList.stream()
+                .collect(Collectors.toMap(PurchaseOrderLineEntity::getId, x -> x));
+
+        Map<UUID, WarehouseInboundConfirmLineRequest> byId = new HashMap<>();
+        for (WarehouseInboundConfirmLineRequest line : request.getLines()) {
+            if (line.getPurchaseOrderLineId() == null || line.getPurchaseOrderLineId().isBlank()) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Each line requires purchaseOrderLineId for PO-based inbound",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            UUID lid = parseUuid(line.getPurchaseOrderLineId(), "purchaseOrderLineId", requestId);
+            if (byId.containsKey(lid)) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Duplicate purchaseOrderLineId: " + lid,
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            if (!polById.containsKey(lid)) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                        "purchaseOrderLineId is not on this purchase order: " + lid,
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            validateLineQuantity(line, requestId);
+            byId.put(lid, line);
+        }
+
+        String username = RequestContext.getCurrentUsername();
+        for (Map.Entry<UUID, WarehouseInboundConfirmLineRequest> e : byId.entrySet()) {
+            PurchaseOrderLineEntity pol = polById.get(e.getKey());
+            WarehouseInboundConfirmLineRequest lr = e.getValue();
+            BigDecimal qtyExpected = pol.getQuantity() != null ? pol.getQuantity() : BigDecimal.ZERO;
+            BigDecimal tax = lr.getTaxPercent() != null ? lr.getTaxPercent()
+                    : (pol.getTax() != null ? pol.getTax() : BigDecimal.ZERO);
+
+            validateNotOverReceiving(pol.getId(), lr.getQuantityReceived(), qtyExpected, requestId);
+
+            WarehouseInboundReceiptLineEntity lineEntity = new WarehouseInboundReceiptLineEntity();
+            lineEntity.setReceipt(receipt);
+            lineEntity.setPurchaseOrderLine(pol);
+            lineEntity.setQuantityExpected(qtyExpected);
+            lineEntity.setQuantityReceived(lr.getQuantityReceived());
+            lineEntity.setTaxPercent(tax);
+            lineEntity.setLineNote(lr.getLineNote());
+            lineEntity.setCreatedBy(username);
+            lineEntity.setUpdatedBy(username);
+            lineEntity.setIsDeleted(false);
+            warehouseInboundReceiptLineRepo.save(lineEntity);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Fix #3: Over-receiving protection
+    // ──────────────────────────────────────────────────────────────
+
+    private void validateNotOverReceiving(UUID polId, BigDecimal newQty, BigDecimal qtyExpected, String requestId) {
+        BigDecimal alreadyReceived = warehouseInboundReceiptRepo.sumReceivedQuantityByPurchaseOrderLineId(polId);
+        BigDecimal totalAfter = alreadyReceived.add(newQty);
+        if (qtyExpected.compareTo(BigDecimal.ZERO) > 0 && totalAfter.compareTo(qtyExpected) > 0) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    String.format("Over-receiving: PO line expects %s, already received %s, attempting to add %s (total would be %s)",
+                            qtyExpected.toPlainString(), alreadyReceived.toPlainString(),
+                            newQty.toPlainString(), totalAfter.toPlainString()),
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+    }
+
+    private static void validateLineQuantity(WarehouseInboundConfirmLineRequest line, String requestId) {
+        if (line.getQuantityReceived() == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "quantityReceived is required on each line",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        if (line.getQuantityReceived().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "quantityReceived cannot be negative",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Lifecycle: submit / approve / reject / cancel
+    // ──────────────────────────────────────────────────────────────
 
     @Transactional
     public WarehouseInboundReceiptInfo submitForApproval(String receiptId, String requestId) {
@@ -281,6 +445,16 @@ public class WarehouseInboundService {
         receipt.setUpdatedBy(RequestContext.getCurrentUsername());
         warehouseInboundReceiptRepo.save(receipt);
         log.info("Warehouse inbound submitted [receiptId={}, rid={}]", receipt.getId(), requestId);
+
+        String receiptNumber = receipt.getReceiptNumber() != null ? receipt.getReceiptNumber() : receipt.getId().toString();
+        String rId = receipt.getId().toString();
+        notifyInboundUsersWithRole(
+                Constant.ROLE_ACCOUNTANT,
+                "Phiếu nhập kho chờ duyệt",
+                String.format("Phiếu nhập kho %s đã được gửi và chờ duyệt.", receiptNumber),
+                rId,
+                "/warehouse-inbound/receipt" + rId);
+
         return toReceiptInfo(receipt.getId(), requestId);
     }
 
@@ -326,95 +500,20 @@ public class WarehouseInboundService {
         }
 
         log.info("Warehouse inbound approved [receiptId={}, level={}, rid={}]", receipt.getId(), level, requestId);
-        return toReceiptInfo(receipt.getId(), requestId);
-    }
 
-    @Transactional
-    public WarehouseInboundReceiptInfo deleteInboundLine(String receiptId, String lineId, String requestId) {
-        WarehouseInboundReceiptEntity receipt = loadReceiptForMutation(receiptId, requestId);
-        if (!Constant.WAREHOUSE_INBOUND_STATUS_DRAFT.equals(receipt.getStatus())) {
-            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Lines can only be changed while receipt is DRAFT",
-                    HttpStatus.CONFLICT.value(), requestId);
+        String receiptNumber = receipt.getReceiptNumber() != null ? receipt.getReceiptNumber() : receipt.getId().toString();
+        if (Constant.WAREHOUSE_INBOUND_STATUS_APPROVED.equals(receipt.getStatus())) {
+            notifyReceiptOwner(receipt,
+                    "Phiếu nhập kho đã được duyệt",
+                    String.format("Phiếu nhập kho %s đã được duyệt hoàn tất.", receiptNumber),
+                    NotificationService.NotificationType.SUCCESS);
+        } else {
+            notifyReceiptOwner(receipt,
+                    "Phiếu nhập kho đã được duyệt một phần",
+                    String.format("Phiếu nhập kho %s đã được duyệt cấp %d/%d.", receiptNumber, level, receipt.getApprovalLevels()),
+                    NotificationService.NotificationType.APPROVAL);
         }
-        WarehouseInboundReceiptLineEntity line = loadReceiptLine(receiptId, lineId, requestId);
-        line.setIsDeleted(true);
-        line.setUpdatedBy(RequestContext.getCurrentUsername());
-        warehouseInboundReceiptLineRepo.save(line);
-        return toReceiptInfo(receipt.getId(), requestId);
-    }
 
-    @Transactional
-    public WarehouseInboundReceiptInfo addInboundLine(String receiptId, WarehouseInboundAddLineRequest body, String requestId) {
-        if (body == null || body.getPaymentRequestPurchaseOrderLineId() == null
-                || body.getPaymentRequestPurchaseOrderLineId().isBlank()) {
-            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "paymentRequestPurchaseOrderLineId is required",
-                    HttpStatus.BAD_REQUEST.value(), requestId);
-        }
-        if (body.getQuantityReceived() == null || body.getQuantityReceived().compareTo(BigDecimal.ZERO) < 0) {
-            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "quantityReceived is required and cannot be negative",
-                    HttpStatus.BAD_REQUEST.value(), requestId);
-        }
-        WarehouseInboundReceiptEntity receipt = loadReceiptForMutation(receiptId, requestId);
-        if (!Constant.WAREHOUSE_INBOUND_STATUS_DRAFT.equals(receipt.getStatus())) {
-            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Lines can only be changed while receipt is DRAFT",
-                    HttpStatus.CONFLICT.value(), requestId);
-        }
-        UUID prpolUuid = parseUuid(body.getPaymentRequestPurchaseOrderLineId(), "paymentRequestPurchaseOrderLineId", requestId);
-        PaymentRequestPurchaseOrderLineEntity prpol = paymentRequestPurchaseOrderLineRepo
-                .findByIdAndPaymentRequestId(prpolUuid, receipt.getPaymentRequest().getId())
-                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.BAD_REQUEST,
-                        "Line is not on this payment request", HttpStatus.BAD_REQUEST.value(), requestId));
-        if (warehouseInboundReceiptLineRepo.countActiveLinesByReceiptAndPrpol(receipt.getId(), prpolUuid) > 0) {
-            throw new ApiException(ApiException.ErrorCode.CONFLICT, "This payment-request line is already on the receipt",
-                    HttpStatus.CONFLICT.value(), requestId);
-        }
-        PurchaseOrderLineEntity pol = prpol.getPurchaseOrderLine();
-        BigDecimal qtyExpected = pol != null && pol.getQuantity() != null ? pol.getQuantity() : BigDecimal.ZERO;
-        BigDecimal tax = body.getTaxPercent() != null ? body.getTaxPercent()
-                : (pol != null && pol.getTax() != null ? pol.getTax() : BigDecimal.ZERO);
-        String username = RequestContext.getCurrentUsername();
-        WarehouseInboundReceiptLineEntity lineEntity = new WarehouseInboundReceiptLineEntity();
-        lineEntity.setReceipt(receipt);
-        lineEntity.setPaymentRequestPurchaseOrderLine(prpol);
-        lineEntity.setQuantityExpected(qtyExpected);
-        lineEntity.setQuantityReceived(body.getQuantityReceived());
-        lineEntity.setTaxPercent(tax);
-        lineEntity.setLineNote(body.getLineNote());
-        lineEntity.setCreatedBy(username);
-        lineEntity.setUpdatedBy(username);
-        lineEntity.setIsDeleted(false);
-        warehouseInboundReceiptLineRepo.save(lineEntity);
-        return toReceiptInfo(receipt.getId(), requestId);
-    }
-
-    @Transactional
-    public WarehouseInboundReceiptInfo patchInboundLine(String receiptId, String lineId, WarehouseInboundLinePatchRequest body,
-            String requestId) {
-        if (body == null) {
-            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Body is required",
-                    HttpStatus.BAD_REQUEST.value(), requestId);
-        }
-        WarehouseInboundReceiptEntity receipt = loadReceiptForMutation(receiptId, requestId);
-        if (!Constant.WAREHOUSE_INBOUND_STATUS_DRAFT.equals(receipt.getStatus())) {
-            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Lines can only be changed while receipt is DRAFT",
-                    HttpStatus.CONFLICT.value(), requestId);
-        }
-        WarehouseInboundReceiptLineEntity line = loadReceiptLine(receiptId, lineId, requestId);
-        if (body.getQuantityReceived() != null) {
-            if (body.getQuantityReceived().compareTo(BigDecimal.ZERO) < 0) {
-                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "quantityReceived cannot be negative",
-                        HttpStatus.BAD_REQUEST.value(), requestId);
-            }
-            line.setQuantityReceived(body.getQuantityReceived());
-        }
-        if (body.getTaxPercent() != null) {
-            line.setTaxPercent(body.getTaxPercent());
-        }
-        if (body.getLineNote() != null) {
-            line.setLineNote(body.getLineNote());
-        }
-        line.setUpdatedBy(RequestContext.getCurrentUsername());
-        warehouseInboundReceiptLineRepo.save(line);
         return toReceiptInfo(receipt.getId(), requestId);
     }
 
@@ -445,6 +544,15 @@ public class WarehouseInboundService {
         warehouseInboundReceiptRepo.save(receipt);
 
         log.info("Warehouse inbound rejected [receiptId={}, level={}, rid={}]", receipt.getId(), level, requestId);
+
+        String receiptNumber = receipt.getReceiptNumber() != null ? receipt.getReceiptNumber() : receipt.getId().toString();
+        String reason = (request != null && request.getReason() != null) ? request.getReason() : "";
+        notifyReceiptOwner(receipt,
+                "Phiếu nhập kho bị từ chối",
+                String.format("Phiếu nhập kho %s đã bị từ chối.%s", receiptNumber,
+                        reason.isBlank() ? "" : " Lý do: " + reason),
+                NotificationService.NotificationType.WARNING);
+
         return toReceiptInfo(receipt.getId(), requestId);
     }
 
@@ -461,6 +569,147 @@ public class WarehouseInboundService {
         log.info("Warehouse inbound cancelled [receiptId={}, rid={}]", receipt.getId(), requestId);
         return toReceiptInfo(receipt.getId(), requestId);
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // Line operations
+    // ──────────────────────────────────────────────────────────────
+
+    @Transactional
+    public WarehouseInboundReceiptInfo deleteInboundLine(String receiptId, String lineId, String requestId) {
+        WarehouseInboundReceiptEntity receipt = loadReceiptForMutation(receiptId, requestId);
+        if (!Constant.WAREHOUSE_INBOUND_STATUS_DRAFT.equals(receipt.getStatus())) {
+            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Lines can only be changed while receipt is DRAFT",
+                    HttpStatus.CONFLICT.value(), requestId);
+        }
+        WarehouseInboundReceiptLineEntity line = loadReceiptLine(receiptId, lineId, requestId);
+        line.setIsDeleted(true);
+        line.setUpdatedBy(RequestContext.getCurrentUsername());
+        warehouseInboundReceiptLineRepo.save(line);
+        return toReceiptInfo(receipt.getId(), requestId);
+    }
+
+    @Transactional
+    public WarehouseInboundReceiptInfo addInboundLine(String receiptId, WarehouseInboundAddLineRequest body, String requestId) {
+        if (body == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Body is required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        if (body.getQuantityReceived() == null || body.getQuantityReceived().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "quantityReceived is required and cannot be negative",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        WarehouseInboundReceiptEntity receipt = loadReceiptForMutation(receiptId, requestId);
+        if (!Constant.WAREHOUSE_INBOUND_STATUS_DRAFT.equals(receipt.getStatus())) {
+            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Lines can only be changed while receipt is DRAFT",
+                    HttpStatus.CONFLICT.value(), requestId);
+        }
+
+        boolean hasPrpol = body.getPaymentRequestPurchaseOrderLineId() != null && !body.getPaymentRequestPurchaseOrderLineId().isBlank();
+        boolean hasPol = body.getPurchaseOrderLineId() != null && !body.getPurchaseOrderLineId().isBlank();
+        if (!hasPrpol && !hasPol) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "Either paymentRequestPurchaseOrderLineId or purchaseOrderLineId is required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        String username = RequestContext.getCurrentUsername();
+        WarehouseInboundReceiptLineEntity lineEntity = new WarehouseInboundReceiptLineEntity();
+        lineEntity.setReceipt(receipt);
+
+        PurchaseOrderLineEntity pol;
+        if (hasPrpol) {
+            UUID prpolUuid = parseUuid(body.getPaymentRequestPurchaseOrderLineId(), "paymentRequestPurchaseOrderLineId", requestId);
+            PaymentRequestPurchaseOrderLineEntity prpol = paymentRequestPurchaseOrderLineRepo
+                    .findByIdAndPaymentRequestId(prpolUuid, receipt.getPaymentRequest().getId())
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                            "Line is not on this payment request", HttpStatus.BAD_REQUEST.value(), requestId));
+            if (warehouseInboundReceiptLineRepo.countActiveLinesByReceiptAndPrpol(receipt.getId(), prpolUuid) > 0) {
+                throw new ApiException(ApiException.ErrorCode.CONFLICT, "This payment-request line is already on the receipt",
+                        HttpStatus.CONFLICT.value(), requestId);
+            }
+            lineEntity.setPaymentRequestPurchaseOrderLine(prpol);
+            pol = prpol.getPurchaseOrderLine();
+        } else {
+            UUID polUuid = parseUuid(body.getPurchaseOrderLineId(), "purchaseOrderLineId", requestId);
+            pol = purchaseOrderLineRepo.findById(polUuid)
+                    .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Purchase order line not found",
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            if (warehouseInboundReceiptLineRepo.countActiveLinesByReceiptAndPol(receipt.getId(), polUuid) > 0) {
+                throw new ApiException(ApiException.ErrorCode.CONFLICT, "This purchase order line is already on the receipt",
+                        HttpStatus.CONFLICT.value(), requestId);
+            }
+        }
+
+        lineEntity.setPurchaseOrderLine(pol);
+        BigDecimal qtyExpected = pol != null && pol.getQuantity() != null ? pol.getQuantity() : BigDecimal.ZERO;
+        BigDecimal tax = body.getTaxPercent() != null ? body.getTaxPercent()
+                : (pol != null && pol.getTax() != null ? pol.getTax() : BigDecimal.ZERO);
+
+        if (pol != null) {
+            validateNotOverReceiving(pol.getId(), body.getQuantityReceived(), qtyExpected, requestId);
+        }
+
+        lineEntity.setQuantityExpected(qtyExpected);
+        lineEntity.setQuantityReceived(body.getQuantityReceived());
+        lineEntity.setTaxPercent(tax);
+        lineEntity.setLineNote(body.getLineNote());
+        lineEntity.setCreatedBy(username);
+        lineEntity.setUpdatedBy(username);
+        lineEntity.setIsDeleted(false);
+        warehouseInboundReceiptLineRepo.save(lineEntity);
+        return toReceiptInfo(receipt.getId(), requestId);
+    }
+
+    @Transactional
+    public WarehouseInboundReceiptInfo patchInboundLine(String receiptId, String lineId, WarehouseInboundLinePatchRequest body,
+            String requestId) {
+        if (body == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Body is required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        WarehouseInboundReceiptEntity receipt = loadReceiptForMutation(receiptId, requestId);
+        if (!Constant.WAREHOUSE_INBOUND_STATUS_DRAFT.equals(receipt.getStatus())) {
+            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Lines can only be changed while receipt is DRAFT",
+                    HttpStatus.CONFLICT.value(), requestId);
+        }
+        WarehouseInboundReceiptLineEntity line = loadReceiptLine(receiptId, lineId, requestId);
+        if (body.getQuantityReceived() != null) {
+            if (body.getQuantityReceived().compareTo(BigDecimal.ZERO) < 0) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "quantityReceived cannot be negative",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            PurchaseOrderLineEntity pol = resolvePol(line);
+            if (pol != null) {
+                BigDecimal qtyExpected = pol.getQuantity() != null ? pol.getQuantity() : BigDecimal.ZERO;
+                BigDecimal alreadyReceived = warehouseInboundReceiptRepo.sumReceivedQuantityByPurchaseOrderLineId(pol.getId());
+                BigDecimal previousQty = line.getQuantityReceived() != null ? line.getQuantityReceived() : BigDecimal.ZERO;
+                BigDecimal otherReceived = alreadyReceived.subtract(previousQty);
+                BigDecimal totalAfter = otherReceived.add(body.getQuantityReceived());
+                if (qtyExpected.compareTo(BigDecimal.ZERO) > 0 && totalAfter.compareTo(qtyExpected) > 0) {
+                    throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                            String.format("Over-receiving: PO line expects %s, other receipts have %s, new qty %s (total would be %s)",
+                                    qtyExpected.toPlainString(), otherReceived.toPlainString(),
+                                    body.getQuantityReceived().toPlainString(), totalAfter.toPlainString()),
+                            HttpStatus.BAD_REQUEST.value(), requestId);
+                }
+            }
+            line.setQuantityReceived(body.getQuantityReceived());
+        }
+        if (body.getTaxPercent() != null) {
+            line.setTaxPercent(body.getTaxPercent());
+        }
+        if (body.getLineNote() != null) {
+            line.setLineNote(body.getLineNote());
+        }
+        line.setUpdatedBy(RequestContext.getCurrentUsername());
+        warehouseInboundReceiptLineRepo.save(line);
+        return toReceiptInfo(receipt.getId(), requestId);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Queries
+    // ──────────────────────────────────────────────────────────────
 
     public List<WarehouseInboundReceiptInfo> listReceiptsForPaymentRequest(String paymentRequestId, String requestId) {
         UUID prId = parseUuid(paymentRequestId, "paymentRequestId", requestId);
@@ -480,6 +729,10 @@ public class WarehouseInboundService {
         return toReceiptInfo(rid, requestId);
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // Internal helpers
+    // ──────────────────────────────────────────────────────────────
+
     private WarehouseInboundReceiptEntity loadReceiptForMutation(String receiptId, String requestId) {
         UUID rid = parseUuid(receiptId, "receiptId", requestId);
         return warehouseInboundReceiptRepo.findByIdAndIsDeletedFalse(rid)
@@ -493,6 +746,81 @@ public class WarehouseInboundService {
         return warehouseInboundReceiptLineRepo.findByIdAndReceiptId(lid, rid)
                 .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Inbound line not found",
                         HttpStatus.NOT_FOUND.value(), requestId));
+    }
+
+    private static PurchaseOrderLineEntity resolvePol(WarehouseInboundReceiptLineEntity line) {
+        if (line.getPurchaseOrderLine() != null) {
+            return line.getPurchaseOrderLine();
+        }
+        if (line.getPaymentRequestPurchaseOrderLine() != null) {
+            return line.getPaymentRequestPurchaseOrderLine().getPurchaseOrderLine();
+        }
+        return null;
+    }
+
+    private BigDecimal resolveFees(WarehouseInboundConfirmRequest request, String requestId) {
+        List<WarehouseInboundFeeRequest> feeRequests = request.getFees();
+        if (feeRequests != null && !feeRequests.isEmpty()) {
+            BigDecimal fee = BigDecimal.ZERO;
+            for (WarehouseInboundFeeRequest fr : feeRequests) {
+                if (fr.getFeeName() == null || fr.getFeeName().isBlank()) {
+                    throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "feeName is required on each fee",
+                            HttpStatus.BAD_REQUEST.value(), requestId);
+                }
+                if (fr.getAmount() == null || fr.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                    throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "fee amount must be >= 0",
+                            HttpStatus.BAD_REQUEST.value(), requestId);
+                }
+                fee = fee.add(fr.getAmount());
+            }
+            return fee;
+        }
+        BigDecimal fee = request.getFeeAmount() != null ? request.getFeeAmount() : BigDecimal.ZERO;
+        if (fee.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "feeAmount cannot be negative",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        return fee;
+    }
+
+    private String resolveCurrency(WarehouseInboundConfirmRequest request, boolean hasPR, String requestId) {
+        if (hasPR) return null;
+        return "VND";
+    }
+
+    private BigDecimal resolveExchangeRate(BigDecimal explicit, WarehouseInboundConfirmRequest request,
+            boolean hasPR, String requestId) {
+        if (explicit != null) {
+            if (explicit.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "exchangeRate must be positive",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            return explicit;
+        }
+        if (hasPR) {
+            UUID prId = parseUuid(request.getPaymentRequestId(), "paymentRequestId", requestId);
+            PaymentRequestEntity pr = paymentRequestRepo.findByIdAndIsDeletedFalse(prId).orElse(null);
+            BigDecimal rate = pr != null ? pr.getExchangeRate() : null;
+            if (rate != null && rate.compareTo(BigDecimal.ZERO) > 0) return rate;
+        }
+        return BigDecimal.ONE;
+    }
+
+    private void saveFeeEntities(WarehouseInboundReceiptEntity receipt, List<WarehouseInboundFeeRequest> feeRequests) {
+        if (feeRequests == null || feeRequests.isEmpty()) return;
+        String feeCreator = RequestContext.getCurrentUsername();
+        for (WarehouseInboundFeeRequest fr : feeRequests) {
+            WarehouseInboundReceiptFeeEntity feeEntity = new WarehouseInboundReceiptFeeEntity();
+            feeEntity.setReceipt(receipt);
+            feeEntity.setFeeName(fr.getFeeName().trim());
+            feeEntity.setFeeType(fr.getFeeType());
+            feeEntity.setAmount(fr.getAmount());
+            feeEntity.setNote(fr.getNote());
+            feeEntity.setCreatedBy(feeCreator);
+            feeEntity.setUpdatedBy(feeCreator);
+            feeEntity.setIsDeleted(false);
+            warehouseInboundReceiptFeeRepo.save(feeEntity);
+        }
     }
 
     private void seedApprovals(WarehouseInboundReceiptEntity receipt, int approvalLevels, List<String> customRoles,
@@ -511,9 +839,6 @@ public class WarehouseInboundService {
         }
     }
 
-    /**
-     * Default role ladder mirrors payment request (accountant chain + final approver). Override per level with {@code approvalRoles}.
-     */
     private String resolveInboundRole(int level, int total, List<String> customRoles, String requestId) {
         if (customRoles != null && !customRoles.isEmpty()) {
             String r = customRoles.get(level - 1);
@@ -523,21 +848,11 @@ public class WarehouseInboundService {
             }
             return r.trim().toUpperCase(Locale.ROOT);
         }
-        if (total == 1) {
-            return "ADMIN";
-        }
-        if (total == 2) {
-            return level == 1 ? "ACCOUNTANT" : "HEAD_ACCOUNTANT";
-        }
-        if (level == total) {
-            return "FINAL_APPROVER";
-        }
-        if (level == 1) {
-            return "ACCOUNTANT";
-        }
-        if (level == 2) {
-            return "HEAD_ACCOUNTANT";
-        }
+        if (total == 1) return "ADMIN";
+        if (total == 2) return level == 1 ? "ACCOUNTANT" : "HEAD_ACCOUNTANT";
+        if (level == total) return "FINAL_APPROVER";
+        if (level == 1) return "ACCOUNTANT";
+        if (level == 2) return "HEAD_ACCOUNTANT";
         return "ACCOUNTANT_MANAGER";
     }
 
@@ -578,19 +893,12 @@ public class WarehouseInboundService {
                 .map(s -> s.trim().toUpperCase(Locale.ROOT))
                 .collect(Collectors.toSet());
         String role = approvalRole.trim().toUpperCase(Locale.ROOT);
-        if (roleCodes.contains(role)) {
-            return;
-        }
+        if (roleCodes.contains(role)) return;
         if ("HEAD_ACCOUNTANT".equals(role)
-                && (roleCodes.contains("ACCOUNTANT_MANAGER") || roleCodes.contains("HEAD_ACCOUNTANT"))) {
-            return;
-        }
-        if ("FINAL_APPROVER".equals(role) && (roleCodes.contains("ADMIN") || roleCodes.contains("ACCOUNTANT_MANAGER"))) {
-            return;
-        }
-        if ("ACCOUNTANT".equals(role) && roleCodes.contains("ACCOUNTANT")) {
-            return;
-        }
+                && (roleCodes.contains("ACCOUNTANT_MANAGER") || roleCodes.contains("HEAD_ACCOUNTANT"))) return;
+        if ("FINAL_APPROVER".equals(role)
+                && (roleCodes.contains("ADMIN") || roleCodes.contains("ACCOUNTANT_MANAGER"))) return;
+        if ("ACCOUNTANT".equals(role) && roleCodes.contains("ACCOUNTANT")) return;
         throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
                 "Current user does not have role for this approval level",
                 HttpStatus.FORBIDDEN.value(), requestId);
@@ -605,6 +913,60 @@ public class WarehouseInboundService {
         }
         return objectMapper.convertValue(raw, UserInfo.class);
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // Notifications
+    // ──────────────────────────────────────────────────────────────
+
+    private void notifyInboundUsersWithRole(String roleCode, String title, String message,
+            String receiptId, String actionUrl) {
+        try {
+            List<UserEntity> users = userRepo.findByRoleCode(roleCode);
+            if (users.isEmpty()) {
+                log.warn("No users found with role {} to notify for inbound", roleCode);
+                return;
+            }
+            List<UUID> userIds = users.stream().map(UserEntity::getId).toList();
+            notificationService.sendNotificationToUsers(userIds, title, message,
+                    NotificationService.NotificationType.APPROVAL,
+                    NotificationService.NotificationCategory.WAREHOUSE_INBOUND,
+                    receiptId,
+                    NotificationService.ReferenceType.WAREHOUSE_INBOUND,
+                    actionUrl);
+            log.info("Sent inbound notification to {} users with role {}", userIds.size(), roleCode);
+        } catch (Exception e) {
+            log.error("Failed to send inbound notification to role {}: {}", roleCode, e.getMessage());
+        }
+    }
+
+    private void notifyReceiptOwner(WarehouseInboundReceiptEntity receipt, String title, String message, String type) {
+        try {
+            String ownerUsername = receipt.getCreatedBy();
+            if (ownerUsername == null || ownerUsername.isBlank()) {
+                log.warn("No owner (createdBy) on receipt {}, skipping notification", receipt.getId());
+                return;
+            }
+            UserEntity owner = userRepo.findOneByUsername(ownerUsername).orElse(null);
+            if (owner == null) {
+                log.warn("Owner user {} not found, skipping notification for receipt {}", ownerUsername, receipt.getId());
+                return;
+            }
+            String rId = receipt.getId().toString();
+            String actionUrl = "/warehouse-inbound/receipt" + rId;
+            notificationService.sendNotification(
+                    owner.getId(), title, message, type,
+                    NotificationService.NotificationCategory.WAREHOUSE_INBOUND,
+                    rId,
+                    NotificationService.ReferenceType.WAREHOUSE_INBOUND,
+                    actionUrl);
+        } catch (Exception e) {
+            log.error("Failed to notify receipt owner for {}: {}", receipt.getId(), e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // DTO mappers
+    // ──────────────────────────────────────────────────────────────
 
     private WarehouseInboundReceiptInfo toReceiptInfo(UUID receiptId, String requestId) {
         WarehouseInboundReceiptEntity receipt = warehouseInboundReceiptRepo.findByIdAndIsDeletedFalse(receiptId)
@@ -622,19 +984,28 @@ public class WarehouseInboundService {
 
         WarehouseInboundReceiptInfo info = new WarehouseInboundReceiptInfo();
         info.setId(receipt.getId().toString());
-        info.setPaymentRequestId(receipt.getPaymentRequest().getId().toString());
+        info.setReceiptNumber(receipt.getReceiptNumber());
+        info.setPaymentRequestId(receipt.getPaymentRequest() != null ? receipt.getPaymentRequest().getId().toString() : null);
         info.setStatus(receipt.getStatus());
         info.setApprovalLevels(receipt.getApprovalLevels());
         info.setCurrentApprovalLevel(receipt.getCurrentApprovalLevel());
         info.setCurrency(receipt.getCurrency());
         info.setExchangeRate(receipt.getExchangeRate());
         info.setFeeAmount(receipt.getFeeAmount());
+        List<WarehouseInboundFeeInfo> feeInfos = warehouseInboundReceiptFeeRepo.findByReceiptId(receiptId).stream()
+                .map(WarehouseInboundService::toFeeInfo)
+                .toList();
+        info.setFees(feeInfos);
         info.setRealBillAmount(receipt.getRealBillAmount());
         info.setBillOnPaperAmount(receipt.getBillOnPaperAmount());
         info.setNote(receipt.getNote());
+        info.setReceivedDate(receipt.getReceivedDate() != null ? receipt.getReceivedDate().toString() : null);
         info.setInventoryPostedAt(receipt.getInventoryPostedAt() == null ? null : receipt.getInventoryPostedAt().toString());
         info.setCreatedAt(receipt.getCreatedAt() != null ? receipt.getCreatedAt().toString() : null);
-        info.setLines(lineEntities.stream().map(this::toReceiptLineInfo).toList());
+        List<WarehouseInboundReceiptLineInfo> lineInfos = lineEntities.stream().map(this::toReceiptLineInfo).toList();
+        info.setLines(lineInfos);
+        info.setPurchaseOrders(extractPurchaseOrderSummaries(lineEntities));
+        info.setOrders(extractOrderSummaries(lineEntities));
         info.setAttachments(attachments);
         info.setApprovals(approvals);
         return info;
@@ -654,20 +1025,123 @@ public class WarehouseInboundService {
         return approvalInfo;
     }
 
+    private static WarehouseInboundFeeInfo toFeeInfo(WarehouseInboundReceiptFeeEntity e) {
+        WarehouseInboundFeeInfo info = new WarehouseInboundFeeInfo();
+        info.setId(e.getId().toString());
+        info.setFeeName(e.getFeeName());
+        info.setFeeType(e.getFeeType());
+        info.setAmount(e.getAmount());
+        info.setNote(e.getNote());
+        return info;
+    }
+
     private WarehouseInboundReceiptLineInfo toReceiptLineInfo(WarehouseInboundReceiptLineEntity e) {
         WarehouseInboundReceiptLineInfo i = new WarehouseInboundReceiptLineInfo();
         i.setId(e.getId().toString());
-        i.setPaymentRequestPurchaseOrderLineId(e.getPaymentRequestPurchaseOrderLine().getId().toString());
-        var pol = e.getPaymentRequestPurchaseOrderLine().getPurchaseOrderLine();
-        if (pol != null && pol.getProduct() != null) {
-            i.setProductId(pol.getProduct().getId().toString());
-            i.setProductName(pol.getProduct().getName());
+        if (e.getPaymentRequestPurchaseOrderLine() != null) {
+            i.setPaymentRequestPurchaseOrderLineId(e.getPaymentRequestPurchaseOrderLine().getId().toString());
+        }
+
+        PurchaseOrderLineEntity pol = resolvePol(e);
+        if (pol != null) {
+            i.setPurchaseOrderLineId(pol.getId().toString());
+            if (pol.getProduct() != null) {
+                i.setProductId(pol.getProduct().getId().toString());
+                i.setProductName(pol.getProduct().getName());
+            }
+            if (pol.getVendor() != null) {
+                i.setVendorId(pol.getVendor().getId().toString());
+                i.setVendorName(pol.getVendor().getName());
+            }
+            i.setUnitPrice(pol.getUnitPrice());
+            i.setCurrency(pol.getCurrency());
+
+            PurchaseOrderEntity po = pol.getPurchaseOrder();
+            if (po != null) {
+                i.setPurchaseOrderId(po.getId().toString());
+                i.setPurchaseOrderNumber(po.getPoPrefix() + po.getPoNumber());
+                OrderEntity order = po.getOrder();
+                if (order != null) {
+                    i.setOrderId(order.getId().toString());
+                    i.setOrderNumber(order.getOrderPrefix() + order.getOrderNumber());
+                    i.setOrderContractNumber(order.getContractNumber());
+                }
+            }
+
+            OrderLineEntity saleOrderLine = pol.getSaleOrderLine();
+            if (saleOrderLine != null && i.getOrderId() == null) {
+                OrderEntity order = saleOrderLine.getOrder();
+                if (order != null) {
+                    i.setOrderId(order.getId().toString());
+                    i.setOrderNumber(order.getOrderPrefix() + order.getOrderNumber());
+                    i.setOrderContractNumber(order.getContractNumber());
+                }
+                i.setOrderLineId(saleOrderLine.getId().toString());
+            } else if (saleOrderLine != null) {
+                i.setOrderLineId(saleOrderLine.getId().toString());
+            }
         }
         i.setQuantityExpected(e.getQuantityExpected());
         i.setQuantityReceived(e.getQuantityReceived());
         i.setTaxPercent(e.getTaxPercent());
         i.setLineNote(e.getLineNote());
         return i;
+    }
+
+    private static List<WarehouseInboundPurchaseOrderInfo> extractPurchaseOrderSummaries(
+            List<WarehouseInboundReceiptLineEntity> lineEntities) {
+        Map<UUID, WarehouseInboundPurchaseOrderInfo> seen = new HashMap<>();
+        for (WarehouseInboundReceiptLineEntity line : lineEntities) {
+            if (Boolean.TRUE.equals(line.getIsDeleted())) continue;
+            PurchaseOrderLineEntity pol = resolvePol(line);
+            if (pol == null) continue;
+            PurchaseOrderEntity po = pol.getPurchaseOrder();
+            if (po == null || seen.containsKey(po.getId())) continue;
+            WarehouseInboundPurchaseOrderInfo poInfo = new WarehouseInboundPurchaseOrderInfo();
+            poInfo.setPurchaseOrderId(po.getId().toString());
+            poInfo.setPurchaseOrderNumber(po.getPoPrefix() + po.getPoNumber());
+            if (pol.getVendor() != null) {
+                poInfo.setVendorId(pol.getVendor().getId().toString());
+                poInfo.setVendorName(pol.getVendor().getName());
+            }
+            OrderEntity order = po.getOrder();
+            if (order != null) {
+                poInfo.setOrderId(order.getId().toString());
+                poInfo.setOrderNumber(order.getOrderPrefix() + order.getOrderNumber());
+                poInfo.setOrderContractNumber(order.getContractNumber());
+            }
+            seen.put(po.getId(), poInfo);
+        }
+        return new ArrayList<>(seen.values());
+    }
+
+    private static List<WarehouseInboundOrderInfo> extractOrderSummaries(
+            List<WarehouseInboundReceiptLineEntity> lineEntities) {
+        Map<UUID, WarehouseInboundOrderInfo> seen = new HashMap<>();
+        for (WarehouseInboundReceiptLineEntity line : lineEntities) {
+            if (Boolean.TRUE.equals(line.getIsDeleted())) continue;
+            PurchaseOrderLineEntity pol = resolvePol(line);
+            if (pol == null) continue;
+            OrderEntity order = null;
+            PurchaseOrderEntity po = pol.getPurchaseOrder();
+            if (po != null) {
+                order = po.getOrder();
+            }
+            if (order == null && pol.getSaleOrderLine() != null) {
+                order = pol.getSaleOrderLine().getOrder();
+            }
+            if (order == null || seen.containsKey(order.getId())) continue;
+            WarehouseInboundOrderInfo orderInfo = new WarehouseInboundOrderInfo();
+            orderInfo.setOrderId(order.getId().toString());
+            orderInfo.setOrderNumber(order.getOrderPrefix() + order.getOrderNumber());
+            orderInfo.setContractNumber(order.getContractNumber());
+            if (order.getCustomer() != null) {
+                orderInfo.setCustomerName(order.getCustomer().getName());
+            }
+            orderInfo.setStatus(order.getStatus());
+            seen.put(order.getId(), orderInfo);
+        }
+        return new ArrayList<>(seen.values());
     }
 
     private WarehouseInboundSearchHit toSearchHit(PaymentRequestEntity pr) {
@@ -698,9 +1172,7 @@ public class WarehouseInboundService {
     }
 
     private static String normalize(String s) {
-        if (s == null) {
-            return null;
-        }
+        if (s == null) return null;
         String t = s.trim();
         return t.isEmpty() ? null : t;
     }
@@ -715,14 +1187,10 @@ public class WarehouseInboundService {
     }
 
     private static List<UUID> parseFileIds(List<String> raw, String requestId) {
-        if (raw == null || raw.isEmpty()) {
-            return List.of();
-        }
+        if (raw == null || raw.isEmpty()) return List.of();
         List<UUID> out = new ArrayList<>(raw.size());
         for (String s : raw) {
-            if (s == null || s.isBlank()) {
-                continue;
-            }
+            if (s == null || s.isBlank()) continue;
             try {
                 out.add(UUID.fromString(s.trim()));
             } catch (IllegalArgumentException e) {

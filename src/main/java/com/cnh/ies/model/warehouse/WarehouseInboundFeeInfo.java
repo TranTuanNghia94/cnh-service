@@ -1,0 +1,14 @@
+package com.cnh.ies.model.warehouse;
+
+import java.math.BigDecimal;
+
+import lombok.Data;
+
+@Data
+public class WarehouseInboundFeeInfo {
+    private String id;
+    private String feeName;
+    private String feeType;
+    private BigDecimal amount;
+    private String note;
+}

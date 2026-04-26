@@ -15,9 +15,25 @@ import com.cnh.ies.repository.BaseRepo;
 public interface WarehouseInboundReceiptLineRepo extends BaseRepo<WarehouseInboundReceiptLineEntity, UUID> {
 
     @Query("SELECT l FROM WarehouseInboundReceiptLineEntity l "
-            + "JOIN FETCH l.paymentRequestPurchaseOrderLine prpol "
-            + "JOIN FETCH prpol.purchaseOrderLine pol "
+            + "LEFT JOIN FETCH l.paymentRequestPurchaseOrderLine prpol "
+            + "LEFT JOIN FETCH prpol.purchaseOrderLine prpol_pol "
+            + "LEFT JOIN FETCH l.purchaseOrderLine pol "
             + "LEFT JOIN FETCH pol.product "
+            + "LEFT JOIN FETCH pol.vendor "
+            + "LEFT JOIN FETCH pol.purchaseOrder po "
+            + "LEFT JOIN FETCH po.order o "
+            + "LEFT JOIN FETCH o.customer "
+            + "LEFT JOIN FETCH pol.saleOrderLine sol "
+            + "LEFT JOIN FETCH sol.order so "
+            + "LEFT JOIN FETCH so.customer "
+            + "LEFT JOIN FETCH prpol_pol.product "
+            + "LEFT JOIN FETCH prpol_pol.vendor "
+            + "LEFT JOIN FETCH prpol_pol.purchaseOrder prpol_po "
+            + "LEFT JOIN FETCH prpol_po.order prpol_o "
+            + "LEFT JOIN FETCH prpol_o.customer "
+            + "LEFT JOIN FETCH prpol_pol.saleOrderLine prpol_sol "
+            + "LEFT JOIN FETCH prpol_sol.order prpol_so "
+            + "LEFT JOIN FETCH prpol_so.customer "
             + "WHERE l.receipt.id = :receiptId AND l.isDeleted = false")
     List<WarehouseInboundReceiptLineEntity> findByReceiptId(@Param("receiptId") UUID receiptId);
 
@@ -32,4 +48,8 @@ public interface WarehouseInboundReceiptLineRepo extends BaseRepo<WarehouseInbou
 
     @Query("SELECT COUNT(l) FROM WarehouseInboundReceiptLineEntity l WHERE l.receipt.id = :receiptId AND l.isDeleted = false")
     long countActiveLinesByReceiptId(@Param("receiptId") UUID receiptId);
+
+    @Query("SELECT COUNT(l) FROM WarehouseInboundReceiptLineEntity l "
+            + "WHERE l.receipt.id = :receiptId AND l.purchaseOrderLine.id = :polId AND l.isDeleted = false")
+    long countActiveLinesByReceiptAndPol(@Param("receiptId") UUID receiptId, @Param("polId") UUID polId);
 }

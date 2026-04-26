@@ -14,4 +14,17 @@ public class WarehouseInboundReceiptLineInfo {
     private BigDecimal quantityReceived;
     private BigDecimal taxPercent;
     private String lineNote;
+
+    private String purchaseOrderId;
+    private String purchaseOrderNumber;
+    private String purchaseOrderLineId;
+    private String vendorId;
+    private String vendorName;
+    private BigDecimal unitPrice;
+    private String currency;
+
+    private String orderId;
+    private String orderNumber;
+    private String orderContractNumber;
+    private String orderLineId;
 }
