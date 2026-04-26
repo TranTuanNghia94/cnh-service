@@ -8,6 +8,8 @@ import lombok.Data;
 public class WarehouseInventoryBalanceInfo {
     private String productId;
     private String productCode;
+    private String productCategory;
     private String productName;
+    private String uom;
     private BigDecimal quantityOnHand;
 }

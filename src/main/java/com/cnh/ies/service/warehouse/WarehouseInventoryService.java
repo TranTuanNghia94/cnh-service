@@ -103,6 +103,8 @@ public class WarehouseInventoryService {
             info.setProductId(product.getId().toString());
             info.setProductCode(product.getCode());
             info.setProductName(product.getName());
+            info.setUom(product.getUnit1());
+            info.setProductCategory(product.getCategory().getName());
             info.setQuantityOnHand(inv.getQuantityOnHand());
             return info;
         }).toList();
