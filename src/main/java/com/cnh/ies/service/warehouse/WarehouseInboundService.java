@@ -330,6 +330,8 @@ public class WarehouseInboundService {
             lineEntity.setQuantityExpected(qtyExpected);
             lineEntity.setQuantityReceived(lr.getQuantityReceived());
             lineEntity.setTaxPercent(tax);
+            lineEntity.setTaxIncluded(lr.getTaxIncluded() != null ? lr.getTaxIncluded() : false);
+            lineEntity.setBillOnPaper(lr.getBillOnPaper());
             lineEntity.setLineNote(lr.getLineNote());
             lineEntity.setCreatedBy(username);
             lineEntity.setUpdatedBy(username);
@@ -385,6 +387,8 @@ public class WarehouseInboundService {
             lineEntity.setQuantityExpected(qtyExpected);
             lineEntity.setQuantityReceived(lr.getQuantityReceived());
             lineEntity.setTaxPercent(tax);
+            lineEntity.setTaxIncluded(lr.getTaxIncluded() != null ? lr.getTaxIncluded() : false);
+            lineEntity.setBillOnPaper(lr.getBillOnPaper());
             lineEntity.setLineNote(lr.getLineNote());
             lineEntity.setCreatedBy(username);
             lineEntity.setUpdatedBy(username);
@@ -453,7 +457,7 @@ public class WarehouseInboundService {
                 "Phiếu nhập kho chờ duyệt",
                 String.format("Phiếu nhập kho %s đã được gửi và chờ duyệt.", receiptNumber),
                 rId,
-                "/warehouse-inbound/receipt" + rId);
+                "/warehouse-inbound/receipt/" + rId);
 
         return toReceiptInfo(receipt.getId(), requestId);
     }
@@ -653,6 +657,8 @@ public class WarehouseInboundService {
         lineEntity.setQuantityExpected(qtyExpected);
         lineEntity.setQuantityReceived(body.getQuantityReceived());
         lineEntity.setTaxPercent(tax);
+        lineEntity.setTaxIncluded(body.getTaxIncluded() != null ? body.getTaxIncluded() : false);
+        lineEntity.setBillOnPaper(body.getBillOnPaper());
         lineEntity.setLineNote(body.getLineNote());
         lineEntity.setCreatedBy(username);
         lineEntity.setUpdatedBy(username);
@@ -698,6 +704,12 @@ public class WarehouseInboundService {
         }
         if (body.getTaxPercent() != null) {
             line.setTaxPercent(body.getTaxPercent());
+        }
+        if (body.getTaxIncluded() != null) {
+            line.setTaxIncluded(body.getTaxIncluded());
+        }
+        if (body.getBillOnPaper() != null) {
+            line.setBillOnPaper(body.getBillOnPaper());
         }
         if (body.getLineNote() != null) {
             line.setLineNote(body.getLineNote());
@@ -952,7 +964,7 @@ public class WarehouseInboundService {
                 return;
             }
             String rId = receipt.getId().toString();
-            String actionUrl = "/warehouse-inbound/receipt" + rId;
+            String actionUrl = "/warehouse-inbound/receipt/" + rId;
             notificationService.sendNotification(
                     owner.getId(), title, message, type,
                     NotificationService.NotificationCategory.WAREHOUSE_INBOUND,
@@ -1084,6 +1096,8 @@ public class WarehouseInboundService {
         i.setQuantityExpected(e.getQuantityExpected());
         i.setQuantityReceived(e.getQuantityReceived());
         i.setTaxPercent(e.getTaxPercent());
+        i.setTaxIncluded(e.getTaxIncluded());
+        i.setBillOnPaper(e.getBillOnPaper());
         i.setLineNote(e.getLineNote());
         return i;
     }

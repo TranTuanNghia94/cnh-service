@@ -13,6 +13,8 @@ public class WarehouseInboundReceiptLineInfo {
     private BigDecimal quantityExpected;
     private BigDecimal quantityReceived;
     private BigDecimal taxPercent;
+    private Boolean taxIncluded;
+    private String billOnPaper;
     private String lineNote;
 
     private String purchaseOrderId;

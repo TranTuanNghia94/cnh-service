@@ -42,6 +42,12 @@ public class WarehouseInboundReceiptLineEntity extends BaseEntity {
     @Column(name = "tax_percent", precision = 5, scale = 2)
     private BigDecimal taxPercent;
 
+    @Column(name = "tax_included", nullable = false)
+    private Boolean taxIncluded = false;
+
+    @Column(name = "bill_on_paper", columnDefinition = "TEXT")
+    private String billOnPaper;
+
     @Column(name = "line_note", columnDefinition = "TEXT")
     private String lineNote;
 }

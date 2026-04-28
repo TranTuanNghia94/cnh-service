@@ -10,5 +10,7 @@ public class WarehouseInboundConfirmLineRequest {
     private String purchaseOrderLineId;
     private BigDecimal quantityReceived;
     private BigDecimal taxPercent;
+    private Boolean taxIncluded;
+    private String billOnPaper;
     private String lineNote;
 }

@@ -8,5 +8,7 @@ import lombok.Data;
 public class WarehouseInboundLinePatchRequest {
     private BigDecimal quantityReceived;
     private BigDecimal taxPercent;
+    private Boolean taxIncluded;
+    private String billOnPaper;
     private String lineNote;
 }
