@@ -10,6 +10,8 @@ public class WarehouseInventoryBalanceInfo {
     private String productCode;
     private String productCategory;
     private String productName;
+    private String createdBy;
     private String uom;
+    private String warehouseCode;
     private BigDecimal quantityOnHand;
 }

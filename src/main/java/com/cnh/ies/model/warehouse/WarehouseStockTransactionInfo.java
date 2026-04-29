@@ -14,4 +14,5 @@ public class WarehouseStockTransactionInfo {
     private String referenceId;
     private String note;
     private String createdAt;
+    private String createdBy;
 }

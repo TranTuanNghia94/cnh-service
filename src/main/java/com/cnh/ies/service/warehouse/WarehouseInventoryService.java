@@ -103,8 +103,9 @@ public class WarehouseInventoryService {
             info.setProductId(product.getId().toString());
             info.setProductCode(product.getCode());
             info.setProductName(product.getName());
+            info.setProductCategory(product.getCategory() != null ? product.getCategory().getName() : null);
             info.setUom(product.getUnit1());
-            info.setProductCategory(product.getCategory().getName());
+            info.setCreatedBy(inv.getCreatedBy());
             info.setQuantityOnHand(inv.getQuantityOnHand());
             return info;
         }).toList();
@@ -121,14 +122,15 @@ public class WarehouseInventoryService {
                 .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
                 .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found",
                         HttpStatus.NOT_FOUND.value(), requestId));
-        BigDecimal qty = warehouseInventoryRepo.findByProductId(pid)
-                .map(WarehouseInventoryEntity::getQuantityOnHand)
-                .orElse(BigDecimal.ZERO);
+        WarehouseInventoryEntity inv = warehouseInventoryRepo.findByProductId(pid).orElse(null);
         WarehouseInventoryBalanceInfo info = new WarehouseInventoryBalanceInfo();
         info.setProductId(product.getId().toString());
         info.setProductCode(product.getCode());
         info.setProductName(product.getName());
-        info.setQuantityOnHand(qty);
+        info.setProductCategory(product.getCategory() != null ? product.getCategory().getName() : null);
+        info.setQuantityOnHand(inv != null ? inv.getQuantityOnHand() : BigDecimal.ZERO);
+        info.setCreatedBy(inv != null ? inv.getCreatedBy() : null);
+        info.setUom(product.getUnit1());
         return info;
     }
 
@@ -230,6 +232,7 @@ public class WarehouseInventoryService {
         i.setReferenceType(e.getReferenceType());
         i.setReferenceId(e.getReferenceId() == null ? null : e.getReferenceId().toString());
         i.setNote(e.getNote());
+        i.setCreatedBy(e.getCreatedBy());
         i.setCreatedAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null);
         return i;
     }

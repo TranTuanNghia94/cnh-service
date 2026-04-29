@@ -1014,6 +1014,7 @@ public class WarehouseInboundService {
         info.setReceivedDate(receipt.getReceivedDate() != null ? receipt.getReceivedDate().toString() : null);
         info.setInventoryPostedAt(receipt.getInventoryPostedAt() == null ? null : receipt.getInventoryPostedAt().toString());
         info.setCreatedAt(receipt.getCreatedAt() != null ? receipt.getCreatedAt().toString() : null);
+        info.setCreatedBy(receipt.getCreatedBy());
         List<WarehouseInboundReceiptLineInfo> lineInfos = lineEntities.stream().map(this::toReceiptLineInfo).toList();
         info.setLines(lineInfos);
         info.setPurchaseOrders(extractPurchaseOrderSummaries(lineEntities));

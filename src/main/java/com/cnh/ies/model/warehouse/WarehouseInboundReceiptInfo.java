@@ -26,6 +26,7 @@ public class WarehouseInboundReceiptInfo {
     private String receivedDate;
     private String inventoryPostedAt;
     private String createdAt;
+    private String createdBy;
     private List<WarehouseInboundReceiptLineInfo> lines;
     private List<WarehouseInboundPurchaseOrderInfo> purchaseOrders;
     private List<WarehouseInboundOrderInfo> orders;
