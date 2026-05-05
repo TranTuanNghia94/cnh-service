@@ -20,7 +20,7 @@ import com.cnh.ies.model.payment.RejectPaymentRequest;
 import com.cnh.ies.model.warehouse.WarehouseOutboundCreateRequest;
 import com.cnh.ies.model.warehouse.WarehouseOutboundActionsInfo;
 import com.cnh.ies.model.warehouse.WarehouseOutboundInfo;
-import com.cnh.ies.model.warehouse.WarehouseOutboundOrderLineInfo;
+import com.cnh.ies.model.warehouse.WarehouseOutboundOrderSearchInfo;
 import com.cnh.ies.service.file.FileService;
 import com.cnh.ies.service.warehouse.WarehouseOutboundService;
 import com.cnh.ies.util.RequestContext;
@@ -36,9 +36,9 @@ public class WarehouseOutboundController {
     private final FileService fileService;
 
     @GetMapping("/order-lines")
-    public ApiResponse<List<WarehouseOutboundOrderLineInfo>> getOrderLinesByContract(
+    public ApiResponse<WarehouseOutboundOrderSearchInfo> getOrderLinesByContract(
             @RequestParam("contractNumber") String contractNumber) {
-        List<WarehouseOutboundOrderLineInfo> response = warehouseOutboundService.getOrderLinesByContractNumber(
+        WarehouseOutboundOrderSearchInfo response = warehouseOutboundService.getOrderLinesByContractNumber(
                 contractNumber, RequestContext.getRequestId());
         return ApiResponse.success(response, "Get order lines by contract number success");
     }

@@ -14,6 +14,7 @@ public class WarehouseOutboundOrderLineInfo {
     private BigDecimal availableQuantity;
     private BigDecimal unitPrice;
     private BigDecimal vat;
+    private Boolean includedTax;
     private String currency;
     private BigDecimal totalAmount;
     private BigDecimal taxAmount;

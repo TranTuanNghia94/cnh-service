@@ -43,6 +43,7 @@ import com.cnh.ies.model.warehouse.WarehouseOutboundDetailInfo;
 import com.cnh.ies.model.warehouse.WarehouseOutboundDetailRequest;
 import com.cnh.ies.model.warehouse.WarehouseOutboundInfo;
 import com.cnh.ies.model.warehouse.WarehouseOutboundOrderLineInfo;
+import com.cnh.ies.model.warehouse.WarehouseOutboundOrderSearchInfo;
 import com.cnh.ies.repository.auth.UserRepo;
 import com.cnh.ies.repository.order.OrderLineRepo;
 import com.cnh.ies.repository.order.OrderRepo;
@@ -76,16 +77,36 @@ public class WarehouseOutboundService {
     private final RedisService redisService;
     private final ObjectMapper objectMapper;
 
-    public List<WarehouseOutboundOrderLineInfo> getOrderLinesByContractNumber(String contractNumber, String requestId) {
+    public WarehouseOutboundOrderSearchInfo getOrderLinesByContractNumber(String contractNumber, String requestId) {
         OrderEntity order = findOrderByContract(contractNumber, requestId);
         List<OrderLineEntity> orderLines = orderLineRepo.findAllByOrderId(order.getId());
         if (orderLines.isEmpty()) {
             throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "No order lines found for contract number",
                     HttpStatus.NOT_FOUND.value(), requestId);
         }
-        return orderLines.stream()
+        List<WarehouseOutboundOrderLineInfo> lines = orderLines.stream()
                 .map(this::toOrderLineInfo)
                 .toList();
+        WarehouseOutboundOrderSearchInfo info = new WarehouseOutboundOrderSearchInfo();
+        info.setOrderId(order.getId().toString());
+        info.setOrderNumber(order.getOrderPrefix() + order.getOrderNumber());
+        info.setContractNumber(order.getContractNumber());
+        info.setOrderStatus(order.getStatus());
+        if (order.getCustomer() != null) {
+            info.setCustomerId(order.getCustomer().getId().toString());
+            info.setCustomerCode(order.getCustomer().getCode());
+            info.setCustomerName(order.getCustomer().getName());
+            info.setCustomerPhone(order.getCustomer().getPhone());
+            info.setCustomerTaxCode(order.getCustomer().getTaxCode());
+        }
+        if (order.getCustomerAddress() != null) {
+            info.setCustomerAddressId(order.getCustomerAddress().getId().toString());
+            info.setCustomerAddress(order.getCustomerAddress().getAddress());
+            info.setCustomerContactPerson(order.getCustomerAddress().getContactPerson());
+            info.setCustomerAddressPhone(order.getCustomerAddress().getPhone());
+        }
+        info.setOrderLines(lines);
+        return info;
     }
 
     public ListDataModel<WarehouseOutboundInfo> list(String requestId, Integer page, Integer limit, String status, String search) {
@@ -478,6 +499,7 @@ public class WarehouseOutboundService {
         info.setAvailableQuantity(inv == null ? BigDecimal.ZERO : inv.getQuantityOnHand());
         info.setUnitPrice(orderLine.getUnitPrice());
         info.setVat(orderLine.getProduct().getTax());
+        info.setIncludedTax(orderLine.getIsIncludedTax());
         info.setCurrency("VND");
         info.setTotalAmount(orderLine.getTotalAmount());
         info.setTaxAmount(orderLine.getTaxAmount());
