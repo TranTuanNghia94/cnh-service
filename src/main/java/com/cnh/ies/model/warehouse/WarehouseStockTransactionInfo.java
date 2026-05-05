@@ -15,4 +15,5 @@ public class WarehouseStockTransactionInfo {
     private String note;
     private String createdAt;
     private String createdBy;
+    private String ownerBy;
 }

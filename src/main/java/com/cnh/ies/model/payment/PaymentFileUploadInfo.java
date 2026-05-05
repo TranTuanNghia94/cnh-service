@@ -12,6 +12,8 @@ public class PaymentFileUploadInfo {
     private UUID paymentRequestId;
     /** Set when the file is linked to a warehouse inbound receipt after confirmation. */
     private UUID warehouseInboundReceiptId;
+    /** Set when the file is linked to a warehouse outbound document. */
+    private UUID warehouseOutboundId;
     /** {@link PaymentFileAttachmentType#name()} — {@code PAPER} or {@code BANK_NOTE}. */
     private String attachmentType;
     private String fileName;

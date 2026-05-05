@@ -3,6 +3,7 @@ package com.cnh.ies.repository.warehouse;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -45,6 +46,11 @@ public interface WarehouseInboundReceiptLineRepo extends BaseRepo<WarehouseInbou
     @Query("SELECT COUNT(l) FROM WarehouseInboundReceiptLineEntity l "
             + "WHERE l.receipt.id = :receiptId AND l.paymentRequestPurchaseOrderLine.id = :prpolId AND l.isDeleted = false")
     long countActiveLinesByReceiptAndPrpol(@Param("receiptId") UUID receiptId, @Param("prpolId") UUID prpolId);
+
+    @Query("SELECT l.id, r.createdBy FROM WarehouseInboundReceiptLineEntity l "
+            + "JOIN l.receipt r "
+            + "WHERE l.id IN :lineIds AND l.isDeleted = false")
+    List<Object[]> findReceiptOwnersByLineIds(@Param("lineIds") Collection<UUID> lineIds);
 
     @Query("SELECT COUNT(l) FROM WarehouseInboundReceiptLineEntity l WHERE l.receipt.id = :receiptId AND l.isDeleted = false")
     long countActiveLinesByReceiptId(@Param("receiptId") UUID receiptId);

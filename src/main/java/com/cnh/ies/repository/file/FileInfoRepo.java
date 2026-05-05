@@ -14,4 +14,6 @@ public interface FileInfoRepo extends BaseRepo<FileInfoEntity, UUID> {
     List<FileInfoEntity> findByPaymentRequestIdAndIsDeletedFalseOrderByCreatedAtAsc(UUID paymentRequestId);
 
     List<FileInfoEntity> findByWarehouseInboundReceiptIdAndIsDeletedFalseOrderByCreatedAtAsc(UUID warehouseInboundReceiptId);
+
+    List<FileInfoEntity> findByWarehouseOutboundIdAndIsDeletedFalseOrderByCreatedAtAsc(UUID warehouseOutboundId);
 }

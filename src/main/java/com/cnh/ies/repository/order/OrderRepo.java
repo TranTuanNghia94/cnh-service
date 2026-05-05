@@ -27,4 +27,7 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
 
     @Query("SELECT o FROM OrderEntity o WHERE o.orderPrefix = :orderPrefix AND o.orderNumber = :orderNumber AND o.isDeleted = false")
     Optional<OrderEntity> findByOrderPrefixAndOrderNumber(String orderPrefix, Integer orderNumber);
+
+    @Query("SELECT o FROM OrderEntity o WHERE o.contractNumber = :contractNumber AND o.isDeleted = false")
+    Optional<OrderEntity> findByContractNumber(String contractNumber);
 }

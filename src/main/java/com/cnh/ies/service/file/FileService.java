@@ -24,6 +24,7 @@ import com.cnh.ies.model.payment.PaymentFileUploadInfo;
 import com.cnh.ies.repository.file.FileInfoRepo;
 import com.cnh.ies.repository.payment.PaymentRequestRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptRepo;
+import com.cnh.ies.repository.warehouse.WarehouseOutboundRepo;
 import com.cnh.ies.util.RequestContext;
 
 import jakarta.transaction.Transactional;
@@ -55,6 +56,7 @@ public class FileService {
     private final FileInfoRepo fileInfoRepo;
     private final PaymentRequestRepo paymentRequestRepo;
     private final WarehouseInboundReceiptRepo warehouseInboundReceiptRepo;
+    private final WarehouseOutboundRepo warehouseOutboundRepo;
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
@@ -267,6 +269,90 @@ public class FileService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
+    public PaymentFileUploadInfo uploadFileForWarehouseOutbound(MultipartFile file, String category,
+            String outboundIdRaw, String requestId) {
+        if (file == null || file.isEmpty()) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "File is required", HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        UUID outboundId;
+        try {
+            outboundId = UUID.fromString(outboundIdRaw.trim());
+        } catch (Exception e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "outboundId must be a valid UUID",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        warehouseOutboundRepo.findByIdAndIsDeletedFalse(outboundId)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Warehouse outbound not found",
+                        HttpStatus.NOT_FOUND.value(), requestId));
+        String safeCategory = category != null && !category.isBlank() ? category.trim().toLowerCase(Locale.ROOT) : "warehouse-outbound";
+        String originalFileName = file.getOriginalFilename() == null ? "file" : file.getOriginalFilename();
+        String key = buildS3Key("warehouse-outbound", safeCategory, originalFileName);
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .contentType(file.getContentType())
+                    .build();
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(file.getBytes()));
+            FileInfoEntity entity = new FileInfoEntity();
+            entity.setFileName(originalFileName);
+            entity.setFilePath(key);
+            entity.setContentType(file.getContentType());
+            entity.setFileSizeBytes(file.getSize());
+            entity.setCategory(safeCategory);
+            entity.setWarehouseOutboundId(outboundId);
+            entity.setAttachmentType(PaymentFileAttachmentType.PAPER.name());
+            FileInfoEntity saved = fileInfoRepo.save(entity);
+            return toUploadInfo(saved);
+        } catch (IOException e) {
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Cannot read upload file",
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        } catch (S3Exception e) {
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Upload to S3 failed: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    @Transactional
+    public List<PaymentFileUploadInfo> listUploadedFilesForWarehouseOutbound(String outboundId, String requestId) {
+        UUID id;
+        try {
+            id = UUID.fromString(outboundId);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "outboundId must be a valid UUID",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        warehouseOutboundRepo.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Warehouse outbound not found",
+                        HttpStatus.NOT_FOUND.value(), requestId));
+        return fileInfoRepo.findByWarehouseOutboundIdAndIsDeletedFalseOrderByCreatedAtAsc(id).stream()
+                .map(this::toUploadInfo)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void linkFilesToWarehouseOutbound(List<UUID> fileIds, UUID outboundId, String requestId) {
+        if (fileIds == null || fileIds.isEmpty()) {
+            return;
+        }
+        warehouseOutboundRepo.findByIdAndIsDeletedFalse(outboundId)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND,
+                        "Warehouse outbound not found", HttpStatus.NOT_FOUND.value(), requestId));
+        for (UUID fileId : fileIds) {
+            FileInfoEntity f = fileInfoRepo.findById(fileId)
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "File not found: " + fileId,
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            if (Boolean.TRUE.equals(f.getIsDeleted())) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "File is deleted: " + fileId,
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            f.setWarehouseOutboundId(outboundId);
+            f.setUpdatedBy(RequestContext.getCurrentUsername());
+            fileInfoRepo.save(f);
+        }
+    }
+
     /**
      * Associates existing {@code file_infos} rows (already tied to the payment request) with a warehouse inbound receipt.
      */
@@ -384,6 +470,7 @@ public class FileService {
         info.setId(entity.getId());
         info.setPaymentRequestId(entity.getPaymentRequestId());
         info.setWarehouseInboundReceiptId(entity.getWarehouseInboundReceiptId());
+        info.setWarehouseOutboundId(entity.getWarehouseOutboundId());
         info.setAttachmentType(entity.getAttachmentType());
         info.setFileName(entity.getFileName());
         info.setFilePath(entity.getFilePath());

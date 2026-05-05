@@ -2,6 +2,7 @@ package com.cnh.ies.service.warehouse;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import com.cnh.ies.constant.Constant;
 import com.cnh.ies.entity.product.ProductEntity;
+import com.cnh.ies.entity.product.ProductTaxHistoryEntity;
 import com.cnh.ies.entity.purchaseorder.PurchaseOrderLineEntity;
 import com.cnh.ies.entity.warehouse.WarehouseInboundReceiptEntity;
 import com.cnh.ies.entity.warehouse.WarehouseInboundReceiptLineEntity;
@@ -26,6 +28,7 @@ import com.cnh.ies.model.warehouse.WarehouseInventoryBalanceInfo;
 import com.cnh.ies.model.warehouse.WarehouseOutboundRequest;
 import com.cnh.ies.model.warehouse.WarehouseStockTransactionInfo;
 import com.cnh.ies.repository.product.ProductRepo;
+import com.cnh.ies.repository.product.ProductTaxHistoryRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptLineRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInventoryRepo;
@@ -46,6 +49,7 @@ public class WarehouseInventoryService {
     private final WarehouseInventoryRepo warehouseInventoryRepo;
     private final WarehouseStockTransactionRepo warehouseStockTransactionRepo;
     private final ProductRepo productRepo;
+    private final ProductTaxHistoryRepo productTaxHistoryRepo;
 
     /**
      * After an inbound receipt is fully approved, add received quantities to
@@ -81,6 +85,7 @@ public class WarehouseInventoryService {
             }
             ProductEntity product = pol.getProduct();
             addQuantity(product, qty, username);
+            updateProductTaxFromInboundLine(product, line, username);
             saveTransaction(product, Constant.WAREHOUSE_STOCK_DIRECTION_INBOUND, qty,
                     Constant.WAREHOUSE_STOCK_REF_INBOUND_RECEIPT_LINE, line.getId(),
                     "Inbound receipt line", username);
@@ -140,8 +145,11 @@ public class WarehouseInventoryService {
                 .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
                 .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found",
                         HttpStatus.NOT_FOUND.value(), requestId));
-        return warehouseStockTransactionRepo.findByProductIdOrderByCreatedAtDesc(pid).stream()
-                .map(WarehouseInventoryService::toTxInfo)
+        List<WarehouseStockTransactionEntity> transactions = warehouseStockTransactionRepo
+                .findByProductIdOrderByCreatedAtDesc(pid);
+        Map<UUID, String> inboundOwnerByLineId = loadInboundOwnerByLineId(transactions);
+        return transactions.stream()
+                .map(tx -> toTxInfo(tx, resolveOwnerBy(tx, inboundOwnerByLineId)))
                 .collect(Collectors.toList());
     }
 
@@ -189,7 +197,7 @@ public class WarehouseInventoryService {
                 : request.getReferenceType().trim();
         WarehouseStockTransactionEntity saved = saveTransaction(product, Constant.WAREHOUSE_STOCK_DIRECTION_OUTBOUND,
                 request.getQuantity(), refType, refId, request.getNote(), username);
-        return toTxInfo(saved);
+        return toTxInfo(saved, saved.getCreatedBy());
     }
 
     private void addQuantity(ProductEntity product, BigDecimal qty, String username) {
@@ -223,7 +231,63 @@ public class WarehouseInventoryService {
         return warehouseStockTransactionRepo.save(tx);
     }
 
-    private static WarehouseStockTransactionInfo toTxInfo(WarehouseStockTransactionEntity e) {
+    private void updateProductTaxFromInboundLine(ProductEntity product, WarehouseInboundReceiptLineEntity line, String username) {
+        if (line.getTaxPercent() == null) {
+            return;
+        }
+        BigDecimal newTax = line.getTaxPercent();
+        if (newTax.compareTo(BigDecimal.ZERO) < 0) {
+            return;
+        }
+        BigDecimal oldTax = product.getTax() == null ? BigDecimal.ZERO : product.getTax();
+        if (oldTax.compareTo(newTax) == 0) {
+            return;
+        }
+        product.setTax(newTax);
+        product.setUpdatedBy(username);
+        productRepo.save(product);
+
+        ProductTaxHistoryEntity history = new ProductTaxHistoryEntity();
+        history.setProduct(product);
+        history.setOldTax(oldTax);
+        history.setNewTax(newTax);
+        history.setSourceType(Constant.PRODUCT_TAX_SOURCE_WAREHOUSE_INBOUND_LINE);
+        history.setSourceId(line.getId());
+        history.setNote("Auto update from approved warehouse inbound line");
+        history.setCreatedBy(username);
+        history.setUpdatedBy(username);
+        history.setIsDeleted(false);
+        productTaxHistoryRepo.save(history);
+    }
+
+    private Map<UUID, String> loadInboundOwnerByLineId(List<WarehouseStockTransactionEntity> transactions) {
+        List<UUID> inboundLineIds = transactions.stream()
+                .filter(tx -> Constant.WAREHOUSE_STOCK_DIRECTION_INBOUND.equals(tx.getDirection()))
+                .filter(tx -> Constant.WAREHOUSE_STOCK_REF_INBOUND_RECEIPT_LINE.equals(tx.getReferenceType()))
+                .map(WarehouseStockTransactionEntity::getReferenceId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (inboundLineIds.isEmpty()) {
+            return Map.of();
+        }
+        return warehouseInboundReceiptLineRepo.findReceiptOwnersByLineIds(inboundLineIds).stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> (String) row[1],
+                        (left, right) -> left));
+    }
+
+    private String resolveOwnerBy(WarehouseStockTransactionEntity tx, Map<UUID, String> inboundOwnerByLineId) {
+        if (Constant.WAREHOUSE_STOCK_DIRECTION_INBOUND.equals(tx.getDirection())
+                && Constant.WAREHOUSE_STOCK_REF_INBOUND_RECEIPT_LINE.equals(tx.getReferenceType())
+                && tx.getReferenceId() != null) {
+            return inboundOwnerByLineId.getOrDefault(tx.getReferenceId(), tx.getCreatedBy());
+        }
+        return tx.getCreatedBy();
+    }
+
+    private static WarehouseStockTransactionInfo toTxInfo(WarehouseStockTransactionEntity e, String ownerBy) {
         WarehouseStockTransactionInfo i = new WarehouseStockTransactionInfo();
         i.setId(e.getId().toString());
         i.setProductId(e.getProduct().getId().toString());
@@ -233,6 +297,7 @@ public class WarehouseInventoryService {
         i.setReferenceId(e.getReferenceId() == null ? null : e.getReferenceId().toString());
         i.setNote(e.getNote());
         i.setCreatedBy(e.getCreatedBy());
+        i.setOwnerBy(ownerBy);
         i.setCreatedAt(e.getCreatedAt() != null ? e.getCreatedAt().toString() : null);
         return i;
     }
