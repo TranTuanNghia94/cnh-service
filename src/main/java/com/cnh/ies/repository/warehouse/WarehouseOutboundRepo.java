@@ -27,6 +27,20 @@ public interface WarehouseOutboundRepo extends BaseRepo<WarehouseOutboundEntity,
     Optional<WarehouseOutboundEntity> findByIdAndIsDeletedFalse(@Param("id") UUID id);
 
     @Query("SELECT o FROM WarehouseOutboundEntity o "
+            + "LEFT JOIN FETCH o.order ord "
+            + "LEFT JOIN FETCH ord.customer "
+            + "LEFT JOIN FETCH ord.customerAddress "
+            + "WHERE o.id = :id AND o.isDeleted = false")
+    Optional<WarehouseOutboundEntity> findByIdForDeliverySlip(@Param("id") UUID id);
+
+    @Query("SELECT o FROM WarehouseOutboundEntity o "
+            + "LEFT JOIN FETCH o.order ord "
+            + "LEFT JOIN FETCH ord.customer "
+            + "LEFT JOIN FETCH ord.customerAddress "
+            + "WHERE o.outboundNumber = :outboundNumber AND o.isDeleted = false")
+    Optional<WarehouseOutboundEntity> findByOutboundNumberForDeliverySlip(@Param("outboundNumber") String outboundNumber);
+
+    @Query("SELECT o FROM WarehouseOutboundEntity o "
             + "WHERE o.isDeleted = false "
             + "AND (:status = '' OR o.status = :status) "
             + "AND (:search = '' OR o.outboundNumber LIKE CONCAT('%', :search, '%') "
