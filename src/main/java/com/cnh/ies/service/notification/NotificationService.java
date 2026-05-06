@@ -398,6 +398,7 @@ public class NotificationService {
         public static final String PURCHASE_ORDER = "PURCHASE_ORDER";
         public static final String SALES_ORDER = "SALES_ORDER";
         public static final String WAREHOUSE_INBOUND = "WAREHOUSE_INBOUND";
+        public static final String WAREHOUSE_OUTBOUND = "WAREHOUSE_OUTBOUND";
         public static final String APPROVAL = "APPROVAL";
         public static final String SYSTEM = "SYSTEM";
 
@@ -409,6 +410,7 @@ public class NotificationService {
         public static final String PURCHASE_ORDER = "PURCHASE_ORDER";
         public static final String SALES_ORDER = "SALES_ORDER";
         public static final String WAREHOUSE_INBOUND = "WAREHOUSE_INBOUND";
+        public static final String WAREHOUSE_OUTBOUND = "WAREHOUSE_OUTBOUND";
         public static final String USER = "USER";
 
         private ReferenceType() {}

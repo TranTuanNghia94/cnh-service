@@ -53,16 +53,21 @@ import com.cnh.ies.repository.warehouse.WarehouseOutboundDetailRepo;
 import com.cnh.ies.repository.warehouse.WarehouseOutboundRepo;
 import com.cnh.ies.repository.warehouse.WarehouseStockTransactionRepo;
 import com.cnh.ies.service.file.FileService;
+import com.cnh.ies.service.notification.NotificationService;
 import com.cnh.ies.service.redis.RedisService;
 import com.cnh.ies.util.RequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 public class WarehouseOutboundService {
+
+    private static final Logger log = LoggerFactory.getLogger(WarehouseOutboundService.class);
 
     private final OrderRepo orderRepo;
     private final OrderLineRepo orderLineRepo;
@@ -76,6 +81,7 @@ public class WarehouseOutboundService {
     private final UserRepo userRepo;
     private final RedisService redisService;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
     public WarehouseOutboundOrderSearchInfo getOrderLinesByContractNumber(String contractNumber, String requestId) {
         OrderEntity order = findOrderByContract(contractNumber, requestId);
@@ -148,8 +154,11 @@ public class WarehouseOutboundService {
         WarehouseOutboundEntity outbound = loadOutboundForMutation(outboundId, requestId);
         WarehouseOutboundActionsInfo actions = new WarehouseOutboundActionsInfo();
         String status = outbound.getStatus();
-        actions.setCanSubmit(Constant.WAREHOUSE_OUTBOUND_STATUS_DRAFT.equals(status));
-        actions.setCanCancel(Constant.WAREHOUSE_OUTBOUND_STATUS_DRAFT.equals(status));
+        String currentUser = RequestContext.getCurrentUsername();
+        boolean isOwner = outbound.getCreatedBy() != null && currentUser != null
+                && outbound.getCreatedBy().equalsIgnoreCase(currentUser);
+        actions.setCanSubmit(Constant.WAREHOUSE_OUTBOUND_STATUS_DRAFT.equals(status) && isOwner);
+        actions.setCanCancel(Constant.WAREHOUSE_OUTBOUND_STATUS_DRAFT.equals(status) && isOwner);
         actions.setCanResubmit(Constant.WAREHOUSE_OUTBOUND_STATUS_REJECTED.equals(status)
                 || Constant.WAREHOUSE_OUTBOUND_STATUS_CANCELLED.equals(status));
         boolean canApproveOrReject = false;
@@ -183,7 +192,7 @@ public class WarehouseOutboundService {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "outboundReason is required",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
-        int approvalLevels = request.getApprovalLevels() == null ? 2 : request.getApprovalLevels();
+        int approvalLevels = request.getApprovalLevels() == null ? 1 : request.getApprovalLevels();
         if (approvalLevels < 1 || approvalLevels > 10) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
                     "approvalLevels must be between 1 and 10",
@@ -342,9 +351,17 @@ public class WarehouseOutboundService {
             throw new ApiException(ApiException.ErrorCode.CONFLICT, "Only DRAFT outbound can be submitted",
                     HttpStatus.CONFLICT.value(), requestId);
         }
+        String currentUser = RequestContext.getCurrentUsername();
+        if (outbound.getCreatedBy() == null || currentUser == null
+                || !outbound.getCreatedBy().equalsIgnoreCase(currentUser)) {
+            throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
+                    "Only the document owner can submit outbound for approval",
+                    HttpStatus.FORBIDDEN.value(), requestId);
+        }
         outbound.setStatus(Constant.WAREHOUSE_OUTBOUND_STATUS_SUBMITTED);
-        outbound.setUpdatedBy(RequestContext.getCurrentUsername());
+        outbound.setUpdatedBy(currentUser);
         warehouseOutboundRepo.save(outbound);
+        notifyAccountantsOutboundPendingApproval(outbound);
         return toInfo(outbound, requestId);
     }
 
@@ -415,6 +432,13 @@ public class WarehouseOutboundService {
         if (!Constant.WAREHOUSE_OUTBOUND_STATUS_DRAFT.equals(outbound.getStatus())) {
             throw new ApiException(ApiException.ErrorCode.CONFLICT, "Only DRAFT outbound can be cancelled",
                     HttpStatus.CONFLICT.value(), requestId);
+        }
+        String currentUser = RequestContext.getCurrentUsername();
+        if (outbound.getCreatedBy() == null || currentUser == null
+                || !outbound.getCreatedBy().equalsIgnoreCase(currentUser)) {
+            throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
+                    "Only the document owner can cancel this outbound",
+                    HttpStatus.FORBIDDEN.value(), requestId);
         }
         outbound.setStatus(Constant.WAREHOUSE_OUTBOUND_STATUS_CANCELLED);
         outbound.setUpdatedBy(RequestContext.getCurrentUsername());
@@ -580,7 +604,7 @@ public class WarehouseOutboundService {
             }
             return role.trim().toUpperCase(Locale.ROOT);
         }
-        if (total == 1) return Constant.ROLE_ADMIN;
+        if (total == 1) return Constant.ROLE_ACCOUNTANT;
         if (total == 2) return level == 1 ? Constant.ROLE_ACCOUNTANT : "HEAD_ACCOUNTANT";
         if (level == total) return "FINAL_APPROVER";
         if (level == 1) return Constant.ROLE_ACCOUNTANT;
@@ -632,6 +656,30 @@ public class WarehouseOutboundService {
         }
     }
 
+    private void notifyAccountantsOutboundPendingApproval(WarehouseOutboundEntity outbound) {
+        try {
+            List<UserEntity> users = userRepo.findByRoleCode(Constant.ROLE_ACCOUNTANT);
+            if (users.isEmpty()) {
+                log.warn("No users found with role {} to notify for warehouse outbound", Constant.ROLE_ACCOUNTANT);
+                return;
+            }
+            String outboundNumber = outbound.getOutboundNumber() != null ? outbound.getOutboundNumber()
+                    : outbound.getId().toString();
+            String rId = outbound.getId().toString();
+            List<UUID> userIds = users.stream().map(UserEntity::getId).toList();
+            notificationService.sendNotificationToUsers(userIds,
+                    "Phiếu xuất kho chờ duyệt",
+                    String.format("Phiếu xuất kho %s đã được gửi và chờ duyệt.", outboundNumber),
+                    NotificationService.NotificationType.APPROVAL,
+                    NotificationService.NotificationCategory.WAREHOUSE_OUTBOUND,
+                    rId,
+                    NotificationService.ReferenceType.WAREHOUSE_OUTBOUND,
+                    "/warehouse-outbound/" + rId);
+            log.info("Sent warehouse outbound notification to {} accountants [outboundId={}]", userIds.size(), rId);
+        } catch (Exception e) {
+            log.error("Failed to send warehouse outbound notification to accountants: {}", e.getMessage());
+        }
+    }
 
     private PaymentRequestApprovalInfo toApprovalInfo(WarehouseOutboundApprovalEntity approval) {
         PaymentRequestApprovalInfo info = new PaymentRequestApprovalInfo();
