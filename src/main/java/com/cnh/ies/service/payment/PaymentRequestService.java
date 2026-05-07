@@ -412,14 +412,25 @@ public class PaymentRequestService {
         String prNumber = paymentRequest.getRequestNumber();
         BigDecimal paidTotal = paymentRequest.getPaidAmount();
         String currency = paymentRequest.getCurrency();
-
-        notifyPaymentRequestOwner(
-                paymentRequest,
-                "Đã thanh toán",
-                String.format(
-                        "Đề xuất thanh toán %s: kế toán đã cập nhật chứng từ ngân hàng và ghi nhận đã thanh toán %s %s. Tổng số tiền: %s %s.",
-                        prNumber, paidTotal, currency, paymentRequest.getTotalAmount(), paymentRequest.getCurrency()),
-                NotificationService.NotificationType.SUCCESS);
+        UserInfo currentUser = getCurrentUserInfoFromRedis(requestId);
+        boolean isAccountantActor = hasAnyRole(currentUser, Constant.ROLE_ACCOUNTANT, Constant.ROLE_ACCOUNTANT_MANAGER);
+        boolean hasBankNote = request.getBankNote() != null;
+        if (isAccountantActor && hasBankNote) {
+            String actorName = hasAnyRole(currentUser, Constant.ROLE_ACCOUNTANT_MANAGER) ? "kế toán trưởng" : "kế toán";
+            notifyPaymentRequestOwner(
+                    paymentRequest,
+                    "Đã cập nhật chứng từ ngân hàng",
+                    String.format(
+                            "Đề xuất thanh toán %s đã được %s cập nhật chứng từ ngân hàng và chuyển trạng thái sang %s. Đã ghi nhận thanh toán %s %s. Tổng số tiền: %s %s.",
+                            prNumber,
+                            actorName,
+                            paymentRequest.getStatus(),
+                            paidTotal,
+                            currency,
+                            paymentRequest.getTotalAmount(),
+                            paymentRequest.getCurrency()),
+                    NotificationService.NotificationType.SUCCESS);
+        }
 
         return toInfo(paymentRequest, requestId);
     }
@@ -864,5 +875,20 @@ public class PaymentRequestService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? "" : trimmed;
+    }
+
+    private boolean hasAnyRole(UserInfo userInfo, String... roleCodes) {
+        if (userInfo == null || userInfo.getRoles() == null || userInfo.getRoles().isEmpty()) {
+            return false;
+        }
+        Set<String> roleSet = userInfo.getRoles().stream()
+                .map(RoleInfo::getCode)
+                .collect(Collectors.toSet());
+        for (String roleCode : roleCodes) {
+            if (roleSet.contains(roleCode)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

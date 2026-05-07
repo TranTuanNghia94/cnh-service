@@ -594,8 +594,6 @@ public class PurchaseOrderService {
         return poQuantity.stripTrailingZeros().toPlainString() + "/" + orderDetailQuantity.stripTrailingZeros().toPlainString();
     }
 
-    private static final String TOTAL_VND_TAG = "";
-
     private BigDecimal calcTotalPriceVnd(BigDecimal totalPrice, BigDecimal exchangeRate, String currency) {
         if (totalPrice == null) {
             return BigDecimal.ZERO;
@@ -615,10 +613,9 @@ public class PurchaseOrderService {
                 .map(line -> Optional.ofNullable(line.getTotalPriceVnd()).orElse(BigDecimal.ZERO))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        String existingNotes = po.getNotes();
-        String cleanedNotes = existingNotes == null ? "" : existingNotes.replaceAll("(?m)^\\[Total VND\\]:.*(\r?\n)?", "").stripTrailing();
-        String totalLine = TOTAL_VND_TAG + " " + String.format("%,.0f VND", totalVnd);
-        po.setNotes(cleanedNotes.isBlank() ? totalLine : cleanedNotes + "\n" + totalLine);
+        String totalLine = String.format("%,.0f VND", totalVnd);
+        // Rebuild note from scratch on each line update to avoid stale totals.
+        po.setNotes(totalLine);
         purchaseOrderRepo.save(po);
         log.info("Purchase order total VND note updated: {}", totalLine);
     }
