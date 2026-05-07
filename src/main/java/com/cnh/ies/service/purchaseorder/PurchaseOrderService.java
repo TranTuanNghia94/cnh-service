@@ -58,11 +58,23 @@ public class PurchaseOrderService {
     private final ProductRepo productRepo;
     private final PurchaseOrderNumberService purchaseOrderNumberService;
 
-    public ListDataModel<PurchaseOrderInfo> getAllPurchaseOrders(String requestId, Integer page, Integer limit) {
+    public ListDataModel<PurchaseOrderInfo> getAllPurchaseOrders(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String purchaseOrderNumber,
+            String contractNumber,
+            String createdBy,
+            String customerName) {
         try {
             log.info("Getting all purchase orders with requestId: {}", requestId);
 
-            Page<PurchaseOrderEntity> purchaseOrders = purchaseOrderRepo.findAllAndIsDeletedFalse(PageRequest.of(page, limit));
+            Page<PurchaseOrderEntity> purchaseOrders = purchaseOrderRepo.findAllFiltered(
+                    normalizeListFilter(purchaseOrderNumber),
+                    normalizeListFilter(contractNumber),
+                    normalizeListFilter(createdBy),
+                    normalizeListFilter(customerName),
+                    PageRequest.of(page, limit));
             List<PurchaseOrderInfo> infos = purchaseOrders.stream()
                     .map(purchaseOrderMapper::toPurchaseOrderInfo)
                     .collect(Collectors.toList());
@@ -503,6 +515,14 @@ public class PurchaseOrderService {
             return null;
         }
         return value.trim();
+    }
+
+    private String normalizeListFilter(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "" : trimmed;
     }
 
     private BigDecimal calculatePurchaseOrderLineProgressPercentage(PurchaseOrderLineEntity poLine) {

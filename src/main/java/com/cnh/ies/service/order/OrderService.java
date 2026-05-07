@@ -57,11 +57,25 @@ public class OrderService {
     private final CustomerMapper customerMapper;
     private final AddressMapper addressMapper;
 
-    public ListDataModel<OrderInfo> getAllOrders(String requestId, Integer page, Integer limit) {
+    public ListDataModel<OrderInfo> getAllOrders(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String createdBy,
+            String contractNumber,
+            String orderNumber,
+            String status,
+            String customerName) {
         try {
             log.info("Getting all orders with requestId: {}", requestId);
 
-            Page<OrderEntity> orders = orderRepo.findAllAndIsDeletedFalse(PageRequest.of(page, limit));
+            Page<OrderEntity> orders = orderRepo.findAllFiltered(
+                    normalizeFilter(createdBy),
+                    normalizeFilter(contractNumber),
+                    normalizeFilter(orderNumber),
+                    normalizeFilter(status),
+                    normalizeFilter(customerName),
+                    PageRequest.of(page, limit));
             List<OrderInfo> orderInfos = orders.stream().map(orderMapper::toOrderInfo).collect(Collectors.toList());
 
             PaginationModel pagination = PaginationModel.builder()
@@ -338,5 +352,13 @@ public class OrderService {
 
     private String getOrderStatusName(String status) {
         return Optional.ofNullable(Constant.ORDER_STATUS_MAP.get(status)).orElse(Constant.ORDER_STATUS_DRAFT);
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "" : trimmed;
     }
 }

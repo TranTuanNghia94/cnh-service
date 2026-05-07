@@ -115,7 +115,14 @@ public class WarehouseOutboundService {
         return info;
     }
 
-    public ListDataModel<WarehouseOutboundInfo> list(String requestId, Integer page, Integer limit, String status, String search) {
+    public ListDataModel<WarehouseOutboundInfo> list(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String createdBy,
+            String outboundNumber,
+            String contractNumber,
+            String status) {
         int safePage = page == null ? 0 : page;
         int safeLimit = limit == null ? 10 : limit;
         if (safePage < 0) {
@@ -126,11 +133,17 @@ public class WarehouseOutboundService {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "limit must be > 0",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
+        String createdByFilter = normalize(createdBy) != null ? normalize(createdBy) : "";
+        String outboundNumberFilter = normalize(outboundNumber) != null ? normalize(outboundNumber) : "";
+        String contractNumberFilter = normalize(contractNumber) != null ? normalize(contractNumber) : "";
         String statusFilter = normalize(status) != null ? normalize(status) : "";
-        String searchFilter = normalize(search) != null ? normalize(search) : "";
 
         Page<WarehouseOutboundEntity> outbounds = warehouseOutboundRepo.findAllFiltered(
-                statusFilter, searchFilter, PageRequest.of(safePage, safeLimit));
+                createdByFilter,
+                outboundNumberFilter,
+                contractNumberFilter,
+                statusFilter,
+                PageRequest.of(safePage, safeLimit));
         List<WarehouseOutboundInfo> data = outbounds.stream()
                 .map(outbound -> toInfo(outbound, requestId))
                 .toList();

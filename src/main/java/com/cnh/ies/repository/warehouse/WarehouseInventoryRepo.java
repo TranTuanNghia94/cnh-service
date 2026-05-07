@@ -18,9 +18,16 @@ public interface WarehouseInventoryRepo extends BaseRepo<WarehouseInventoryEntit
     @Query("SELECT i FROM WarehouseInventoryEntity i WHERE i.product.id = :productId AND i.isDeleted = false")
     Optional<WarehouseInventoryEntity> findByProductId(@Param("productId") UUID productId);
 
-    @Query("SELECT i FROM WarehouseInventoryEntity i JOIN FETCH i.product p " +
-           "WHERE i.isDeleted = false AND p.isDeleted = false " +
-           "AND (:search = '' OR LOWER(p.code) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "     OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')))")
-    Page<WarehouseInventoryEntity> findAllFiltered(@Param("search") String search, Pageable pageable);
+    @Query("SELECT i FROM WarehouseInventoryEntity i "
+            + "JOIN FETCH i.product p "
+            + "LEFT JOIN p.category c "
+            + "WHERE i.isDeleted = false AND p.isDeleted = false "
+            + "AND (:productCode = '' OR LOWER(p.code) LIKE LOWER(CONCAT('%', :productCode, '%'))) "
+            + "AND (:productName = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :productName, '%'))) "
+            + "AND (:productCategory = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :productCategory, '%')))")
+    Page<WarehouseInventoryEntity> findAllFiltered(
+            @Param("productCode") String productCode,
+            @Param("productName") String productName,
+            @Param("productCategory") String productCategory,
+            Pageable pageable);
 }

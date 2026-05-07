@@ -15,8 +15,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.customer.CreateCustomerRequest;
 import com.cnh.ies.model.customer.CustomerInfo;
+import com.cnh.ies.model.customer.CustomerListRequest;
 import com.cnh.ies.model.customer.UpdateCustomerRequest;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.service.customer.CustomerService;
 import com.cnh.ies.service.customer.UploadCustomerService;
@@ -36,11 +36,17 @@ public class CustomerController {
     private final UploadCustomerService uploadCustomerService;
 
     @PostMapping("/list")
-    public ApiResponse<ListDataModel<CustomerInfo>> getAllCustomers(@RequestBody ApiRequestModel request) {
+    public ApiResponse<ListDataModel<CustomerInfo>> getAllCustomers(@RequestBody CustomerListRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting all customers with initiated requestId: {}", requestId);
 
-        ListDataModel<CustomerInfo> response = customerService.getAllCustomers(requestId, request.getPage(), request.getLimit());
+        ListDataModel<CustomerInfo> response = customerService.getAllCustomers(
+                requestId,
+                request.getPage(),
+                request.getLimit(),
+                request.getCustomerCode(),
+                request.getMisaCode(),
+                request.getCustomerName());
 
         log.info("Getting all customers success with requestId: {}", requestId);
 

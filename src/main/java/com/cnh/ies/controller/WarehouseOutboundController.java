@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.payment.ApprovePaymentRequest;
 import com.cnh.ies.model.payment.PaymentFileUploadInfo;
@@ -20,6 +19,7 @@ import com.cnh.ies.model.payment.RejectPaymentRequest;
 import com.cnh.ies.model.warehouse.WarehouseOutboundCreateRequest;
 import com.cnh.ies.model.warehouse.WarehouseOutboundActionsInfo;
 import com.cnh.ies.model.warehouse.WarehouseOutboundInfo;
+import com.cnh.ies.model.warehouse.WarehouseOutboundListRequest;
 import com.cnh.ies.model.warehouse.WarehouseOutboundOrderSearchInfo;
 import com.cnh.ies.service.file.FileService;
 import com.cnh.ies.service.warehouse.WarehouseOutboundService;
@@ -52,10 +52,15 @@ public class WarehouseOutboundController {
 
     @PostMapping("/list")
     public ApiResponse<ListDataModel<WarehouseOutboundInfo>> list(
-            @RequestBody ApiRequestModel request,
-            @RequestParam(name = "status", required = false) String status) {
+            @RequestBody WarehouseOutboundListRequest request) {
         ListDataModel<WarehouseOutboundInfo> response = warehouseOutboundService.list(
-                RequestContext.getRequestId(), request.getPage(), request.getLimit(), status, request.getSearch());
+                RequestContext.getRequestId(),
+                request.getPage(),
+                request.getLimit(),
+                request.getCreatedBy(),
+                request.getOutboundNumber(),
+                request.getContractNumber(),
+                request.getStatus());
         return ApiResponse.success(response, "Get warehouse outbound list success");
     }
 

@@ -97,11 +97,21 @@ public class WarehouseInventoryService {
         log.info("Posted warehouse inbound to inventory [receiptId={}, rid={}]", receiptId, requestId);
     }
 
-    public ListDataModel<WarehouseInventoryBalanceInfo> listInventory(String requestId, int page, int limit) {
-        int safePage = Math.max(page, 0);
-        int safeLimit = Math.max(Math.min(limit, 200), 1);
+    public ListDataModel<WarehouseInventoryBalanceInfo> listInventory(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String productCode,
+            String productName,
+            String productCategory) {
+        int safePage = Math.max(page == null ? 0 : page, 0);
+        int safeLimit = Math.max(Math.min(limit == null ? 10 : limit, 200), 1);
         Page<WarehouseInventoryEntity> result = warehouseInventoryRepo
-                .findAll(PageRequest.of(safePage, safeLimit, Sort.by(Sort.Direction.ASC, "product.name")));
+                .findAllFiltered(
+                        normalizeFilter(productCode),
+                        normalizeFilter(productName),
+                        normalizeFilter(productCategory),
+                        PageRequest.of(safePage, safeLimit, Sort.by(Sort.Direction.ASC, "product.name")));
         List<WarehouseInventoryBalanceInfo> items = result.getContent().stream().map(inv -> {
             ProductEntity product = inv.getProduct();
             WarehouseInventoryBalanceInfo info = new WarehouseInventoryBalanceInfo();
@@ -309,5 +319,13 @@ public class WarehouseInventoryService {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, field + " must be a valid UUID",
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "" : trimmed;
     }
 }

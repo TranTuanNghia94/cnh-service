@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.payment.ApprovePaymentRequest;
 import com.cnh.ies.model.payment.PaymentFileUploadInfo;
@@ -22,6 +21,7 @@ import com.cnh.ies.model.payment.PaymentRequestInfo;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundAddLineRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundConfirmRequest;
+import com.cnh.ies.model.warehouse.WarehouseInboundListRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundLinePatchRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundReceiptInfo;
 import com.cnh.ies.model.warehouse.WarehouseInboundSearchResponse;
@@ -51,11 +51,17 @@ public class WarehouseInboundController {
 
     @PostMapping("/list")
     public ApiResponse<ListDataModel<WarehouseInboundReceiptInfo>> list(
-            @RequestBody ApiRequestModel request,
-            @RequestParam(name = "status", required = false) String status) {
+            @RequestBody WarehouseInboundListRequest request) {
         ListDataModel<WarehouseInboundReceiptInfo> response = warehouseInboundService.list(
-                RequestContext.getRequestId(), request.getPage(), request.getLimit(),
-                status, request.getSearch());
+                RequestContext.getRequestId(),
+                request.getPage(),
+                request.getLimit(),
+                request.getCreatedBy(),
+                request.getInboundNumber(),
+                request.getContractNumber(),
+                request.getCustomerName(),
+                request.getOrderNumber(),
+                request.getStatus());
         return ApiResponse.success(response, "Get warehouse inbound list success");
     }
 

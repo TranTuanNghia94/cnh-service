@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
 import com.cnh.ies.repository.BaseRepo;
 
 @Repository
@@ -18,6 +19,20 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
 
     @Query("SELECT o FROM OrderEntity o LEFT JOIN FETCH o.customer WHERE o.isDeleted = false")
     Page<OrderEntity> findAllAndIsDeletedFalse(Pageable pageable);
+
+    @Query("SELECT o FROM OrderEntity o LEFT JOIN o.customer c WHERE o.isDeleted = false "
+            + "AND (:createdBy = '' OR LOWER(COALESCE(o.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
+            + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
+            + "AND (:orderNumber = '' OR LOWER(CONCAT(COALESCE(o.orderPrefix, ''), '.', CONCAT('', o.orderNumber))) LIKE LOWER(CONCAT('%', :orderNumber, '%'))) "
+            + "AND (:status = '' OR LOWER(COALESCE(o.status, '')) LIKE LOWER(CONCAT('%', :status, '%'))) "
+            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%')))")
+    Page<OrderEntity> findAllFiltered(
+            @Param("createdBy") String createdBy,
+            @Param("contractNumber") String contractNumber,
+            @Param("orderNumber") String orderNumber,
+            @Param("status") String status,
+            @Param("customerName") String customerName,
+            Pageable pageable);
 
     @Query("SELECT o FROM OrderEntity o WHERE o.id = :id AND o.isDeleted = false")
     Optional<OrderEntity> findByIdAndIsDeletedFalse(UUID id);

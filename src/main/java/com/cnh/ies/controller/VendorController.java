@@ -5,11 +5,11 @@ import java.util.UUID;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.dto.response.UploadOjectResponse;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.service.vendor.UploadVendorService;
 import com.cnh.ies.service.vendor.VendorService;
 import com.cnh.ies.model.vendors.VendorInfo;
 import com.cnh.ies.model.vendors.CreateVendorRequest;
+import com.cnh.ies.model.vendors.VendorListRequest;
 import com.cnh.ies.model.vendors.UpdateVendorRequest;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,12 +35,19 @@ public class VendorController {
     private final UploadVendorService uploadVendorService;
     
     @PostMapping("/list")
-    public ApiResponse<ListDataModel<VendorInfo>> getAllVendors(@RequestBody ApiRequestModel request) {
+    public ApiResponse<ListDataModel<VendorInfo>> getAllVendors(@RequestBody VendorListRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting all vendors with initiated requestId: {}", requestId);
 
-        ListDataModel<VendorInfo> response = vendorService.getAllVendors(requestId, request.getPage(),
-                request.getLimit());
+        ListDataModel<VendorInfo> response = vendorService.getAllVendors(
+                requestId,
+                request.getPage(),
+                request.getLimit(),
+                request.getVendorCode(),
+                request.getVendorName(),
+                request.getMisaCode(),
+                request.getCurrency(),
+                request.getNation());
 
         log.info("Getting all vendors success with requestId: {}", requestId);
 

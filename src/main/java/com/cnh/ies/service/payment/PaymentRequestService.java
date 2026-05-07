@@ -118,8 +118,22 @@ public class PaymentRequestService {
     private final PaymentRequestLineAmountCalculator paymentRequestLineAmountCalculator;
     private final NotificationService notificationService;
 
-    public ListDataModel<PaymentRequestInfo> getAllPaymentRequests(String requestId, Integer page, Integer limit) {
-        Page<PaymentRequestEntity> requests = paymentRequestRepo.findAllAndIsDeletedFalse(PageRequest.of(page, limit));
+    public ListDataModel<PaymentRequestInfo> getAllPaymentRequests(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String createdBy,
+            String paymentRequestNumber,
+            String vendorCode,
+            String numberOfPaper,
+            String status) {
+        Page<PaymentRequestEntity> requests = paymentRequestRepo.findAllFiltered(
+                normalizeFilter(createdBy),
+                normalizeFilter(paymentRequestNumber),
+                normalizeFilter(vendorCode),
+                normalizeFilter(numberOfPaper),
+                normalizeFilter(status),
+                PageRequest.of(page, limit));
         List<PaymentRequestInfo> data = requests.stream()
                 .map(e -> paymentRequestMapper.toSummaryInfoWithAlignedAmounts(e, requestId))
                 .toList();
@@ -842,5 +856,13 @@ public class PaymentRequestService {
         } catch (Exception e) {
             log.warn("Failed to notify payment request owner {}: {}", requestorId, e.getMessage());
         }
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "" : trimmed;
     }
 }

@@ -12,11 +12,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.purchaseorder.CreatePurchaseOrderRequest;
 import com.cnh.ies.model.purchaseorder.FindPurchaseOrderLineByDocumentRequest;
 import com.cnh.ies.model.purchaseorder.PurchaseOrderInfo;
+import com.cnh.ies.model.purchaseorder.PurchaseOrderListRequest;
 import com.cnh.ies.model.purchaseorder.UpdatePurchaseOrderStatusRequest;
 import com.cnh.ies.model.purchaseorder.PurchaseOrderLineInfo;
 import com.cnh.ies.service.purchaseorder.PurchaseOrderService;
@@ -89,11 +89,18 @@ public class PurchaseOrderController {
     }
 
     @PostMapping("/list")
-    public ApiResponse<ListDataModel<PurchaseOrderInfo>> getAllPurchaseOrders(@RequestBody ApiRequestModel request) {
+    public ApiResponse<ListDataModel<PurchaseOrderInfo>> getAllPurchaseOrders(@RequestBody PurchaseOrderListRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting all purchase orders with initiated requestId: {}", requestId);
 
-        ListDataModel<PurchaseOrderInfo> response = purchaseOrderService.getAllPurchaseOrders(requestId, request.getPage(), request.getLimit());
+        ListDataModel<PurchaseOrderInfo> response = purchaseOrderService.getAllPurchaseOrders(
+                requestId,
+                request.getPage(),
+                request.getLimit(),
+                request.getPurchaseOrderNumber(),
+                request.getContractNumber(),
+                request.getCreatedBy(),
+                request.getCustomerName());
 
         log.info("Getting all purchase orders success with requestId: {}", requestId);
         return ApiResponse.success(response, "Get all purchase orders success");

@@ -39,11 +39,21 @@ public class CustomerService {
     private final CustomerMapper customerMapper;
     private final AddressMapper addressMapper;
 
-    public ListDataModel<CustomerInfo> getAllCustomers(String requestId, Integer page, Integer limit) {
+    public ListDataModel<CustomerInfo> getAllCustomers(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String customerCode,
+            String misaCode,
+            String customerName) {
         try {
             log.info("Getting all customers with requestId: {} page: {} limit: {}", requestId, page, limit);
 
-            Page<CustomerEntity> customers = customerRepo.findAllAndIsDeletedFalse(PageRequest.of(page, limit));
+            Page<CustomerEntity> customers = customerRepo.findAllFiltered(
+                    normalizeFilter(customerCode),
+                    normalizeFilter(misaCode),
+                    normalizeFilter(customerName),
+                    PageRequest.of(page, limit));
 
             List<CustomerInfo> customerInfos = customers.stream().map(customerMapper::mapToCustomerInfo)
                     .collect(Collectors.toList());
@@ -65,6 +75,14 @@ public class CustomerService {
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Error getting all customers",
                     HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "" : trimmed;
     }
 
 

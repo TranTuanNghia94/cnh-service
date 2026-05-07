@@ -20,6 +20,21 @@ public interface PaymentRequestRepo extends BaseRepo<PaymentRequestEntity, UUID>
     @Query("SELECT pr FROM PaymentRequestEntity pr WHERE pr.isDeleted = false")
     Page<PaymentRequestEntity> findAllAndIsDeletedFalse(Pageable pageable);
 
+    @Query("SELECT pr FROM PaymentRequestEntity pr LEFT JOIN pr.vendor v "
+            + "WHERE pr.isDeleted = false "
+            + "AND (:createdBy = '' OR LOWER(COALESCE(pr.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
+            + "AND (:paymentRequestNumber = '' OR LOWER(COALESCE(pr.requestNumber, '')) LIKE LOWER(CONCAT('%', :paymentRequestNumber, '%'))) "
+            + "AND (:vendorCode = '' OR LOWER(COALESCE(v.code, '')) LIKE LOWER(CONCAT('%', :vendorCode, '%'))) "
+            + "AND (:numberOfPaper = '' OR LOWER(COALESCE(pr.papers, '')) LIKE LOWER(CONCAT('%', :numberOfPaper, '%'))) "
+            + "AND (:status = '' OR LOWER(COALESCE(pr.status, '')) LIKE LOWER(CONCAT('%', :status, '%')))")
+    Page<PaymentRequestEntity> findAllFiltered(
+            @Param("createdBy") String createdBy,
+            @Param("paymentRequestNumber") String paymentRequestNumber,
+            @Param("vendorCode") String vendorCode,
+            @Param("numberOfPaper") String numberOfPaper,
+            @Param("status") String status,
+            Pageable pageable);
+
     @Query("SELECT pr FROM PaymentRequestEntity pr WHERE pr.id = :id AND pr.isDeleted = false")
     Optional<PaymentRequestEntity> findByIdAndIsDeletedFalse(UUID id);
 

@@ -155,8 +155,16 @@ public class WarehouseInboundService {
     // List (Fix #4: no N+1, Fix #8: filtering)
     // ──────────────────────────────────────────────────────────────
 
-    public ListDataModel<WarehouseInboundReceiptInfo> list(String requestId, Integer page, Integer limit,
-            String status, String search) {
+    public ListDataModel<WarehouseInboundReceiptInfo> list(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String createdBy,
+            String inboundNumber,
+            String contractNumber,
+            String customerName,
+            String orderNumber,
+            String status) {
         int safePage = page == null ? 0 : page;
         int safeLimit = limit == null ? 10 : limit;
         if (safePage < 0) {
@@ -168,11 +176,22 @@ public class WarehouseInboundService {
                     HttpStatus.BAD_REQUEST.value(), requestId);
         }
 
+        String createdByFilter = normalize(createdBy) != null ? normalize(createdBy) : "";
+        String inboundNumberFilter = normalize(inboundNumber) != null ? normalize(inboundNumber) : "";
+        String contractNumberFilter = normalize(contractNumber) != null ? normalize(contractNumber) : "";
+        String customerNameFilter = normalize(customerName) != null ? normalize(customerName) : "";
+        String orderNumberFilter = normalize(orderNumber) != null ? normalize(orderNumber) : "";
         String statusFilter = normalize(status) != null ? normalize(status) : "";
-        String searchFilter = normalize(search) != null ? normalize(search) : "";
 
         Page<WarehouseInboundReceiptEntity> receipts = warehouseInboundReceiptRepo
-                .findAllFiltered(statusFilter, searchFilter, PageRequest.of(safePage, safeLimit));
+                .findAllFiltered(
+                        createdByFilter,
+                        inboundNumberFilter,
+                        contractNumberFilter,
+                        customerNameFilter,
+                        orderNumberFilter,
+                        statusFilter,
+                        PageRequest.of(safePage, safeLimit));
         List<WarehouseInboundReceiptInfo> data = receipts.stream()
                 .map(receipt -> toReceiptInfo(receipt.getId(), requestId))
                 .toList();

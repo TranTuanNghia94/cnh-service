@@ -12,13 +12,13 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.payment.ApprovePaymentRequest;
 import com.cnh.ies.model.payment.CreateOrUpdatePaymentRequest;
 import com.cnh.ies.model.payment.MarkPaymentPaidRequest;
 import com.cnh.ies.model.payment.PaymentFileUploadInfo;
 import com.cnh.ies.model.payment.PaymentRequestInfo;
+import com.cnh.ies.model.payment.PaymentRequestListRequest;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
 import com.cnh.ies.model.payment.SendToAccountantRequest;
 import com.cnh.ies.service.file.FileService;
@@ -48,9 +48,16 @@ public class PaymentRequestController {
     }
 
     @PostMapping("/list")
-    public ApiResponse<ListDataModel<PaymentRequestInfo>> list(@RequestBody ApiRequestModel request) {
+    public ApiResponse<ListDataModel<PaymentRequestInfo>> list(@RequestBody PaymentRequestListRequest request) {
         ListDataModel<PaymentRequestInfo> response = paymentRequestService.getAllPaymentRequests(
-            RequestContext.getRequestId(), request.getPage(), request.getLimit());
+            RequestContext.getRequestId(),
+            request.getPage(),
+            request.getLimit(),
+            request.getCreatedBy(),
+            request.getPaymentRequestNumber(),
+            request.getVendorCode(),
+            request.getNumberOfPaper(),
+            request.getStatus());
         return ApiResponse.success(response, "Get payment request list success");
     }
 

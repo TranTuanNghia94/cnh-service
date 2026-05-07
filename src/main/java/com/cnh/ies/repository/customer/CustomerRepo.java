@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
 
 @Repository
 public interface CustomerRepo extends BaseRepo<CustomerEntity, UUID> {
@@ -19,6 +20,16 @@ public interface CustomerRepo extends BaseRepo<CustomerEntity, UUID> {
 
     @Query("SELECT c FROM CustomerEntity c WHERE c.isDeleted = false")
     Page<CustomerEntity> findAllAndIsDeletedFalse(Pageable pageable);
+
+    @Query("SELECT c FROM CustomerEntity c WHERE c.isDeleted = false "
+            + "AND (:customerCode = '' OR LOWER(c.code) LIKE LOWER(CONCAT('%', :customerCode, '%'))) "
+            + "AND (:misaCode = '' OR LOWER(COALESCE(c.misaCode, '')) LIKE LOWER(CONCAT('%', :misaCode, '%'))) "
+            + "AND (:customerName = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :customerName, '%')))")
+    Page<CustomerEntity> findAllFiltered(
+            @Param("customerCode") String customerCode,
+            @Param("misaCode") String misaCode,
+            @Param("customerName") String customerName,
+            Pageable pageable);
 
     @Query("SELECT c FROM CustomerEntity c WHERE c.id = :id AND c.isDeleted = false ")
     Optional<CustomerEntity> findByIdAndIsDeletedFalse(UUID id);

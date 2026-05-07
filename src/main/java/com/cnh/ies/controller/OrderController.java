@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.order.CreateOrderRequest;
+import com.cnh.ies.model.order.OrderListRequest;
 import com.cnh.ies.model.order.OrderInfo;
 import com.cnh.ies.model.order.UpdateOrderStatusRequest;
 import com.cnh.ies.service.order.OrderService;
@@ -91,11 +91,19 @@ public class OrderController {
     }
 
     @PostMapping("/list")
-    public ApiResponse<ListDataModel<OrderInfo>> getAllOrders(@RequestBody ApiRequestModel request) {
+    public ApiResponse<ListDataModel<OrderInfo>> getAllOrders(@RequestBody OrderListRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting all orders with initiated requestId: {}", requestId);
 
-        ListDataModel<OrderInfo> response = orderService.getAllOrders(requestId, request.getPage(), request.getLimit());
+        ListDataModel<OrderInfo> response = orderService.getAllOrders(
+                requestId,
+                request.getPage(),
+                request.getLimit(),
+                request.getCreatedBy(),
+                request.getContractNumber(),
+                request.getOrderNumber(),
+                request.getStatus(),
+                request.getCustomerName());
 
         log.info("Getting all orders with initiated requestId: {} success with requestId: {}", requestId, requestId);
 

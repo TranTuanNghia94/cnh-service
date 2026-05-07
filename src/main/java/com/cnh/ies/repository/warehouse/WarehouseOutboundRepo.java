@@ -42,13 +42,15 @@ public interface WarehouseOutboundRepo extends BaseRepo<WarehouseOutboundEntity,
 
     @Query("SELECT o FROM WarehouseOutboundEntity o "
             + "WHERE o.isDeleted = false "
-            + "AND (:status = '' OR o.status = :status) "
-            + "AND (:search = '' OR o.outboundNumber LIKE CONCAT('%', :search, '%') "
-            + "    OR o.contractNumber LIKE CONCAT('%', :search, '%') "
-            + "    OR o.outboundReason LIKE CONCAT('%', :search, '%')) "
+            + "AND (:createdBy = '' OR LOWER(COALESCE(o.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
+            + "AND (:outboundNumber = '' OR LOWER(COALESCE(o.outboundNumber, '')) LIKE LOWER(CONCAT('%', :outboundNumber, '%'))) "
+            + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
+            + "AND (:status = '' OR LOWER(COALESCE(o.status, '')) LIKE LOWER(CONCAT('%', :status, '%'))) "
             + "ORDER BY o.createdAt DESC")
     Page<WarehouseOutboundEntity> findAllFiltered(
+            @Param("createdBy") String createdBy,
+            @Param("outboundNumber") String outboundNumber,
+            @Param("contractNumber") String contractNumber,
             @Param("status") String status,
-            @Param("search") String search,
             Pageable pageable);
 }

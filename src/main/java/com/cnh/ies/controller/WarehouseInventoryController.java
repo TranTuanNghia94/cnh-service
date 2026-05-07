@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.warehouse.WarehouseInventoryBalanceInfo;
+import com.cnh.ies.model.warehouse.WarehouseInventoryListRequest;
 import com.cnh.ies.model.warehouse.WarehouseOutboundRequest;
 import com.cnh.ies.model.warehouse.WarehouseStockTransactionInfo;
 import com.cnh.ies.service.warehouse.WarehouseInventoryService;
@@ -32,11 +32,17 @@ public class WarehouseInventoryController {
 
     @PostMapping("/list")   
     public ApiResponse<ListDataModel<WarehouseInventoryBalanceInfo>> list(
-            @RequestBody ApiRequestModel request) {
+            @RequestBody WarehouseInventoryListRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting warehouse inventory list with page: {} and limit: {} initiated requestId: {}", request.getPage(), request.getLimit(), requestId);
 
-        ListDataModel<WarehouseInventoryBalanceInfo> result = warehouseInventoryService.listInventory(requestId, request.getPage(), request.getLimit());
+        ListDataModel<WarehouseInventoryBalanceInfo> result = warehouseInventoryService.listInventory(
+                requestId,
+                request.getPage(),
+                request.getLimit(),
+                request.getProductCode(),
+                request.getProductName(),
+                request.getProductCategory());
 
         log.info("Getting warehouse inventory list with page: {} and limit: {} success requestId: {}", request.getPage(), request.getLimit(), requestId);
         return ApiResponse.success(result, "Warehouse inventory list");

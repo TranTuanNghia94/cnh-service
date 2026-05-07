@@ -19,10 +19,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.dto.response.UploadOjectResponse;
-import com.cnh.ies.model.general.ApiRequestModel;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.product.CreateProductRequest;
 import com.cnh.ies.model.product.ProductInfo;
+import com.cnh.ies.model.product.ProductListRequest;
 import com.cnh.ies.model.product.UpdateProductRequest;
 import com.cnh.ies.service.product.ProductService;
 import com.cnh.ies.service.product.UploadProductService;
@@ -37,12 +37,17 @@ public class ProductController {
     private final UploadProductService uploadProductService;
 
     @PostMapping("/list")
-    public ApiResponse<ListDataModel<ProductInfo>> getAllProducts(@RequestBody ApiRequestModel request) {
+    public ApiResponse<ListDataModel<ProductInfo>> getAllProducts(@RequestBody ProductListRequest request) {
         String requestId = UUID.randomUUID().toString();
         log.info("Getting all products with initiated requestId: {}", requestId);
 
-        ListDataModel<ProductInfo> response = productService.getAllProducts(requestId, request.getPage(),
-                request.getLimit());
+        ListDataModel<ProductInfo> response = productService.getAllProducts(
+                requestId,
+                request.getPage(),
+                request.getLimit(),
+                request.getProductCode(),
+                request.getProductName(),
+                request.getProductCategory());
 
         log.info("Getting all products success with requestId: {}", requestId);
 

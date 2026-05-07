@@ -35,10 +35,20 @@ public class ProductService {
     private final ProductMapper productMapper;
     private final ProductRepo productRepo;
 
-    public ListDataModel<ProductInfo> getAllProducts(String requestId, Integer page, Integer limit) {
+    public ListDataModel<ProductInfo> getAllProducts(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String productCode,
+            String productName,
+            String productCategory) {
         log.info("Getting all products with request: {} page: {} limit: {}", requestId, page, limit);
 
-        Page<ProductEntity> products = productRepo.findAllAndIsDeletedFalse(PageRequest.of(page , limit));
+        Page<ProductEntity> products = productRepo.findAllFiltered(
+                normalizeFilter(productCode),
+                normalizeFilter(productName),
+                normalizeFilter(productCategory),
+                PageRequest.of(page, limit));
         List<ProductInfo> productInfos = products.stream().map(productMapper::toProductInfo).collect(Collectors.toList());
 
         PaginationModel pagination = PaginationModel.builder()
@@ -54,6 +64,14 @@ public class ProductService {
             .data(productInfos)
             .pagination(pagination)
             .build();
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "" : trimmed;
     }
 
     public ProductInfo createProduct(CreateProductRequest request, String requestId) {

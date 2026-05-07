@@ -41,10 +41,24 @@ public class VendorService {
     private final VendorBanksMapper vendorBanksMapper;
     private final VendorBanksService vendorBanksService;
 
-    public ListDataModel<VendorInfo> getAllVendors(String requestId, Integer page, Integer limit) {
+    public ListDataModel<VendorInfo> getAllVendors(
+            String requestId,
+            Integer page,
+            Integer limit,
+            String vendorCode,
+            String vendorName,
+            String misaCode,
+            String currency,
+            String nation) {
         try {
             log.info("Getting all vendors | RequestId: {} page: {} limit: {}", requestId, page, limit);
-            Page<VendorsEntity> vendors = vendorsRepo.findAllAndIsDeletedFalse(PageRequest.of(page, limit));
+            Page<VendorsEntity> vendors = vendorsRepo.findAllFiltered(
+                    normalizeFilter(vendorCode),
+                    normalizeFilter(vendorName),
+                    normalizeFilter(misaCode),
+                    normalizeFilter(currency),
+                    normalizeFilter(nation),
+                    PageRequest.of(page, limit));
             
             List<VendorInfo> vendorInfos = vendorsMapper.toVendorInfoList(vendors.getContent());
            
@@ -66,6 +80,14 @@ public class VendorService {
             log.error("Error getting all vendors", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? "" : trimmed;
     }
 
     @Transactional
