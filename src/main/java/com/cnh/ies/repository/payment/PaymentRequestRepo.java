@@ -25,7 +25,7 @@ public interface PaymentRequestRepo extends BaseRepo<PaymentRequestEntity, UUID>
             + "AND (:createdBy = '' OR LOWER(COALESCE(pr.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
             + "AND (:paymentRequestNumber = '' OR LOWER(COALESCE(pr.requestNumber, '')) LIKE LOWER(CONCAT('%', :paymentRequestNumber, '%'))) "
             + "AND (:vendorCode = '' OR LOWER(COALESCE(v.code, '')) LIKE LOWER(CONCAT('%', :vendorCode, '%'))) "
-            + "AND (:numberOfPaper = '' OR LOWER(COALESCE(pr.papers, '')) LIKE LOWER(CONCAT('%', :numberOfPaper, '%'))) "
+            + "AND (:numberOfPaper = '' OR LOWER(COALESCE(CAST(pr.papers AS string), '')) LIKE LOWER(CONCAT('%', :numberOfPaper, '%'))) "
             + "AND (:status = '' OR LOWER(COALESCE(pr.status, '')) LIKE LOWER(CONCAT('%', :status, '%')))")
     Page<PaymentRequestEntity> findAllFiltered(
             @Param("createdBy") String createdBy,

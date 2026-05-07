@@ -60,7 +60,11 @@ public class VendorService {
                     normalizeFilter(nation),
                     PageRequest.of(page, limit));
             
-            List<VendorInfo> vendorInfos = vendorsMapper.toVendorInfoList(vendors.getContent());
+            List<VendorInfo> vendorInfos = vendors.getContent().stream()
+                    .map(vendor -> vendorsMapper.toVendorInfoWithBanks(
+                            vendor,
+                            vendorBanksRepo.findByVendorAndIsDeletedFalse(vendor.getId())))
+                    .collect(Collectors.toList());
            
 
             PaginationModel pagination = PaginationModel.builder()
@@ -78,7 +82,8 @@ public class VendorService {
                 .build();
         } catch (Exception e) {
             log.error("Error getting all vendors", e);
-            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+            String message = e.getMessage() != null ? e.getMessage() : "Error getting all vendors";
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, message, HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }
 
