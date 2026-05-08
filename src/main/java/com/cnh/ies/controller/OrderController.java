@@ -10,14 +10,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.dto.response.UploadOjectResponse;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.order.CreateOrderRequest;
 import com.cnh.ies.model.order.OrderListRequest;
 import com.cnh.ies.model.order.OrderInfo;
 import com.cnh.ies.model.order.UpdateOrderStatusRequest;
 import com.cnh.ies.service.order.OrderService;
+import com.cnh.ies.service.order.UploadBatchOrderService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +31,15 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class OrderController {
     private final OrderService orderService;
+    private final UploadBatchOrderService uploadBatchOrderService;
+
+    @PostMapping("/upload-file-batch-order")
+    public ApiResponse<UploadOjectResponse> uploadFileBatchOrder(@RequestParam("file") MultipartFile file) {
+        String requestId = UUID.randomUUID().toString();
+        log.info("Uploading batch order file, requestId: {}", requestId);
+        UploadOjectResponse response = uploadBatchOrderService.readExcelFile(file, requestId);
+        return ApiResponse.success(response, "Upload batch order file success");
+    }
 
     @PostMapping("/create")
     public ApiResponse<OrderInfo> createOrder(@RequestBody CreateOrderRequest request) {

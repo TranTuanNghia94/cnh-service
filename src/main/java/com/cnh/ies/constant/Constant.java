@@ -8,6 +8,13 @@ public class Constant {
     public static final String WARNING = "Warning";
     public static final String PENDING = "Pending";
 
+    /** Batch order Excel import: unit of measure for books category (SÁCH). */
+    public static final String UOM_UNN = "UNN";
+    /** Batch order Excel import: default UOM when not UNN (non-SÁCH). */
+    public static final String UOM_ELT = "ELT";
+    /** Category display name used when UOM is UNN for auto-created products. */
+    public static final String CATEGORY_NAME_SACH = "SÁCH";
+
 
 
     public static final String ORDER_STATUS_DRAFT = "DRAFT"; // Bản nháp

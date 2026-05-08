@@ -14,5 +14,7 @@ public interface CategoryRepo extends BaseRepo<CategoryEntity, UUID> {
 
     @Query("SELECT c FROM CategoryEntity c WHERE c.code = :code")
     Optional<CategoryEntity> findByCode(String code);
-    // Additional methods can be defined here if needed
+
+    @Query("SELECT c FROM CategoryEntity c WHERE c.name = :name AND c.isDeleted = false")
+    Optional<CategoryEntity> findByName(String name);
 }

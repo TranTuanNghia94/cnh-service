@@ -16,6 +16,7 @@ import com.cnh.ies.repository.BaseRepo;
 @Repository
 public interface ProductRepo extends BaseRepo<ProductEntity, UUID> {
     Optional<ProductEntity> findByCode(String code);
+    Optional<ProductEntity> findByCodeIgnoreCase(String code);
 
     // add pagination in the query
     @Query("SELECT p FROM ProductEntity p WHERE p.isDeleted = false ORDER BY p.createdAt DESC")

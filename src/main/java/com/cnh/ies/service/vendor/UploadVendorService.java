@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static com.cnh.ies.util.ExcelUtils.*;
@@ -51,7 +52,7 @@ public class UploadVendorService {
                 else importedCount++;
             }
             log.info("Import completed: {} success, {} errors", importedCount, errors.size());
-            return new UploadOjectResponse("Import completed successfully", sheet.getLastRowNum(), importedCount, errors.size(), errors);
+            return new UploadOjectResponse("Import completed successfully", sheet.getLastRowNum(), importedCount, errors.size(), errors, Collections.emptyList());
         } catch (Exception e) {
             log.error("Error reading excel file: {}", e.getMessage(), e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR,

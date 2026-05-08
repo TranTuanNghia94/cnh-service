@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import com.cnh.ies.dto.response.UploadOjectResponse;
 import com.cnh.ies.entity.customer.CustomerAddressEntity;
@@ -54,7 +55,7 @@ public class UploadCustomerService {
             }
             log.info("Import completed: {} success, {} errors", importedCount, errors.size());
             return new UploadOjectResponse("Import completed successfully", sheet.getLastRowNum(), importedCount,
-                    errors.size(), errors);
+                    errors.size(), errors, Collections.emptyList());
         } catch (Exception e) {
             log.error("Error reading excel file: {}", e.getMessage(), e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR,
