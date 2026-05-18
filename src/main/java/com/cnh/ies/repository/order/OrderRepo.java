@@ -2,15 +2,19 @@ package com.cnh.ies.repository.order;
 
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
 import java.util.UUID;
 
-import com.cnh.ies.entity.order.OrderEntity;
-import org.springframework.data.jpa.repository.Query;
-import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.repository.BaseRepo;
+
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
@@ -37,8 +41,14 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
     @Query("SELECT o FROM OrderEntity o WHERE o.id = :id AND o.isDeleted = false")
     Optional<OrderEntity> findByIdAndIsDeletedFalse(UUID id);
     
-    @Query("SELECT o.orderNumber FROM OrderEntity o WHERE o.orderPrefix = :orderPrefix AND o.isDeleted = false")
-    Integer findMaxSequenceForYearMonth(String orderPrefix);
+    @Query("SELECT COALESCE(MAX(o.orderNumber), 0) FROM OrderEntity o WHERE o.orderPrefix = :orderPrefix AND o.isDeleted = false")
+    Integer findMaxSequenceForYearMonth(@Param("orderPrefix") String orderPrefix);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<OrderEntity> findFirstByOrderPrefixAndIsDeletedFalseOrderByOrderNumberDesc(String orderPrefix);
+
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtext(:orderPrefix))", nativeQuery = true)
+    void acquireOrderPrefixAllocationLock(@Param("orderPrefix") String orderPrefix);
 
     @Query("SELECT o FROM OrderEntity o WHERE o.orderPrefix = :orderPrefix AND o.orderNumber = :orderNumber AND o.isDeleted = false")
     Optional<OrderEntity> findByOrderPrefixAndOrderNumber(String orderPrefix, Integer orderNumber);

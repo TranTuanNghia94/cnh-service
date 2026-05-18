@@ -15,6 +15,8 @@ public class OrderInfo {
     private String id;
     private Integer orderNumber;
     private String orderPrefix;
+    /** Business order code, e.g. {@code OD_2026_05.42} (prefix + sequence). */
+    private String orderCode;
     private String contractNumber;
     private LocalDate orderDate;
     private LocalDate deliveryDate;

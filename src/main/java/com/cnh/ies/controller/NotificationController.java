@@ -45,8 +45,18 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final RedisMessageListenerContainer redisMessageListenerContainer;
-    
-    private final Map<UUID, SseEmitter> userEmitters = new ConcurrentHashMap<>();
+
+    private final Map<UUID, UserSseSubscription> userSubscriptions = new ConcurrentHashMap<>();
+
+    private static final class UserSseSubscription {
+        final SseEmitter emitter;
+        final MessageListener listener;
+
+        UserSseSubscription(SseEmitter emitter, MessageListener listener) {
+            this.emitter = emitter;
+            this.listener = listener;
+        }
+    }
 
     @GetMapping
     public ApiResponse<NotificationSummary> getNotifications(
@@ -119,59 +129,85 @@ public class NotificationController {
         UUID userId = getCurrentUserId(userDetails);
         log.info("User {} subscribing to notifications", userId);
 
-        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
-        
-        // Remove old emitter if exists
-        SseEmitter oldEmitter = userEmitters.put(userId, emitter);
-        if (oldEmitter != null) {
-            oldEmitter.complete();
-        }
+        closeSubscription(userId);
 
-        // Subscribe to Redis channel for this user
+        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
         String channel = notificationService.getNotificationChannel(userId);
-        MessageListener listener = (message, pattern) -> {
-            try {
-                String notification = new String(message.getBody());
-                emitter.send(SseEmitter.event()
-                        .name("notification")
-                        .data(notification));
-            } catch (IOException e) {
-                log.warn("Error sending SSE notification to user {}: {}", userId, e.getMessage());
-                emitter.completeWithError(e);
-            }
-        };
+
+        MessageListener listener = (message, pattern) -> deliverRedisMessage(userId, emitter, listener, message.getBody());
 
         redisMessageListenerContainer.addMessageListener(listener, new ChannelTopic(channel));
+        userSubscriptions.put(userId, new UserSseSubscription(emitter, listener));
 
         emitter.onCompletion(() -> {
             log.info("SSE connection completed for user {}", userId);
-            userEmitters.remove(userId, emitter);
-            redisMessageListenerContainer.removeMessageListener(listener);
+            closeSubscription(userId, emitter, listener);
         });
 
         emitter.onTimeout(() -> {
             log.info("SSE connection timed out for user {}", userId);
-            userEmitters.remove(userId, emitter);
-            redisMessageListenerContainer.removeMessageListener(listener);
+            closeSubscription(userId, emitter, listener);
         });
 
         emitter.onError(e -> {
-            log.warn("SSE connection error for user {}: {}", userId, e.getMessage());
-            userEmitters.remove(userId, emitter);
-            redisMessageListenerContainer.removeMessageListener(listener);
+            log.debug("SSE connection error for user {}: {}", userId, e.getMessage());
+            closeSubscription(userId, emitter, listener);
         });
 
-        // Send initial unread count
         try {
             long unreadCount = notificationService.getUnreadCount(userId, "sse-init");
             emitter.send(SseEmitter.event()
                     .name("init")
                     .data("{\"unreadCount\":" + unreadCount + "}"));
-        } catch (IOException e) {
-            log.warn("Error sending initial SSE data to user {}: {}", userId, e.getMessage());
+        } catch (IOException | IllegalStateException e) {
+            log.debug("Could not send initial SSE data to user {}: {}", userId, e.getMessage());
+            closeSubscription(userId, emitter, listener);
         }
 
         return emitter;
+    }
+
+    private void deliverRedisMessage(UUID userId, SseEmitter emitter, MessageListener listener, byte[] body) {
+        UserSseSubscription active = userSubscriptions.get(userId);
+        if (active == null || active.emitter != emitter) {
+            redisMessageListenerContainer.removeMessageListener(listener);
+            return;
+        }
+        try {
+            String notification = new String(body);
+            emitter.send(SseEmitter.event()
+                    .name("notification")
+                    .data(notification));
+        } catch (IOException | IllegalStateException e) {
+            log.debug("SSE client disconnected for user {}, skip push: {}", userId, e.getMessage());
+            closeSubscription(userId, emitter, active.listener);
+        }
+    }
+
+    private void closeSubscription(UUID userId) {
+        UserSseSubscription existing = userSubscriptions.remove(userId);
+        if (existing == null) {
+            return;
+        }
+        redisMessageListenerContainer.removeMessageListener(existing.listener);
+        try {
+            existing.emitter.complete();
+        } catch (IllegalStateException ignored) {
+            // already completed
+        }
+    }
+
+    private void closeSubscription(UUID userId, SseEmitter emitter, MessageListener listener) {
+        UserSseSubscription active = userSubscriptions.get(userId);
+        if (active != null && active.emitter == emitter) {
+            userSubscriptions.remove(userId, active);
+        }
+        redisMessageListenerContainer.removeMessageListener(listener);
+        try {
+            emitter.complete();
+        } catch (IllegalStateException ignored) {
+            // already completed
+        }
     }
 
     private UUID getCurrentUserId(UserDetails userDetails) {

@@ -211,8 +211,16 @@ public class NotificationService {
         return result;
     }
 
-    public void sendNotification(UUID userId, String title, String message, String type, 
+    public void sendNotification(UUID userId, String title, String message, String type,
             String category, String referenceId, String referenceType, String actionUrl) {
+        sendNotification(userId, title, message, type, category, referenceId, referenceType, actionUrl, null);
+    }
+
+    /**
+     * @param metadata JSON string for structured UI data (e.g. batch import summary tables).
+     */
+    public void sendNotification(UUID userId, String title, String message, String type,
+            String category, String referenceId, String referenceType, String actionUrl, String metadata) {
         log.info("Sending notification to user {}: {}", userId, title);
 
         UserEntity user = userRepo.findById(userId).orElse(null);
@@ -230,6 +238,7 @@ public class NotificationService {
         notification.setReferenceId(referenceId);
         notification.setReferenceType(referenceType);
         notification.setActionUrl(actionUrl);
+        notification.setMetadata(metadata);
         notification.setPriority(NotificationPriority.NORMAL);
         notification.setIsRead(false);
         notification.setIsDeleted(false);
@@ -237,8 +246,7 @@ public class NotificationService {
         notification.setUpdatedBy("SYSTEM");
 
         NotificationEntity saved = notificationRepo.save(notification);
-        
-        // Invalidate cache and publish to Redis for real-time delivery
+
         invalidateCache(userId);
         publishNotification(userId, toNotificationInfo(saved));
     }

@@ -1,6 +1,7 @@
 package com.cnh.ies.service.file;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -44,6 +45,8 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 public class FileService {
 
     private static final String DEFAULT_S3_PATH_PREFIX = "payment-requests";
+    public static final String BATCH_ORDER_IMPORT_S3_PREFIX = "batch-order-imports";
+    public static final String BATCH_ORDER_IMPORT_CATEGORY = "imports";
     private static final Duration PRESIGN_DURATION = Duration.ofHours(24);
 
     /** Statuses from which a BANK_NOTE upload can mark the request as PAID. */
@@ -164,6 +167,34 @@ public class FileService {
         } catch (Exception e) {
             log.error("Unexpected error uploading file '{}' to S3", originalFileName, e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, "Upload to S3 failed: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    /**
+     * Opens an S3 object stream for a persisted {@code file_infos} row. Caller must close the stream.
+     */
+    public InputStream openInputStreamByFileInfoId(UUID fileInfoId, String requestId) {
+        FileInfoEntity entity = fileInfoRepo.findById(fileInfoId)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "File not found",
+                        HttpStatus.NOT_FOUND.value(), requestId));
+        if (Boolean.TRUE.equals(entity.getIsDeleted())) {
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "File not found",
+                    HttpStatus.NOT_FOUND.value(), requestId);
+        }
+        if (entity.getFilePath() == null || entity.getFilePath().isBlank()) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "File has no S3 path",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        try {
+            return s3Client.getObject(GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(entity.getFilePath())
+                    .build());
+        } catch (S3Exception e) {
+            log.error("S3 get failed for fileInfoId={} key={}: {}", fileInfoId, entity.getFilePath(), e.getMessage(), e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR,
+                    "Failed to read file from S3: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
     }

@@ -17,7 +17,7 @@ import com.cnh.ies.repository.order.OrderRepo;
 import com.cnh.ies.repository.product.ProductRepo;
 import com.cnh.ies.util.RequestContext;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.cnh.ies.repository.order.OrderLineRepo;
 import com.cnh.ies.mapper.order.OrderMapper;
@@ -117,8 +117,9 @@ public class OrderService {
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             OrderEntity order = orderMapper.toOrderEntity(request, customer, customerAddress);
-            order.setOrderNumber(orderNumberService.generateNextNumberOrReset());
-            order.setOrderPrefix(orderNumberService.generateOrderPrefix());
+            String orderPrefix = orderNumberService.generateOrderPrefix();
+            order.setOrderPrefix(orderPrefix);
+            order.setOrderNumber(orderNumberService.allocateNextOrderNumber(orderPrefix));
             order.setFinalAmount(amount);
 
             OrderEntity savedOrder = orderRepo.save(order);

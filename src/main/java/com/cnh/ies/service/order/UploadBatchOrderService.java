@@ -10,6 +10,7 @@ import static com.cnh.ies.util.ExcelUtils.validateHeaders;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +31,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.constant.Constant;
 import com.cnh.ies.dto.response.UploadOjectResponse;
+import com.cnh.ies.model.order.BatchOrderImportEntityItem;
+import com.cnh.ies.model.order.BatchOrderImportErrorItem;
+import com.cnh.ies.model.order.BatchOrderImportOrderCreated;
+import com.cnh.ies.model.order.BatchOrderImportResultSummary;
 import com.cnh.ies.entity.customer.CustomerEntity;
 import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.entity.order.OrderLineEntity;
@@ -45,7 +50,7 @@ import com.cnh.ies.repository.product.ProductRepo;
 import com.cnh.ies.repository.vendors.VendorsRepo;
 import com.cnh.ies.util.RequestContext;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -64,10 +69,36 @@ public class UploadBatchOrderService {
 
     @Transactional
     public UploadOjectResponse readExcelFile(MultipartFile file, String requestId) {
-        log.info("Reading batch order excel file, requestId: {}", requestId);
-        List<String> warnings = new ArrayList<>();
+        return readExcelFile(file, requestId, null);
+    }
 
-        try (var workbook = new XSSFWorkbook(file.getInputStream())) {
+    @Transactional
+    public UploadOjectResponse readExcelFile(MultipartFile file, String requestId, String createdBy) {
+        try {
+            return readExcelInputStream(file.getInputStream(), requestId, createdBy);
+        } catch (Exception e) {
+            log.error("Error opening excel file stream: {}", e.getMessage(), e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR,
+                    "Error reading excel file: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    requestId);
+        }
+    }
+
+    @Transactional
+    public UploadOjectResponse readExcelInputStream(InputStream inputStream, String requestId) {
+        return readExcelInputStream(inputStream, requestId, null);
+    }
+
+    @Transactional
+    public UploadOjectResponse readExcelInputStream(InputStream inputStream, String requestId, String createdBy) {
+        String actor = resolveActor(createdBy);
+        log.info("Reading batch order excel file, requestId: {}, createdBy: {}", requestId, actor);
+        List<String> warnings = new ArrayList<>();
+        List<BatchOrderImportEntityItem> newProducts = new ArrayList<>();
+        List<BatchOrderImportEntityItem> newVendors = new ArrayList<>();
+        List<BatchOrderImportOrderCreated> ordersCreated = new ArrayList<>();
+
+        try (var workbook = new XSSFWorkbook(inputStream)) {
             Sheet sheet = workbook.getSheetAt(0);
 
             String headerError = validateHeaders(sheet, TemplateType.BATCH_ORDER);
@@ -96,15 +127,14 @@ public class UploadBatchOrderService {
             Map<String, VendorsEntity> vendorByCode = new java.util.HashMap<>();
 
             for (BatchOrderRow r : rows) {
-                resolveProduct(r, productByCode, warnings, requestId);
-                resolveVendor(r, vendorByCode, warnings);
+                resolveProduct(r, productByCode, warnings, newProducts, requestId, actor);
+                resolveVendor(r, vendorByCode, warnings, newVendors, actor);
             }
 
             Map<OrderKey, List<BatchOrderRow>> grouped = groupRows(rows);
 
-            int baseSeq = orderNumberService.generateNextNumberOrReset();
             String orderPrefix = orderNumberService.generateOrderPrefix();
-            int groupIndex = 0;
+            int nextOrderNumber = orderNumberService.reserveNextOrderNumbers(orderPrefix, grouped.size());
 
             for (Map.Entry<OrderKey, List<BatchOrderRow>> entry : grouped.entrySet()) {
                 OrderKey key = entry.getKey();
@@ -118,7 +148,6 @@ public class UploadBatchOrderService {
                 orderTotal = orderTotal.setScale(0, RoundingMode.HALF_UP);
 
                 OrderEntity order = new OrderEntity();
-                order.setVersion(1L);
                 order.setCustomer(customer);
                 order.setCustomerAddress(null);
                 order.setContractNumber(key.contractNumber());
@@ -132,11 +161,10 @@ public class UploadBatchOrderService {
                 order.setTaxAmount(BigDecimal.ZERO);
                 order.setFinalAmount(orderTotal);
                 order.setNotes(null);
-                order.setOrderNumber(baseSeq + groupIndex);
                 order.setOrderPrefix(orderPrefix);
-                String username = RequestContext.getCurrentUsername();
-                order.setCreatedBy(username);
-                order.setUpdatedBy(username);
+                order.setOrderNumber(nextOrderNumber++);
+                order.setCreatedBy(actor);
+                order.setUpdatedBy(actor);
                 order.setIsDeleted(false);
 
                 OrderEntity savedOrder = orderRepo.saveAndFlush(order);
@@ -148,7 +176,6 @@ public class UploadBatchOrderService {
                     BigDecimal lineTotal = lineTotalAmount(r).setScale(0, RoundingMode.HALF_UP);
 
                     OrderLineEntity line = new OrderLineEntity();
-                    line.setVersion(1L);
                     line.setOrder(savedOrder);
                     line.setProduct(product);
                     line.setVendor(vendor);
@@ -169,26 +196,60 @@ public class UploadBatchOrderService {
                     line.setReceiverNote(r.receiverNote());
                     line.setDeliveryNote(r.deliveryNote());
                     line.setReferenceNote(null);
-                    line.setCreatedBy(username);
-                    line.setUpdatedBy(username);
+                    line.setCreatedBy(actor);
+                    line.setUpdatedBy(actor);
                     line.setIsDeleted(false);
                     lineEntities.add(line);
                 }
 
                 orderLineRepo.saveAll(lineEntities);
-                groupIndex++;
+
+                String orderCode = orderPrefix + "." + savedOrder.getOrderNumber();
+                ordersCreated.add(BatchOrderImportOrderCreated.builder()
+                        .orderId(savedOrder.getId().toString())
+                        .orderCode(orderCode)
+                        .contractNumber(key.contractNumber())
+                        .customerCode(key.customerCode())
+                        .lineCount(groupRows.size())
+                        .build());
             }
 
-            log.info("Batch order import completed: {} rows, {} orders, {} warnings",
-                    rows.size(), grouped.size(), warnings.size());
+            BatchOrderImportResultSummary importSummary = BatchOrderImportResultSummary.builder()
+                    .totalRows(rows.size())
+                    .ordersCreatedCount(ordersCreated.size())
+                    .newProductsCount(newProducts.size())
+                    .newVendorsCount(newVendors.size())
+                    .warningCount(warnings.size())
+                    .errorCount(0)
+                    .ordersCreated(ordersCreated)
+                    .newProducts(newProducts)
+                    .newVendors(newVendors)
+                    .errors(Collections.emptyList())
+                    .warnings(warnings)
+                    .build();
 
-            return new UploadOjectResponse(
-                    "Import completed successfully",
+            int firstOrderNum = nextOrderNumber - grouped.size();
+            int lastOrderNum = nextOrderNumber - 1;
+            log.info(
+                    "Batch order import completed: {} rows, {} orders ({}.{}{}), {} new products, {} new vendors, {} warnings",
                     rows.size(),
-                    rows.size(),
-                    0,
-                    Collections.emptyList(),
-                    warnings);
+                    grouped.size(),
+                    orderPrefix,
+                    firstOrderNum,
+                    firstOrderNum == lastOrderNum ? "" : ".." + lastOrderNum,
+                    newProducts.size(),
+                    newVendors.size(),
+                    warnings.size());
+
+            return UploadOjectResponse.builder()
+                    .message("Import completed successfully")
+                    .totalRows(rows.size())
+                    .totalSuccess(rows.size())
+                    .totalErrors(0)
+                    .errors(Collections.emptyList())
+                    .warnings(warnings)
+                    .importSummary(importSummary)
+                    .build();
 
         } catch (ApiException ex) {
             throw ex;
@@ -306,7 +367,9 @@ public class UploadBatchOrderService {
             BatchOrderRow r,
             Map<String, ProductEntity> productByCode,
             List<String> warnings,
-            String requestId) {
+            List<BatchOrderImportEntityItem> newProducts,
+            String requestId,
+            String actor) {
         String code = r.productCode();
         String codeKey = normalizeCodeKey(code);
         if (productByCode.containsKey(codeKey)) {
@@ -328,7 +391,6 @@ public class UploadBatchOrderService {
                             HttpStatus.BAD_REQUEST.value(), requestId));
         }
 
-        String username = RequestContext.getCurrentUsername();
         ProductEntity product = new ProductEntity();
         product.setCode(code);
         product.setName(r.productName());
@@ -339,18 +401,26 @@ public class UploadBatchOrderService {
         product.setPrice(BigDecimal.ZERO);
         product.setCostPrice(BigDecimal.ZERO);
         product.setIsActive(true);
-        product.setCreatedBy(username);
-        product.setUpdatedBy(username);
+        product.setCreatedBy(actor);
+        product.setUpdatedBy(actor);
 
         productRepo.save(product);
         productByCode.put(codeKey, product);
-        warnings.add("Auto-created product '" + code + " - " + r.productName() + "' on row " + r.rowNum());
+        String warning = "Auto-created product '" + code + " - " + r.productName() + "' on row " + r.rowNum();
+        warnings.add(warning);
+        newProducts.add(BatchOrderImportEntityItem.builder()
+                .code(code)
+                .name(r.productName())
+                .rowNum(r.rowNum())
+                .build());
     }
 
     private void resolveVendor(
             BatchOrderRow r,
             Map<String, VendorsEntity> vendorByCode,
-            List<String> warnings) {
+            List<String> warnings,
+            List<BatchOrderImportEntityItem> newVendors,
+            String actor) {
         String code = r.vendorCode();
         String codeKey = normalizeCodeKey(code);
         if (vendorByCode.containsKey(codeKey)) {
@@ -362,17 +432,22 @@ public class UploadBatchOrderService {
             return;
         }
 
-        String username = RequestContext.getCurrentUsername();
         VendorsEntity vendor = new VendorsEntity();
         vendor.setCode(code);
         vendor.setName(r.vendorName());
         vendor.setIsActive(true);
-        vendor.setCreatedBy(username);
-        vendor.setUpdatedBy(username);
+        vendor.setCreatedBy(actor);
+        vendor.setUpdatedBy(actor);
 
         vendorsRepo.save(vendor);
         vendorByCode.put(codeKey, vendor);
-        warnings.add("Auto-created vendor '" + code + " - " + r.vendorName() + "' on row " + r.rowNum());
+        String warning = "Auto-created vendor '" + code + " - " + r.vendorName() + "' on row " + r.rowNum();
+        warnings.add(warning);
+        newVendors.add(BatchOrderImportEntityItem.builder()
+                .code(code)
+                .name(r.vendorName())
+                .rowNum(r.rowNum())
+                .build());
     }
 
     private Map<OrderKey, List<BatchOrderRow>> groupRows(List<BatchOrderRow> rows) {
@@ -405,6 +480,17 @@ public class UploadBatchOrderService {
     private void badRequest(String message, String requestId) {
         throw new ApiException(ApiException.ErrorCode.INVALID_REQUEST, message, HttpStatus.BAD_REQUEST.value(),
                 requestId);
+    }
+
+    private static String resolveActor(String createdBy) {
+        if (createdBy != null && !createdBy.isBlank()) {
+            return createdBy.trim();
+        }
+        String fromContext = RequestContext.getCurrentUsername();
+        if (fromContext != null && !fromContext.isBlank()) {
+            return fromContext;
+        }
+        return "SYSTEM";
     }
 
     private record BatchOrderRow(

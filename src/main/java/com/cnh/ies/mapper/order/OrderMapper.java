@@ -25,6 +25,7 @@ public class OrderMapper {
         orderInfo.setId(order.getId().toString());
         orderInfo.setOrderNumber(order.getOrderNumber());
         orderInfo.setOrderPrefix(order.getOrderPrefix());
+        orderInfo.setOrderCode(formatOrderCode(order.getOrderPrefix(), order.getOrderNumber()));
         orderInfo.setContractNumber(order.getContractNumber());
         orderInfo.setCustomer( order.getCustomer() != null ? customerMapper.mapToCustomerInfo(order.getCustomer()) : null);
         orderInfo.setCustomerAddress( order.getCustomerAddress() != null ? addressMapper.mapToCustomerAddressInfo(order.getCustomerAddress()) : null);
@@ -47,7 +48,6 @@ public class OrderMapper {
     public OrderEntity toOrderEntity(CreateOrderRequest createOrderRequest, CustomerEntity customer, CustomerAddressEntity customerAddress) {
         OrderEntity order = new OrderEntity();
         order.setCustomer(customer);
-        order.setVersion(1L);
         order.setCustomerAddress(customerAddress);
         order.setContractNumber(createOrderRequest.getContractNumber());
         order.setOrderDate(createOrderRequest.getOrderDate());
@@ -65,6 +65,11 @@ public class OrderMapper {
         
         return order;
     }
-    
 
+    public static String formatOrderCode(String orderPrefix, Integer orderNumber) {
+        if (orderPrefix == null || orderNumber == null) {
+            return null;
+        }
+        return orderPrefix + "." + orderNumber;
+    }
 }
