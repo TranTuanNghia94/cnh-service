@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.model.user.RoleRequest;
 import com.cnh.ies.service.user.RoleService;
@@ -31,85 +32,50 @@ public class RoleController {
 
     @GetMapping("/list")
     public ApiResponse<ListDataModel<RoleInfo>> getRoles() {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Getting all roles with initiated requestId: {}", requestId);
-
-        ListDataModel<RoleInfo> response = roleService.getAllRoles(requestId);
-        
-        log.info("Getting all roles success with requestId: {}", requestId);
-        
-        return ApiResponse.success(response, "Get all roles success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+ListDataModel<RoleInfo> response = roleService.getAllRoles(requestId);
+return ApiResponse.success(response, "Get all roles success");
     }
 
     @PostMapping("/create")
     public ApiResponse<RoleInfo> createRole(@RequestBody RoleRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Creating role with initiated requestId: {}", requestId);
-
-        RoleInfo response = roleService.createRole(request, requestId);
-
-        log.info("Creating role success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Create role success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+RoleInfo response = roleService.createRole(request, requestId);
+return ApiResponse.success(response, "Create role success");
     }
 
     @PostMapping("/update")
     public ApiResponse<RoleInfo> updateRole(@RequestBody RoleRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Updating role with initiated requestId: {}", requestId);
-
-        RoleInfo response = roleService.updateRole(request, requestId);
-
-        log.info("Updating role success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Update role success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+RoleInfo response = roleService.updateRole(request, requestId);
+return ApiResponse.success(response, "Update role success");
     }
 
     @PostMapping("/delete/{id}")
     public ApiResponse<String> deleteRole(@PathVariable UUID id) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Deleting role with initiated requestId: {}", requestId);
-
-        String response = roleService.deleteRole(id, requestId);
-
-        log.info("Deleting role success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Delete role success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = roleService.deleteRole(id, requestId);
+return ApiResponse.success(response, "Delete role success");
     }
 
     @PostMapping("/restore/{id}")
     public ApiResponse<String> restoreRole(@PathVariable UUID id) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Restoring role with initiated requestId: {}", requestId);
-
-        String response = roleService.restoreRole(id, requestId);
-
-        log.info("Restoring role success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Restore role success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = roleService.restoreRole(id, requestId);
+return ApiResponse.success(response, "Restore role success");
     }
 
     @PostMapping("/assign-permission/{roleId}/{permissionId}")
     public ApiResponse<String> assignPermissionToRole(@PathVariable UUID roleId, @PathVariable UUID permissionId) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Assigning permission to role with initiated requestId: {}", requestId);
-
-        String response = roleService.assignPermissionToRole(roleId, permissionId, requestId);
-
-        log.info("Assigning permission to role success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Assign permission to role success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = roleService.assignPermissionToRole(roleId, permissionId, requestId);
+return ApiResponse.success(response, "Assign permission to role success");
     }
 
     @PostMapping("/unassign-permission/{roleId}/{permissionId}")
     public ApiResponse<String> unassignPermissionFromRole(@PathVariable UUID roleId, @PathVariable UUID permissionId) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Unassigning permission from role with initiated requestId: {}", requestId);
-
-        String response = roleService.unassignPermissionFromRole(roleId, permissionId, requestId);
-
-        log.info("Unassigning permission from role success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Unassign permission from role success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = roleService.unassignPermissionFromRole(roleId, permissionId, requestId);
+return ApiResponse.success(response, "Unassign permission from role success");
     }
 }

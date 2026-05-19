@@ -67,7 +67,7 @@ public class PurchaseOrderService {
             String createdBy,
             String customerName) {
         try {
-            log.info("Getting all purchase orders with requestId: {}", requestId);
+            log.debug("Getting all purchase orders with requestId: {}", requestId);
 
             Page<PurchaseOrderEntity> purchaseOrders = purchaseOrderRepo.findAllFiltered(
                     normalizeListFilter(purchaseOrderNumber),
@@ -107,7 +107,7 @@ public class PurchaseOrderService {
                     .totalPage(purchaseOrders.getTotalPages())
                     .build();
 
-            log.info("Getting all purchase orders success with requestId: {} | total: {} totalPage: {}", requestId,
+            log.debug("Getting all purchase orders success with requestId: {} | total: {} totalPage: {}", requestId,
                     purchaseOrders.getTotalElements(), purchaseOrders.getTotalPages());
 
             return ListDataModel.<PurchaseOrderInfo>builder()
@@ -165,7 +165,7 @@ public class PurchaseOrderService {
 
     public PurchaseOrderInfo getPurchaseOrderByCode(String code, String requestId) {
         try {
-            log.info("Getting purchase order by code with requestId: {} | code: {}", requestId, code);
+            log.debug("Getting purchase order by code with requestId: {} | code: {}", requestId, code);
             String[] codeParts = code.split("\\.");
 
             if (codeParts.length != 2) {

@@ -4,11 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
-import org.springframework.data.redis.connection.MessageListener;
-import org.springframework.data.redis.listener.ChannelTopic;
-import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -29,6 +25,7 @@ import com.cnh.ies.model.notification.CreateNotificationRequest;
 import com.cnh.ies.model.notification.NotificationInfo;
 import com.cnh.ies.model.notification.NotificationSummary;
 import com.cnh.ies.service.notification.NotificationService;
+import com.cnh.ies.service.notification.NotificationSseRegistry;
 import com.cnh.ies.service.security.AuthenticationUserDetails;
 import com.cnh.ies.util.RequestContext;
 
@@ -44,19 +41,7 @@ public class NotificationController {
     private static final long SSE_TIMEOUT = 30 * 60 * 1000L; // 30 minutes
 
     private final NotificationService notificationService;
-    private final RedisMessageListenerContainer redisMessageListenerContainer;
-
-    private final Map<UUID, UserSseSubscription> userSubscriptions = new ConcurrentHashMap<>();
-
-    private static final class UserSseSubscription {
-        final SseEmitter emitter;
-        final MessageListener listener;
-
-        UserSseSubscription(SseEmitter emitter, MessageListener listener) {
-            this.emitter = emitter;
-            this.listener = listener;
-        }
-    }
+    private final NotificationSseRegistry notificationSseRegistry;
 
     @GetMapping
     public ApiResponse<NotificationSummary> getNotifications(
@@ -121,7 +106,7 @@ public class NotificationController {
     /**
      * SSE endpoint for real-time notifications.
      * Frontend can subscribe to this endpoint to receive notifications in real-time.
-     * 
+     *
      * Usage: EventSource('/api/v1/notifications/subscribe')
      */
     @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -129,30 +114,7 @@ public class NotificationController {
         UUID userId = getCurrentUserId(userDetails);
         log.info("User {} subscribing to notifications", userId);
 
-        closeSubscription(userId);
-
-        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
-        String channel = notificationService.getNotificationChannel(userId);
-
-        MessageListener listener = (message, pattern) -> deliverRedisMessage(userId, emitter, listener, message.getBody());
-
-        redisMessageListenerContainer.addMessageListener(listener, new ChannelTopic(channel));
-        userSubscriptions.put(userId, new UserSseSubscription(emitter, listener));
-
-        emitter.onCompletion(() -> {
-            log.info("SSE connection completed for user {}", userId);
-            closeSubscription(userId, emitter, listener);
-        });
-
-        emitter.onTimeout(() -> {
-            log.info("SSE connection timed out for user {}", userId);
-            closeSubscription(userId, emitter, listener);
-        });
-
-        emitter.onError(e -> {
-            log.debug("SSE connection error for user {}: {}", userId, e.getMessage());
-            closeSubscription(userId, emitter, listener);
-        });
+        SseEmitter emitter = notificationSseRegistry.register(userId, SSE_TIMEOUT);
 
         try {
             long unreadCount = notificationService.getUnreadCount(userId, "sse-init");
@@ -161,53 +123,10 @@ public class NotificationController {
                     .data("{\"unreadCount\":" + unreadCount + "}"));
         } catch (IOException | IllegalStateException e) {
             log.debug("Could not send initial SSE data to user {}: {}", userId, e.getMessage());
-            closeSubscription(userId, emitter, listener);
+            notificationSseRegistry.close(userId);
         }
 
         return emitter;
-    }
-
-    private void deliverRedisMessage(UUID userId, SseEmitter emitter, MessageListener listener, byte[] body) {
-        UserSseSubscription active = userSubscriptions.get(userId);
-        if (active == null || active.emitter != emitter) {
-            redisMessageListenerContainer.removeMessageListener(listener);
-            return;
-        }
-        try {
-            String notification = new String(body);
-            emitter.send(SseEmitter.event()
-                    .name("notification")
-                    .data(notification));
-        } catch (IOException | IllegalStateException e) {
-            log.debug("SSE client disconnected for user {}, skip push: {}", userId, e.getMessage());
-            closeSubscription(userId, emitter, active.listener);
-        }
-    }
-
-    private void closeSubscription(UUID userId) {
-        UserSseSubscription existing = userSubscriptions.remove(userId);
-        if (existing == null) {
-            return;
-        }
-        redisMessageListenerContainer.removeMessageListener(existing.listener);
-        try {
-            existing.emitter.complete();
-        } catch (IllegalStateException ignored) {
-            // already completed
-        }
-    }
-
-    private void closeSubscription(UUID userId, SseEmitter emitter, MessageListener listener) {
-        UserSseSubscription active = userSubscriptions.get(userId);
-        if (active != null && active.emitter == emitter) {
-            userSubscriptions.remove(userId, active);
-        }
-        redisMessageListenerContainer.removeMessageListener(listener);
-        try {
-            emitter.complete();
-        } catch (IllegalStateException ignored) {
-            // already completed
-        }
     }
 
     private UUID getCurrentUserId(UserDetails userDetails) {

@@ -24,5 +24,6 @@ public class BatchOrderImportNotificationMetadata {
     private int schemaVersion = SCHEMA_VERSION;
 
     private String jobId;
-    private BatchOrderImportResultSummary summary;
+    /** Counts only — full details via job API / import job details. */
+    private BatchOrderImportSummaryCounts summary;
 }

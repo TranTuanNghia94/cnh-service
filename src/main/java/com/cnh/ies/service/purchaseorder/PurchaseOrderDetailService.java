@@ -334,7 +334,7 @@ public class PurchaseOrderDetailService {
         String paperCode = normalizeSearchValue(request.getPaperCode());
         String paperType = normalizeSearchValue(request.getPaperType());
 
-        log.info("Getting payment history by document paperType={} paperCode={} [rid={}]", 
+        log.debug("Getting payment history by document paperType={} paperCode={} [rid={}]", 
                 paperType, paperCode, requestId);
 
         if (paperCode == null || paperType == null) {

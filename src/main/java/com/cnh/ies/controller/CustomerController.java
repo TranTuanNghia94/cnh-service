@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.model.customer.CreateCustomerRequest;
 import com.cnh.ies.model.customer.CustomerInfo;
 import com.cnh.ies.model.customer.CustomerListRequest;
@@ -37,52 +38,35 @@ public class CustomerController {
 
     @PostMapping("/list")
     public ApiResponse<ListDataModel<CustomerInfo>> getAllCustomers(@RequestBody CustomerListRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Getting all customers with initiated requestId: {}", requestId);
-
-        ListDataModel<CustomerInfo> response = customerService.getAllCustomers(
+        String requestId = RequestContext.getRequestIdOrGenerate();
+ListDataModel<CustomerInfo> response = customerService.getAllCustomers(
                 requestId,
                 request.getPage(),
                 request.getLimit(),
                 request.getCustomerCode(),
                 request.getMisaCode(),
                 request.getCustomerName());
-
-        log.info("Getting all customers success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Get all customers success");
+return ApiResponse.success(response, "Get all customers success");
     }
 
     @PostMapping("/create")
     public ApiResponse<CustomerInfo> createCustomer(@RequestBody CreateCustomerRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Creating customer with initiated requestId: {}", requestId);
-
-        CustomerInfo response = customerService.createCustomer(request, requestId);
-
-        log.info("Creating customer success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Create customer success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+CustomerInfo response = customerService.createCustomer(request, requestId);
+return ApiResponse.success(response, "Create customer success");
     }
 
     @PutMapping("/update")
     public ApiResponse<String> updateCustomer(@RequestBody UpdateCustomerRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Updating customer with initiated requestId: {}", requestId);
-
-        String response = customerService.updateCustomer(request, requestId);
-
-        log.info("Updating customer success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Update customer success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = customerService.updateCustomer(request, requestId);
+return ApiResponse.success(response, "Update customer success");
     }
 
     @GetMapping("/{id}")
     public ApiResponse<CustomerInfo> getCustomerById(@PathVariable String id) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Getting customer by id: {} initiated requestId: {}", id, requestId);
-
-        CustomerInfo response = customerService.getCustomerById(id, requestId);
+        String requestId = RequestContext.getRequestIdOrGenerate();
+CustomerInfo response = customerService.getCustomerById(id, requestId);
 
         log.info("Getting customer by id: {} success requestId: {}", id, requestId);
 
@@ -91,25 +75,15 @@ public class CustomerController {
 
     @PostMapping("/delete/{id}")
     public ApiResponse<String> deleteCustomer(@PathVariable String id) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Deleting customer with initiated requestId: {}", requestId);
-
-        String response = customerService.deleteCustomer(id, requestId);
-
-        log.info("Deleting customer success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Delete customer success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = customerService.deleteCustomer(id, requestId);
+return ApiResponse.success(response, "Delete customer success");
     }
 
     @PostMapping("/upload-file-customer")
     public ApiResponse<UploadOjectResponse> uploadFileCustomer(@RequestParam("file") MultipartFile file) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Uploading file customer with initiated requestId: {}", requestId);
-
-        UploadOjectResponse response = uploadCustomerService.readExcelFile(file, requestId);
-
-        log.info("Uploading file customer success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Upload file customer success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+UploadOjectResponse response = uploadCustomerService.readExcelFile(file, requestId);
+return ApiResponse.success(response, "Upload file customer success");
     }
 }

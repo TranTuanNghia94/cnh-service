@@ -27,4 +27,9 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Loggable {
+
+    /**
+     * Warn when execution exceeds this threshold (ms). Zero uses the global default (1000ms).
+     */
+    long slowThresholdMs() default 0;
 }

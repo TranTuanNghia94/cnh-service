@@ -51,7 +51,7 @@ public class VendorService {
             String currency,
             String nation) {
         try {
-            log.info("Getting all vendors | RequestId: {} page: {} limit: {}", requestId, page, limit);
+            log.debug("Getting all vendors | RequestId: {} page: {} limit: {}", requestId, page, limit);
             Page<VendorsEntity> vendors = vendorsRepo.findAllFiltered(
                     normalizeFilter(vendorCode),
                     normalizeFilter(vendorName),
@@ -74,7 +74,7 @@ public class VendorService {
                 .totalPage(vendors.getTotalPages())
                 .build();
 
-            log.info("Getting all vendors success | RequestId: {} page: {} limit: {} total: {} totalPage: {}", requestId, page, limit, vendors.getTotalElements(), vendors.getTotalPages());
+            log.debug("Getting all vendors success | RequestId: {} page: {} limit: {} total: {} totalPage: {}", requestId, page, limit, vendors.getTotalElements(), vendors.getTotalPages());
             
             return ListDataModel.<VendorInfo>builder()
                 .data(vendorInfos)
@@ -126,7 +126,7 @@ public class VendorService {
 
     public VendorInfo getVendorById(String id, String requestId) {
         try {
-            log.info("Getting vendor by id: {} | RequestId: {}", id, requestId);
+            log.debug("Getting vendor by id: {} | RequestId: {}", id, requestId);
             Optional<VendorsEntity> vendor = vendorsRepo.findById(UUID.fromString(id));
             if (vendor.isEmpty()) {
                 log.error("Vendor not found with id: {} | RequestId: {}", id, requestId);

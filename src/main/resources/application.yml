@@ -88,7 +88,8 @@ logging:
     org.springframework.security: WARN
   http:
     include-headers: ${LOG_INCLUDE_HEADERS:true}
-    include-response-body: ${LOG_INCLUDE_RESPONSE_BODY:true}
+    # INFO: compact summary only. Set true to include full bodies in DEBUG detail logs.
+    include-response-body: ${LOG_INCLUDE_RESPONSE_BODY:false}
 
 # JWT Configuration
 jwt:

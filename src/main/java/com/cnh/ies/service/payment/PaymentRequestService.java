@@ -364,7 +364,7 @@ public class PaymentRequestService {
 
     @Transactional
     public PaymentRequestInfo markPaid(String id, MarkPaymentPaidRequest request, String requestId) {
-        log.info("Marking payment request as paid [id={}, paidAmount={}, rid={}]",
+        log.debug("Marking payment request as paid [id={}, paidAmount={}, rid={}]",
                 id, request.getPaidAmount(), requestId);
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
         recalculateAmountsBeforeSave(paymentRequest, requestId);

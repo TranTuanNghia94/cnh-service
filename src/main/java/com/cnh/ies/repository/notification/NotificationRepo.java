@@ -25,6 +25,9 @@ public interface NotificationRepo extends BaseRepo<NotificationEntity, UUID> {
     @Query("SELECT COUNT(n) FROM NotificationEntity n WHERE n.user.id = :userId AND n.isRead = false AND n.isDeleted = false")
     long countUnreadByUserId(@Param("userId") UUID userId);
 
+    @Query("SELECT COUNT(n) FROM NotificationEntity n WHERE n.user.id = :userId AND n.isDeleted = false")
+    long countByUserId(@Param("userId") UUID userId);
+
     @Modifying
     @Query("UPDATE NotificationEntity n SET n.isRead = true, n.readAt = CURRENT_TIMESTAMP WHERE n.user.id = :userId AND n.isRead = false AND n.isDeleted = false")
     int markAllAsReadByUserId(@Param("userId") UUID userId);

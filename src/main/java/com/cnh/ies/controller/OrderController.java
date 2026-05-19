@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.dto.response.UploadOjectResponse;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.order.BatchOrderImportJobDetailInfo;
@@ -44,7 +45,7 @@ public class OrderController {
     public ApiResponse<UploadOjectResponse> uploadFileBatchOrder(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails userDetails) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         String createdBy = getCurrentUsername(userDetails);
         log.info("Uploading batch order file, requestId: {}, createdBy: {}", requestId, createdBy);
         UploadOjectResponse response = uploadBatchOrderService.readExcelFile(file, requestId, createdBy);
@@ -55,7 +56,7 @@ public class OrderController {
     public ApiResponse<String> uploadFileBatchOrderAsync(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails userDetails) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         UUID ownerUserId = getCurrentUserId(userDetails);
         String createdBy = getCurrentUsername(userDetails);
         String jobId = batchOrderImportJobService.createAndDispatch(file, ownerUserId, createdBy, requestId);
@@ -67,7 +68,7 @@ public class OrderController {
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "20") Integer limit,
             @AuthenticationPrincipal UserDetails userDetails) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         UUID ownerUserId = getCurrentUserId(userDetails);
         ListDataModel<BatchOrderImportJobInfo> response =
                 batchOrderImportJobService.listOwnedJobs(ownerUserId, page, limit, requestId);
@@ -78,7 +79,7 @@ public class OrderController {
     public ApiResponse<BatchOrderImportJobInfo> getBatchOrderImportJob(
             @PathVariable String jobId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         UUID ownerUserId = getCurrentUserId(userDetails);
         BatchOrderImportJobInfo response = batchOrderImportJobService.getOwnedJob(jobId, ownerUserId, requestId);
         return ApiResponse.success(response, "Get import job success");
@@ -90,7 +91,7 @@ public class OrderController {
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "20") Integer limit,
             @AuthenticationPrincipal UserDetails userDetails) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         UUID ownerUserId = getCurrentUserId(userDetails);
         ListDataModel<BatchOrderImportJobDetailInfo> response =
                 batchOrderImportJobService.getOwnedJobDetails(jobId, ownerUserId, page, limit, requestId);
@@ -99,71 +100,44 @@ public class OrderController {
 
     @PostMapping("/create")
     public ApiResponse<OrderInfo> createOrder(@RequestBody CreateOrderRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Creating order with initiated requestId: {}", requestId);
-
-        OrderInfo response = orderService.createOrder(request, requestId);
-
-        log.info("Creating order success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Create order success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+OrderInfo response = orderService.createOrder(request, requestId);
+return ApiResponse.success(response, "Create order success");
     }
 
     @GetMapping("/{code}")
     public ApiResponse<OrderInfo> getOrderByCode(@PathVariable String code) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Getting order by code: {} initiated requestId: {}", code, requestId);
-
-        OrderInfo response = orderService.getOrderByCode(code, requestId);
-
-        log.info("Getting order by code: {} success with requestId: {}", code, requestId);
-
-        return ApiResponse.success(response, "Get order by code success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+OrderInfo response = orderService.getOrderByCode(code, requestId);
+return ApiResponse.success(response, "Get order by code success");
     }
 
     @DeleteMapping("/delete/{id}")
     public ApiResponse<String> deleteOrder(@PathVariable String id) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Deleting order with initiated requestId: {}", id);
-
-        String response = orderService.deleteOrder(id, requestId);
-
-        log.info("Deleting order with initiated requestId: {} success with requestId: {}", id, requestId);
-
-        return ApiResponse.success(response, "Delete order success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = orderService.deleteOrder(id, requestId);
+return ApiResponse.success(response, "Delete order success");
     }
 
     @PostMapping("/update")
     public ApiResponse<OrderInfo> updateOrder(@RequestBody CreateOrderRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Updating order with initiated requestId: {}", requestId);
-
-        OrderInfo response = orderService.updateOrder(request, requestId);
-
-        log.info("Updating order with initiated requestId: {} success with requestId: {}", requestId, requestId);
-
-        return ApiResponse.success(response, "Update order success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+OrderInfo response = orderService.updateOrder(request, requestId);
+return ApiResponse.success(response, "Update order success");
     }
 
 
     @PostMapping("/update-status/{id}")
     public ApiResponse<OrderInfo> updateOrderStatus(@PathVariable String id, @RequestBody UpdateOrderStatusRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Updating order status with initiated requestId: {} | id: {} | status: {}", requestId, id, request.getStatus());
-
-        OrderInfo response = orderService.updateOrderStatus(id, request.getStatus(), requestId);
-
-        log.info("Updating order status with initiated requestId: {} success with requestId: {}", requestId, requestId);
-
-        return ApiResponse.success(response, "Update order status success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+OrderInfo response = orderService.updateOrderStatus(id, request.getStatus(), requestId);
+return ApiResponse.success(response, "Update order status success");
     }
 
     @PostMapping("/list")
     public ApiResponse<ListDataModel<OrderInfo>> getAllOrders(@RequestBody OrderListRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Getting all orders with initiated requestId: {}", requestId);
-
-        ListDataModel<OrderInfo> response = orderService.getAllOrders(
+        String requestId = RequestContext.getRequestIdOrGenerate();
+ListDataModel<OrderInfo> response = orderService.getAllOrders(
                 requestId,
                 request.getPage(),
                 request.getLimit(),
@@ -172,10 +146,7 @@ public class OrderController {
                 request.getOrderNumber(),
                 request.getStatus(),
                 request.getCustomerName());
-
-        log.info("Getting all orders with initiated requestId: {} success with requestId: {}", requestId, requestId);
-
-        return ApiResponse.success(response, "Get all orders success");
+return ApiResponse.success(response, "Get all orders success");
     }
 
     private UUID getCurrentUserId(UserDetails userDetails) {

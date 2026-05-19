@@ -33,7 +33,7 @@ public class RoleService {
 
     public ListDataModel<RoleInfo> getAllRoles(String requestId) { 
         try {
-            log.info("Getting all roles | RequestId: {}", requestId);
+            log.debug("Getting all roles | RequestId: {}", requestId);
 
             List<RoleEntity> roles = roleRepo.findAll();
 
@@ -47,7 +47,7 @@ public class RoleService {
                 .totalPage(1)
                 .build();
 
-            log.info("Getting all roles success | RequestId: {}", requestId);
+            log.debug("Getting all roles success | RequestId: {}", requestId);
 
             return ListDataModel.<RoleInfo>builder()
                 .data(roleInfos)

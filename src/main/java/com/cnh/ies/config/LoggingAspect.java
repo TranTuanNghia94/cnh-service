@@ -1,5 +1,6 @@
 package com.cnh.ies.config;
 
+import java.lang.reflect.Method;
 import java.util.Arrays;
 
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -8,6 +9,7 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.MDC;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
@@ -63,8 +65,9 @@ public class LoggingAspect {
             Object result = joinPoint.proceed();
             long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
 
-            if (elapsedMs > SLOW_METHOD_THRESHOLD_MS) {
-                log.warn("SLOW {} completed in {}ms [rid={}]", fullMethod, elapsedMs, requestId);
+            long slowThresholdMs = resolveSlowThresholdMs(signature);
+            if (elapsedMs > slowThresholdMs) {
+                log.warn("SLOW {} ({}ms) [rid={}]", fullMethod, elapsedMs, requestId);
             } else if (log.isDebugEnabled()) {
                 String resultStr = formatResult(result);
                 log.debug("<<< {} → {} ({}ms) [rid={}]", fullMethod, resultStr, elapsedMs, requestId);
@@ -139,6 +142,18 @@ public class LoggingAspect {
             return str.substring(0, MAX_RESULT_LENGTH) + "...";
         }
         return str;
+    }
+
+    private long resolveSlowThresholdMs(MethodSignature signature) {
+        Method method = signature.getMethod();
+        Loggable loggable = AnnotatedElementUtils.findMergedAnnotation(method, Loggable.class);
+        if (loggable == null) {
+            loggable = AnnotatedElementUtils.findMergedAnnotation(signature.getDeclaringType(), Loggable.class);
+        }
+        if (loggable != null && loggable.slowThresholdMs() > 0) {
+            return loggable.slowThresholdMs();
+        }
+        return SLOW_METHOD_THRESHOLD_MS;
     }
 
     private boolean isSensitiveParam(String paramName) {

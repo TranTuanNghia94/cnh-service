@@ -43,7 +43,7 @@ public class UserService {
         try {
             String username = RequestContext.getCurrentUsername();
 
-            log.info("Getting user info for username: {} | RequestId: {}", username, requestId);
+            log.debug("Getting user info for username: {} | RequestId: {}", username, requestId);
 
             if (username == null) {
                 log.error("Username is null | RequestId: {}", requestId);
@@ -65,7 +65,7 @@ public class UserService {
                         HttpStatus.NOT_FOUND.value(), requestId);
             }
 
-            log.info("Getting user info success: {} | RequestId: {}", username, requestId);
+            log.debug("Getting user info success: {} | RequestId: {}", username, requestId);
 
             return userMapper.mapToUserInfo(user.get());
         } catch (Exception e) {
@@ -92,7 +92,7 @@ public class UserService {
                         HttpStatus.NOT_FOUND.value(), requestId);
             }
 
-            log.info("Getting user info success: {} | RequestId: {}", id, requestId);
+            log.debug("Getting user info success: {} | RequestId: {}", id, requestId);
 
             return userMapper.mapToUserInfo(user.get());
         } catch (Exception e) {

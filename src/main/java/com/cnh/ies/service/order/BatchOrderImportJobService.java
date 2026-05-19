@@ -1,6 +1,7 @@
 package com.cnh.ies.service.order;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -25,6 +26,7 @@ import com.cnh.ies.model.order.BatchOrderImportErrorItem;
 import com.cnh.ies.model.order.BatchOrderImportJobDetailInfo;
 import com.cnh.ies.model.order.BatchOrderImportJobInfo;
 import com.cnh.ies.model.order.BatchOrderImportNotificationMetadata;
+import com.cnh.ies.model.order.BatchOrderImportSummaryCounts;
 import com.cnh.ies.model.order.BatchOrderImportOrderCreated;
 import com.cnh.ies.model.order.BatchOrderImportResultSummary;
 import com.cnh.ies.model.payment.PaymentFileAttachmentType;
@@ -197,7 +199,7 @@ public class BatchOrderImportJobService {
         try {
             BatchOrderImportNotificationMetadata metadata = BatchOrderImportNotificationMetadata.builder()
                     .jobId(jobId.toString())
-                    .summary(summary)
+                    .summary(BatchOrderImportSummaryCounts.from(summary))
                     .build();
             return objectMapper.writeValueAsString(metadata);
         } catch (JsonProcessingException e) {
@@ -208,7 +210,7 @@ public class BatchOrderImportJobService {
 
     public String buildSuccessNotificationMessage(BatchOrderImportResultSummary summary) {
         return String.format(
-                "Created %d order(s), %d new product(s), %d new vendor(s). %d warning(s), %d error(s).",
+                "Tạo đơn hàng thành công: %d đơn hàng, %d sản phẩm mới, %d nhà cung cấp mới. %d warning, %d error.",
                 summary.getOrdersCreatedCount(),
                 summary.getNewProductsCount(),
                 summary.getNewVendorsCount(),
@@ -217,11 +219,11 @@ public class BatchOrderImportJobService {
     }
 
     public String buildFailureNotificationMessage(String message) {
-        return message != null && !message.isBlank() ? message : "Import failed";
+        return message != null && !message.isBlank() ? message : "Tạo đơn hàng thất bại";
     }
 
     public BatchOrderImportResultSummary buildFailureSummary(String message) {
-        String safeMessage = message != null ? message : "Import failed";
+        String safeMessage = message != null ? message : "Tạo đơn hàng thất bại";
         return BatchOrderImportResultSummary.builder()
                 .totalRows(0)
                 .ordersCreatedCount(0)
@@ -258,42 +260,48 @@ public class BatchOrderImportJobService {
     }
 
     private void persistImportDetails(UUID jobId, BatchOrderImportResultSummary summary) {
+        List<BatchOrderImportJobDetailEntity> details = new ArrayList<>();
         if (summary.getOrdersCreated() != null) {
             for (BatchOrderImportOrderCreated order : summary.getOrdersCreated()) {
-                saveDetail(jobId, "INFO", "ORDER_CREATED",
+                details.add(buildDetail(jobId, "INFO", "ORDER_CREATED",
                         "Order " + order.getOrderCode() + " (" + order.getContractNumber() + ")",
-                        null, writePayloadJson(order));
+                        null, writePayloadJson(order)));
             }
         }
         if (summary.getNewProducts() != null) {
             for (BatchOrderImportEntityItem product : summary.getNewProducts()) {
-                saveDetail(jobId, "WARNING", "NEW_PRODUCT",
+                details.add(buildDetail(jobId, "WARNING", "NEW_PRODUCT",
                         "New product: " + product.getCode() + " - " + product.getName(),
-                        product.getRowNum(), writePayloadJson(product));
+                        product.getRowNum(), writePayloadJson(product)));
             }
         }
         if (summary.getNewVendors() != null) {
             for (BatchOrderImportEntityItem vendor : summary.getNewVendors()) {
-                saveDetail(jobId, "WARNING", "NEW_VENDOR",
+                details.add(buildDetail(jobId, "WARNING", "NEW_VENDOR",
                         "New vendor: " + vendor.getCode() + " - " + vendor.getName(),
-                        vendor.getRowNum(), writePayloadJson(vendor));
+                        vendor.getRowNum(), writePayloadJson(vendor)));
             }
         }
         if (summary.getWarnings() != null) {
-            summary.getWarnings().forEach(w ->
-                    saveDetail(jobId, "WARNING", "IMPORT_WARNING", w, null, null));
+            for (String warning : summary.getWarnings()) {
+                details.add(buildDetail(jobId, "WARNING", "IMPORT_WARNING", warning, null, null));
+            }
         }
         if (summary.getErrors() != null) {
             for (BatchOrderImportErrorItem error : summary.getErrors()) {
-                saveDetail(jobId, "ERROR", "IMPORT_ERROR",
+                details.add(buildDetail(jobId, "ERROR", "IMPORT_ERROR",
                         error.getMessage(),
                         error.getRowNum(),
-                        writePayloadJson(error));
+                        writePayloadJson(error)));
             }
+        }
+        if (!details.isEmpty()) {
+            detailRepo.saveAll(details);
         }
     }
 
-    private void saveDetail(UUID jobId, String level, String code, String message, Integer rowNum, String payloadJson) {
+    private BatchOrderImportJobDetailEntity buildDetail(
+            UUID jobId, String level, String code, String message, Integer rowNum, String payloadJson) {
         BatchOrderImportJobDetailEntity detail = new BatchOrderImportJobDetailEntity();
         detail.setJobId(jobId);
         detail.setLevel(level);
@@ -301,7 +309,7 @@ public class BatchOrderImportJobService {
         detail.setMessage(message);
         detail.setRowNum(rowNum);
         detail.setPayloadJson(payloadJson);
-        detailRepo.save(detail);
+        return detail;
     }
 
     private String writeSummaryJson(BatchOrderImportResultSummary summary) {

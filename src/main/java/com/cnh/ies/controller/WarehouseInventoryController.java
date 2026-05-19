@@ -33,10 +33,8 @@ public class WarehouseInventoryController {
     @PostMapping("/list")   
     public ApiResponse<ListDataModel<WarehouseInventoryBalanceInfo>> list(
             @RequestBody WarehouseInventoryListRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Getting warehouse inventory list with page: {} and limit: {} initiated requestId: {}", request.getPage(), request.getLimit(), requestId);
-
-        ListDataModel<WarehouseInventoryBalanceInfo> result = warehouseInventoryService.listInventory(
+        String requestId = RequestContext.getRequestIdOrGenerate();
+ListDataModel<WarehouseInventoryBalanceInfo> result = warehouseInventoryService.listInventory(
                 requestId,
                 request.getPage(),
                 request.getLimit(),

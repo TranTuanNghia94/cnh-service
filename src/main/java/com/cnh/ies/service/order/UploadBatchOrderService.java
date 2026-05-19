@@ -13,6 +13,7 @@ import java.math.RoundingMode;
 import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.poi.ss.usermodel.Row;
@@ -32,7 +34,6 @@ import org.springframework.web.multipart.MultipartFile;
 import com.cnh.ies.constant.Constant;
 import com.cnh.ies.dto.response.UploadOjectResponse;
 import com.cnh.ies.model.order.BatchOrderImportEntityItem;
-import com.cnh.ies.model.order.BatchOrderImportErrorItem;
 import com.cnh.ies.model.order.BatchOrderImportOrderCreated;
 import com.cnh.ies.model.order.BatchOrderImportResultSummary;
 import com.cnh.ies.entity.customer.CustomerEntity;
@@ -51,6 +52,9 @@ import com.cnh.ies.repository.vendors.VendorsRepo;
 import com.cnh.ies.util.RequestContext;
 
 import org.springframework.transaction.annotation.Transactional;
+
+import com.cnh.ies.config.Loggable;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -90,9 +94,10 @@ public class UploadBatchOrderService {
     }
 
     @Transactional
+    @Loggable(slowThresholdMs = 120_000)
     public UploadOjectResponse readExcelInputStream(InputStream inputStream, String requestId, String createdBy) {
         String actor = resolveActor(createdBy);
-        log.info("Reading batch order excel file, requestId: {}, createdBy: {}", requestId, actor);
+        log.debug("Reading batch order excel file, requestId: {}, createdBy: {}", requestId, actor);
         List<String> warnings = new ArrayList<>();
         List<BatchOrderImportEntityItem> newProducts = new ArrayList<>();
         List<BatchOrderImportEntityItem> newVendors = new ArrayList<>();
@@ -122,19 +127,18 @@ public class UploadBatchOrderService {
             }
 
             Map<String, CustomerEntity> customerByCode = loadCustomersOrThrow(rows, requestId);
-
-            Map<String, ProductEntity> productByCode = new java.util.HashMap<>();
-            Map<String, VendorsEntity> vendorByCode = new java.util.HashMap<>();
-
-            for (BatchOrderRow r : rows) {
-                resolveProduct(r, productByCode, warnings, newProducts, requestId, actor);
-                resolveVendor(r, vendorByCode, warnings, newVendors, actor);
-            }
+            Map<String, ProductEntity> productByCode =
+                    resolveProducts(rows, warnings, newProducts, requestId, actor);
+            Map<String, VendorsEntity> vendorByCode = resolveVendors(rows, warnings, newVendors, actor);
 
             Map<OrderKey, List<BatchOrderRow>> grouped = groupRows(rows);
 
             String orderPrefix = orderNumberService.generateOrderPrefix();
             int nextOrderNumber = orderNumberService.reserveNextOrderNumbers(orderPrefix, grouped.size());
+
+            List<OrderEntity> ordersToSave = new ArrayList<>(grouped.size());
+            List<List<OrderLineEntity>> linesPerOrder = new ArrayList<>(grouped.size());
+            List<OrderKey> orderKeys = new ArrayList<>(grouped.size());
 
             for (Map.Entry<OrderKey, List<BatchOrderRow>> entry : grouped.entrySet()) {
                 OrderKey key = entry.getKey();
@@ -167,16 +171,13 @@ public class UploadBatchOrderService {
                 order.setUpdatedBy(actor);
                 order.setIsDeleted(false);
 
-                OrderEntity savedOrder = orderRepo.saveAndFlush(order);
-
-                List<OrderLineEntity> lineEntities = new ArrayList<>();
+                List<OrderLineEntity> lineEntities = new ArrayList<>(groupRows.size());
                 for (BatchOrderRow r : groupRows) {
                     ProductEntity product = productByCode.get(normalizeCodeKey(r.productCode()));
                     VendorsEntity vendor = vendorByCode.get(normalizeCodeKey(r.vendorCode()));
                     BigDecimal lineTotal = lineTotalAmount(r).setScale(0, RoundingMode.HALF_UP);
 
                     OrderLineEntity line = new OrderLineEntity();
-                    line.setOrder(savedOrder);
                     line.setProduct(product);
                     line.setVendor(vendor);
                     line.setProductCodeSuggest(limitText(r.productCode(), 200));
@@ -202,17 +203,30 @@ public class UploadBatchOrderService {
                     lineEntities.add(line);
                 }
 
-                orderLineRepo.saveAll(lineEntities);
+                ordersToSave.add(order);
+                linesPerOrder.add(lineEntities);
+                orderKeys.add(key);
+            }
 
+            List<OrderEntity> savedOrders = orderRepo.saveAll(ordersToSave);
+            List<OrderLineEntity> allLines = new ArrayList<>();
+            for (int i = 0; i < savedOrders.size(); i++) {
+                OrderEntity savedOrder = savedOrders.get(i);
+                for (OrderLineEntity line : linesPerOrder.get(i)) {
+                    line.setOrder(savedOrder);
+                    allLines.add(line);
+                }
+                OrderKey key = orderKeys.get(i);
                 String orderCode = orderPrefix + "." + savedOrder.getOrderNumber();
                 ordersCreated.add(BatchOrderImportOrderCreated.builder()
                         .orderId(savedOrder.getId().toString())
                         .orderCode(orderCode)
                         .contractNumber(key.contractNumber())
                         .customerCode(key.customerCode())
-                        .lineCount(groupRows.size())
+                        .lineCount(linesPerOrder.get(i).size())
                         .build());
             }
+            orderLineRepo.saveAll(allLines);
 
             BatchOrderImportResultSummary importSummary = BatchOrderImportResultSummary.builder()
                     .totalRows(rows.size())
@@ -231,7 +245,7 @@ public class UploadBatchOrderService {
             int firstOrderNum = nextOrderNumber - grouped.size();
             int lastOrderNum = nextOrderNumber - 1;
             log.info(
-                    "Batch order import completed: {} rows, {} orders ({}.{}{}), {} new products, {} new vendors, {} warnings",
+                    "Tạo đơn hàng thành công: {} dòng, {} đơn hàng ({}.{}{}), {} sản phẩm mới, {} nhà cung cấp mới, {} warnings",
                     rows.size(),
                     grouped.size(),
                     orderPrefix,
@@ -242,7 +256,7 @@ public class UploadBatchOrderService {
                     warnings.size());
 
             return UploadOjectResponse.builder()
-                    .message("Import completed successfully")
+                    .message("Tạo đơn hàng thành công")
                     .totalRows(rows.size())
                     .totalSuccess(rows.size())
                     .totalErrors(0)
@@ -348,106 +362,141 @@ public class UploadBatchOrderService {
     }
 
     private Map<String, CustomerEntity> loadCustomersOrThrow(List<BatchOrderRow> rows, String requestId) {
-        List<String> distinctCodes = rows.stream()
+        Set<String> distinctCodes = rows.stream()
                 .map(BatchOrderRow::customerCode)
-                .distinct()
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
 
-        Map<String, CustomerEntity> map = new java.util.HashMap<>();
+        Map<String, CustomerEntity> map = new LinkedHashMap<>();
+        if (!distinctCodes.isEmpty()) {
+            for (CustomerEntity customer : customerRepo.findByCodeInAndIsDeletedFalse(distinctCodes)) {
+                map.put(customer.getCode(), customer);
+            }
+        }
         for (String code : distinctCodes) {
-            CustomerEntity c = customerRepo.findByCode(code)
-                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.INVALID_REQUEST,
-                            "Customer not found for code: " + code, HttpStatus.BAD_REQUEST.value(), requestId));
-            map.put(code, c);
+            if (!map.containsKey(code)) {
+                throw new ApiException(ApiException.ErrorCode.INVALID_REQUEST,
+                        "Customer not found for code: " + code, HttpStatus.BAD_REQUEST.value(), requestId);
+            }
         }
         return map;
     }
 
-    private void resolveProduct(
-            BatchOrderRow r,
-            Map<String, ProductEntity> productByCode,
+    private Map<String, ProductEntity> resolveProducts(
+            List<BatchOrderRow> rows,
             List<String> warnings,
             List<BatchOrderImportEntityItem> newProducts,
             String requestId,
             String actor) {
-        String code = r.productCode();
-        String codeKey = normalizeCodeKey(code);
-        if (productByCode.containsKey(codeKey)) {
-            return;
-        }
-        Optional<ProductEntity> existing = productRepo.findByCodeIgnoreCase(code);
-        if (existing.isPresent()) {
-            productByCode.put(codeKey, existing.get());
-            return;
+        Map<String, BatchOrderRow> firstRowByCodeKey = new LinkedHashMap<>();
+        for (BatchOrderRow row : rows) {
+            firstRowByCodeKey.putIfAbsent(normalizeCodeKey(row.productCode()), row);
         }
 
-        boolean isUnn = Constant.UOM_UNN.equals(r.normalizedUom());
-        CategoryEntity category = null;
-        if (isUnn) {
-            category = categoryRepo.findByName(Constant.CATEGORY_NAME_SACH)
-                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.INVALID_REQUEST,
-                            "Category '" + Constant.CATEGORY_NAME_SACH
-                                    + "' not found; required for new products with UOM " + Constant.UOM_UNN,
-                            HttpStatus.BAD_REQUEST.value(), requestId));
+        Map<String, ProductEntity> productByCode = new LinkedHashMap<>();
+        Collection<String> codes = firstRowByCodeKey.values().stream()
+                .map(BatchOrderRow::productCode)
+                .map(code -> code.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (!codes.isEmpty()) {
+            for (ProductEntity product : productRepo.findByCodeInIgnoreCaseAndIsDeletedFalse(codes)) {
+                productByCode.put(normalizeCodeKey(product.getCode()), product);
+            }
         }
 
-        ProductEntity product = new ProductEntity();
-        product.setCode(code);
-        product.setName(r.productName());
-        product.setCategory(category);
-        product.setUnit1(isUnn ? Constant.UOM_UNN : Constant.UOM_ELT);
-        product.setTax(BigDecimal.ZERO);
-        product.setMisaCode("");
-        product.setPrice(BigDecimal.ZERO);
-        product.setCostPrice(BigDecimal.ZERO);
-        product.setIsActive(true);
-        product.setCreatedBy(actor);
-        product.setUpdatedBy(actor);
+        CategoryEntity categoryForUnn = null;
+        List<ProductEntity> toCreate = new ArrayList<>();
+        for (Map.Entry<String, BatchOrderRow> entry : firstRowByCodeKey.entrySet()) {
+            if (productByCode.containsKey(entry.getKey())) {
+                continue;
+            }
+            BatchOrderRow row = entry.getValue();
+            String code = row.productCode();
+            boolean isUnn = Constant.UOM_UNN.equals(row.normalizedUom());
+            if (isUnn && categoryForUnn == null) {
+                categoryForUnn = categoryRepo.findByName(Constant.CATEGORY_NAME_SACH)
+                        .orElseThrow(() -> new ApiException(ApiException.ErrorCode.INVALID_REQUEST,
+                                "Category '" + Constant.CATEGORY_NAME_SACH
+                                        + "' not found; required for new products with UOM " + Constant.UOM_UNN,
+                                HttpStatus.BAD_REQUEST.value(), requestId));
+            }
 
-        productRepo.save(product);
-        productByCode.put(codeKey, product);
-        String warning = "Auto-created product '" + code + " - " + r.productName() + "' on row " + r.rowNum();
-        warnings.add(warning);
-        newProducts.add(BatchOrderImportEntityItem.builder()
-                .code(code)
-                .name(r.productName())
-                .rowNum(r.rowNum())
-                .build());
+            ProductEntity product = new ProductEntity();
+            product.setCode(code);
+            product.setName(row.productName());
+            product.setCategory(isUnn ? categoryForUnn : null);
+            product.setUnit1(isUnn ? Constant.UOM_UNN : Constant.UOM_ELT);
+            product.setTax(BigDecimal.ZERO);
+            product.setMisaCode("");
+            product.setPrice(BigDecimal.ZERO);
+            product.setCostPrice(BigDecimal.ZERO);
+            product.setIsActive(true);
+            product.setCreatedBy(actor);
+            product.setUpdatedBy(actor);
+
+            toCreate.add(product);
+            productByCode.put(entry.getKey(), product);
+            warnings.add("Auto-created product '" + code + " - " + row.productName() + "' on row " + row.rowNum());
+            newProducts.add(BatchOrderImportEntityItem.builder()
+                    .code(code)
+                    .name(row.productName())
+                    .rowNum(row.rowNum())
+                    .build());
+        }
+        if (!toCreate.isEmpty()) {
+            productRepo.saveAll(toCreate);
+        }
+        return productByCode;
     }
 
-    private void resolveVendor(
-            BatchOrderRow r,
-            Map<String, VendorsEntity> vendorByCode,
+    private Map<String, VendorsEntity> resolveVendors(
+            List<BatchOrderRow> rows,
             List<String> warnings,
             List<BatchOrderImportEntityItem> newVendors,
             String actor) {
-        String code = r.vendorCode();
-        String codeKey = normalizeCodeKey(code);
-        if (vendorByCode.containsKey(codeKey)) {
-            return;
-        }
-        Optional<VendorsEntity> existing = vendorsRepo.findByCodeIgnoreCase(code);
-        if (existing.isPresent()) {
-            vendorByCode.put(codeKey, existing.get());
-            return;
+        Map<String, BatchOrderRow> firstRowByCodeKey = new LinkedHashMap<>();
+        for (BatchOrderRow row : rows) {
+            firstRowByCodeKey.putIfAbsent(normalizeCodeKey(row.vendorCode()), row);
         }
 
-        VendorsEntity vendor = new VendorsEntity();
-        vendor.setCode(code);
-        vendor.setName(r.vendorName());
-        vendor.setIsActive(true);
-        vendor.setCreatedBy(actor);
-        vendor.setUpdatedBy(actor);
+        Map<String, VendorsEntity> vendorByCode = new LinkedHashMap<>();
+        Collection<String> codes = firstRowByCodeKey.values().stream()
+                .map(BatchOrderRow::vendorCode)
+                .map(code -> code.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (!codes.isEmpty()) {
+            for (VendorsEntity vendor : vendorsRepo.findByCodeInIgnoreCaseAndIsDeletedFalse(codes)) {
+                vendorByCode.put(normalizeCodeKey(vendor.getCode()), vendor);
+            }
+        }
 
-        vendorsRepo.save(vendor);
-        vendorByCode.put(codeKey, vendor);
-        String warning = "Auto-created vendor '" + code + " - " + r.vendorName() + "' on row " + r.rowNum();
-        warnings.add(warning);
-        newVendors.add(BatchOrderImportEntityItem.builder()
-                .code(code)
-                .name(r.vendorName())
-                .rowNum(r.rowNum())
-                .build());
+        List<VendorsEntity> toCreate = new ArrayList<>();
+        for (Map.Entry<String, BatchOrderRow> entry : firstRowByCodeKey.entrySet()) {
+            if (vendorByCode.containsKey(entry.getKey())) {
+                continue;
+            }
+            BatchOrderRow row = entry.getValue();
+            String code = row.vendorCode();
+
+            VendorsEntity vendor = new VendorsEntity();
+            vendor.setCode(code);
+            vendor.setName(row.vendorName());
+            vendor.setIsActive(true);
+            vendor.setCreatedBy(actor);
+            vendor.setUpdatedBy(actor);
+
+            toCreate.add(vendor);
+            vendorByCode.put(entry.getKey(), vendor);
+            warnings.add("Auto-created vendor '" + code + " - " + row.vendorName() + "' on row " + row.rowNum());
+            newVendors.add(BatchOrderImportEntityItem.builder()
+                    .code(code)
+                    .name(row.vendorName())
+                    .rowNum(row.rowNum())
+                    .build());
+        }
+        if (!toCreate.isEmpty()) {
+            vendorsRepo.saveAll(toCreate);
+        }
+        return vendorByCode;
     }
 
     private Map<OrderKey, List<BatchOrderRow>> groupRows(List<BatchOrderRow> rows) {

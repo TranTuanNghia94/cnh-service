@@ -1,5 +1,7 @@
 package com.cnh.ies.util;
 
+import java.util.UUID;
+
 import jakarta.servlet.http.HttpServletRequest;
 
 import org.slf4j.MDC;
@@ -36,12 +38,23 @@ public class RequestContext {
         if (rid != null) {
             return rid;
         }
-        
+
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attributes != null) {
             return (String) attributes.getRequest().getAttribute(LoggingInterceptor.REQUEST_ID_ATTRIBUTE);
         }
         return null;
+    }
+
+    /**
+     * Prefer the filter-assigned request id; generate only when outside an HTTP request (e.g. tests).
+     */
+    public static String getRequestIdOrGenerate() {
+        String rid = getRequestId();
+        if (rid != null && !rid.isBlank()) {
+            return rid;
+        }
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 
     /**

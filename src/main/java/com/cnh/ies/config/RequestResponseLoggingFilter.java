@@ -31,49 +31,33 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Comprehensive HTTP request/response logging filter for effective tracing.
- * 
- * Features:
- * - MDC context (requestId, correlationId, userId) for all downstream logs
- * - Request/response body logging at INFO level
- * - Important HTTP headers logging
- * - Sensitive data masking for security endpoints
- * - Performance timing for each request
- * 
- * MDC Keys available in all logs:
- * - requestId: unique per request
- * - correlationId: propagated from caller or same as requestId
- * - userId: authenticated user (if available)
- * - method: HTTP method
- * - uri: request URI
+ * HTTP request/response logging with compact INFO lines and full JSON detail at DEBUG.
  */
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE - 10)
 @Slf4j
 public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 
-    private static final int MAX_PAYLOAD_SIZE = 5000;
-    private static final int MAX_RESPONSE_PAYLOAD_SIZE = 3000;
+    private static final int MAX_REQUEST_BODY_SIZE = 2000;
+    private static final int MAX_RESPONSE_BODY_SIZE = 8000;
 
     private static final Set<String> SENSITIVE_PATHS = Set.of(
-        "/auth/login", "/auth/register", "/auth/refresh-token", "/auth/change-password"
-    );
+            "/auth/login", "/auth/register", "/auth/refresh-token", "/auth/change-password");
 
     private static final Set<String> IMPORTANT_REQUEST_HEADERS = Set.of(
-        "Content-Type", "Accept", "User-Agent", "X-Forwarded-For", "X-Real-IP", "Origin", "Referer"
-    );
+            "Content-Type", "Accept", "User-Agent", "X-Forwarded-For", "X-Real-IP", "Origin", "Referer");
 
     private static final Set<String> SKIP_RESPONSE_BODY_CONTENT_TYPES = Set.of(
-        "application/octet-stream", "image/", "video/", "audio/", "application/pdf"
-    );
+            "application/octet-stream", "image/", "video/", "audio/", "application/pdf", "text/event-stream");
 
     private final ObjectMapper objectMapper;
 
     @Value("${logging.http.include-headers:true}")
     private boolean includeHeaders;
 
-    @Value("${logging.http.include-response-body:true}")
-    private boolean includeResponseBody;
+    /** Full response body in DEBUG logs (recommended: false for INFO readability). */
+    @Value("${logging.http.include-response-body:false}")
+    private boolean includeResponseBodyInDebug;
 
     public RequestResponseLoggingFilter() {
         this.objectMapper = new ObjectMapper();
@@ -86,33 +70,28 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
-        // Skip actuator and health endpoints for cleaner logs
         String uri = request.getRequestURI();
         if (shouldSkipLogging(uri)) {
             chain.doFilter(request, response);
             return;
         }
 
-        // ── 1. Build request / correlation IDs ─────────────────────────
         String requestId = UUID.randomUUID().toString().substring(0, 8);
         String correlationId = request.getHeader("X-Correlation-ID");
         if (correlationId == null || correlationId.isBlank()) {
             correlationId = requestId;
         }
 
-        // ── 2. Populate MDC — all downstream log calls carry these fields
         MDC.put(LoggingInterceptor.REQUEST_ID_MDC_KEY, requestId);
         MDC.put(LoggingInterceptor.CORRELATION_ID_MDC_KEY, correlationId);
         MDC.put("method", request.getMethod());
         MDC.put("uri", uri);
         resolveUsername().ifPresent(u -> MDC.put(LoggingInterceptor.USER_ID_MDC_KEY, u));
 
-        // ── 3. Propagate IDs via headers
         request.setAttribute(LoggingInterceptor.REQUEST_ID_ATTRIBUTE, requestId);
         response.setHeader("X-Request-ID", requestId);
         response.setHeader("X-Correlation-ID", correlationId);
 
-        // ── 4. Wrap for body caching ────────────────────────────────────
         ContentCachingRequestWrapper cachedReq = wrapRequest(request);
         ContentCachingResponseWrapper cachedRes = new ContentCachingResponseWrapper(response);
 
@@ -129,7 +108,6 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
             MDC.put("elapsedMs", String.valueOf(elapsedMs));
             MDC.put("status", String.valueOf(cachedRes.getStatus()));
 
-            // Log in a single structured statement for easy parsing
             logRequestResponse(cachedReq, cachedRes, elapsedMs, error);
 
             cachedRes.copyBodyToResponse();
@@ -147,73 +125,94 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
         String fullPath = query != null ? uri + "?" + query : uri;
         int status = res.getStatus();
         boolean isSensitive = SENSITIVE_PATHS.stream().anyMatch(uri::contains);
-
-        Map<String, Object> logData = new LinkedHashMap<>();
-        logData.put("type", "HTTP");
-        logData.put("direction", "IN/OUT");
-        logData.put("method", method);
-        logData.put("path", fullPath);
-        logData.put("status", status);
-        logData.put("elapsedMs", elapsedMs);
-
-        // Request headers
-        if (includeHeaders) {
-            logData.put("requestHeaders", extractImportantHeaders(req));
-        }
-
-        // Request body
-        if (!isMultipart(req) && !isSensitive) {
-            String requestBody = readBody(req.getContentAsByteArray(), req.getCharacterEncoding(), MAX_PAYLOAD_SIZE);
-            if (!requestBody.isBlank()) {
-                logData.put("requestBody", compactJson(requestBody));
-            }
-        } else if (isMultipart(req)) {
-            logData.put("requestBody", "[multipart/file-upload]");
-        } else if (isSensitive) {
-            logData.put("requestBody", "[hidden:sensitive]");
-        }
-
-        // Response body
-        if (includeResponseBody && !shouldSkipResponseBody(res)) {
-            String responseBody = readBody(res.getContentAsByteArray(), res.getCharacterEncoding(), MAX_RESPONSE_PAYLOAD_SIZE);
-            if (!responseBody.isBlank()) {
-                logData.put("responseBody", compactJson(responseBody));
-            }
-        }
-
-        // Client info
         String clientIp = getClientIp(req);
-        if (clientIp != null) {
-            logData.put("clientIp", clientIp);
-        }
+        String errorText = error != null
+                ? error.getClass().getSimpleName() + ": " + error.getMessage()
+                : null;
 
-        // Error info
-        if (error != null) {
-            logData.put("error", error.getClass().getSimpleName() + ": " + error.getMessage());
-        }
+        Map<String, String> requestHeaders = includeHeaders ? extractImportantHeaders(req) : Map.of();
 
-        // Log at appropriate level with structured data
-        String logMessage = formatLogMessage(logData);
+        String requestBodyRaw = null;
+        if (!isMultipart(req) && !isSensitive) {
+            requestBodyRaw = readBody(req.getContentAsByteArray(), req.getCharacterEncoding(), MAX_REQUEST_BODY_SIZE);
+        } else if (isMultipart(req)) {
+            requestBodyRaw = "[multipart/file-upload]";
+        } else if (isSensitive) {
+            requestBodyRaw = "[hidden:sensitive]";
+        }
+        String requestBodyCompact = requestBodyRaw != null ? compactJson(requestBodyRaw) : null;
+
+        String responseBodyRaw = null;
+        if (!shouldSkipResponseBody(res)) {
+            responseBodyRaw = readBody(res.getContentAsByteArray(), res.getCharacterEncoding(), MAX_RESPONSE_BODY_SIZE);
+        } else {
+            responseBodyRaw = responseBodyPlaceholder(res);
+        }
+        String responseBodyCompact = responseBodyRaw != null ? compactJson(responseBodyRaw) : null;
+
+        Object responseSummary = HttpLogFormatter.summarizeResponseBody(objectMapper, responseBodyCompact);
+        String requestPreview = requestBodyCompact != null
+                ? HttpLogFormatter.preview(requestBodyCompact)
+                : null;
+
+        String infoLine = HttpLogFormatter.formatInfoLine(
+                objectMapper, method, fullPath, status, elapsedMs, clientIp,
+                requestPreview, responseSummary, errorText);
 
         if (error != null || status >= 500) {
-            log.error("HTTP {} {} → {} ({}ms) | {}", method, fullPath, status, elapsedMs, logMessage);
+            log.error(infoLine);
         } else if (status >= 400) {
-            log.warn("HTTP {} {} → {} ({}ms) | {}", method, fullPath, status, elapsedMs, logMessage);
+            log.warn(infoLine);
         } else {
-            log.info("HTTP {} {} → {} ({}ms) | {}", method, fullPath, status, elapsedMs, logMessage);
+            log.info(infoLine);
+        }
+
+        if (log.isDebugEnabled()) {
+            String debugResponseBody = includeResponseBodyInDebug
+                    ? responseBodyCompact
+                    : (responseSummary != null ? toJsonSafe(responseSummary) : null);
+            Map<String, Object> detail = HttpLogFormatter.buildDetail(
+                    objectMapper,
+                    method,
+                    fullPath,
+                    status,
+                    elapsedMs,
+                    requestHeaders.isEmpty() ? null : requestHeaders,
+                    requestBodyCompact,
+                    debugResponseBody,
+                    clientIp,
+                    errorText);
+            try {
+                log.debug("HTTP detail {}", objectMapper.writeValueAsString(detail));
+            } catch (JsonProcessingException e) {
+                log.debug("HTTP detail {}", detail);
+            }
         }
     }
 
-    private String formatLogMessage(Map<String, Object> data) {
+    private String responseBodyPlaceholder(ContentCachingResponseWrapper res) {
+        String contentType = res.getContentType();
+        if (contentType != null && contentType.contains("text/event-stream")) {
+            return "[sse/stream]";
+        }
+        if (contentType != null && SKIP_RESPONSE_BODY_CONTENT_TYPES.stream().anyMatch(contentType::contains)) {
+            return "[binary/stream:" + contentType + "]";
+        }
+        return null;
+    }
+
+    private String toJsonSafe(Object value) {
         try {
-            return objectMapper.writeValueAsString(data);
+            return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            return data.toString();
+            return String.valueOf(value);
         }
     }
 
     private String compactJson(String json) {
-        if (json == null || json.isBlank()) return json;
+        if (json == null || json.isBlank()) {
+            return json;
+        }
         try {
             Object parsed = objectMapper.readValue(json, Object.class);
             return objectMapper.writeValueAsString(parsed);
@@ -239,7 +238,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
     }
 
     private String maskAuthHeader(String value) {
-        if (value == null) return null;
+        if (value == null) {
+            return null;
+        }
         if (value.toLowerCase().startsWith("bearer ") && value.length() > 20) {
             return "Bearer " + value.substring(7, 15) + "...";
         }
@@ -259,13 +260,15 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
     }
 
     private boolean shouldSkipLogging(String uri) {
-        return uri.contains("/actuator") || uri.contains("/health") || uri.contains("/swagger") 
-            || uri.contains("/v3/api-docs") || uri.endsWith("/favicon.ico");
+        return uri.contains("/actuator") || uri.contains("/health") || uri.contains("/swagger")
+                || uri.contains("/v3/api-docs") || uri.endsWith("/favicon.ico");
     }
 
     private boolean shouldSkipResponseBody(ContentCachingResponseWrapper res) {
         String contentType = res.getContentType();
-        if (contentType == null) return false;
+        if (contentType == null) {
+            return false;
+        }
         return SKIP_RESPONSE_BODY_CONTENT_TYPES.stream().anyMatch(contentType::contains);
     }
 
@@ -282,6 +285,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
                 return java.util.Optional.ofNullable(auth.getName());
             }
         } catch (Exception ignored) {
+            // ignore
         }
         return java.util.Optional.empty();
     }
@@ -292,7 +296,9 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
     }
 
     private String readBody(byte[] bytes, String encoding, int maxSize) {
-        if (bytes == null || bytes.length == 0) return "";
+        if (bytes == null || bytes.length == 0) {
+            return "";
+        }
         try {
             Charset charset = (encoding != null && !encoding.isBlank())
                     ? Charset.forName(encoding)

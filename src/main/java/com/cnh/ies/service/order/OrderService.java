@@ -67,7 +67,7 @@ public class OrderService {
             String status,
             String customerName) {
         try {
-            log.info("Getting all orders with requestId: {}", requestId);
+            log.debug("Getting all orders with requestId: {}", requestId);
 
             Page<OrderEntity> orders = orderRepo.findAllFiltered(
                     normalizeFilter(createdBy),
@@ -85,7 +85,7 @@ public class OrderService {
                     .totalPage(orders.getTotalPages())
                     .build();
 
-            log.info("Getting all orders success with requestId: {} | total: {} totalPage: {}", requestId,
+            log.debug("Getting all orders success with requestId: {} | total: {} totalPage: {}", requestId,
                     orders.getTotalElements(), orders.getTotalPages());
 
             return ListDataModel.<OrderInfo>builder()
@@ -148,7 +148,7 @@ public class OrderService {
 
     public OrderInfo getOrderByCode(String code, String requestId) {
         try {
-            log.info("Getting order by code with requestId: {} | code: {}", requestId, code);
+            log.debug("Getting order by code with requestId: {} | code: {}", requestId, code);
             String[] codeParts = code.split("\\.");
 
             log.info("Code parts: {} | RequestId: {}", codeParts, requestId);

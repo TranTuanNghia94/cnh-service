@@ -47,7 +47,7 @@ public class CustomerService {
             String misaCode,
             String customerName) {
         try {
-            log.info("Getting all customers with requestId: {} page: {} limit: {}", requestId, page, limit);
+            log.debug("Getting all customers with requestId: {} page: {} limit: {}", requestId, page, limit);
 
             Page<CustomerEntity> customers = customerRepo.findAllFiltered(
                     normalizeFilter(customerCode),
@@ -64,7 +64,7 @@ public class CustomerService {
                     .totalPage(customers.getTotalPages())
                     .build();
 
-            log.info("Getting all customers success with requestId: {} page: {} limit: {}", requestId, page, limit);
+            log.debug("Getting all customers success with requestId: {} page: {} limit: {}", requestId, page, limit);
 
             return ListDataModel.<CustomerInfo>builder()
                     .data(customerInfos)
@@ -115,7 +115,7 @@ public class CustomerService {
 
     public CustomerInfo getCustomerById(String id, String requestId) {
         try {
-            log.info("Getting customer by id: {} | RequestId: {}", id, requestId);
+            log.debug("Getting customer by id: {} | RequestId: {}", id, requestId);
 
             Optional<CustomerEntity> customer = customerRepo.findByIdAndIsDeletedFalse(UUID.fromString(id));
 

@@ -5,6 +5,8 @@ import org.springframework.stereotype.Repository;
 import com.cnh.ies.entity.customer.CustomerEntity;
 import com.cnh.ies.repository.BaseRepo;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +19,9 @@ import org.springframework.data.repository.query.Param;
 public interface CustomerRepo extends BaseRepo<CustomerEntity, UUID> {
     @Query("SELECT c FROM CustomerEntity c WHERE c.code = :code AND c.isDeleted = false")
     Optional<CustomerEntity> findByCode(String code);
+
+    @Query("SELECT c FROM CustomerEntity c WHERE c.code IN :codes AND c.isDeleted = false")
+    List<CustomerEntity> findByCodeInAndIsDeletedFalse(@Param("codes") Collection<String> codes);
 
     @Query("SELECT c FROM CustomerEntity c WHERE c.isDeleted = false")
     Page<CustomerEntity> findAllAndIsDeletedFalse(Pageable pageable);

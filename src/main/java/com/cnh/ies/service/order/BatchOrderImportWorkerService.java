@@ -1,12 +1,15 @@
 package com.cnh.ies.service.order;
 
 import java.io.InputStream;
+import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import com.cnh.ies.config.Loggable;
+import com.cnh.ies.config.LoggingInterceptor;
 import com.cnh.ies.dto.response.UploadOjectResponse;
 import com.cnh.ies.model.order.BatchOrderImportResultSummary;
 import com.cnh.ies.service.file.FileService;
@@ -26,9 +29,19 @@ public class BatchOrderImportWorkerService {
     private final NotificationService notificationService;
 
     @Async
-    @Transactional
+    @Loggable(slowThresholdMs = 120_000)
     public void processAsync(UUID jobId, UUID ownerUserId, String createdBy, String requestId) {
+        Map<String, String> previousMdc = MDC.getCopyOfContextMap();
         try {
+            if (requestId != null && !requestId.isBlank()) {
+                MDC.put(LoggingInterceptor.REQUEST_ID_MDC_KEY, requestId);
+                MDC.put(LoggingInterceptor.CORRELATION_ID_MDC_KEY, requestId);
+            }
+            if (createdBy != null && !createdBy.isBlank()) {
+                MDC.put(LoggingInterceptor.USER_ID_MDC_KEY, createdBy);
+            }
+            log.info("Starting batch order import job {}", jobId);
+
             jobService.markRunning(jobId);
             UUID fileInfoId = jobService.getFileInfoId(jobId, requestId);
 
@@ -55,7 +68,7 @@ public class BatchOrderImportWorkerService {
             String metadata = jobService.buildNotificationMetadataJson(jobId, summary);
             notificationService.sendNotification(
                     ownerUserId,
-                    "Batch order import completed",
+                    "Tạo đơn hàng thành công",
                     jobService.buildSuccessNotificationMessage(summary),
                     NotificationService.NotificationType.SUCCESS,
                     NotificationService.NotificationCategory.SYSTEM,
@@ -72,7 +85,7 @@ public class BatchOrderImportWorkerService {
             String metadata = jobService.buildNotificationMetadataJson(jobId, failureSummary);
             notificationService.sendNotification(
                     ownerUserId,
-                    "Batch order import failed",
+                    "Tạo đơn hàng thất bại",
                     jobService.buildFailureNotificationMessage(ex.getMessage()),
                     NotificationService.NotificationType.ERROR,
                     NotificationService.NotificationCategory.SYSTEM,
@@ -80,6 +93,12 @@ public class BatchOrderImportWorkerService {
                     "BATCH_ORDER_IMPORT",
                     "/imports/batch-order/" + jobId,
                     metadata);
+        } finally {
+            if (previousMdc != null) {
+                MDC.setContextMap(previousMdc);
+            } else {
+                MDC.clear();
+            }
         }
     }
 }

@@ -29,7 +29,7 @@ public class PermissionService {
 
     public ListDataModel<PermissionInfo> getAllPermissions(String requestId) {
         try {
-            log.info("Getting all permissions | RequestId: {}", requestId);
+            log.debug("Getting all permissions | RequestId: {}", requestId);
 
             List<PermissionEntity> permissions = permissionRepo.findAll();
 
@@ -43,7 +43,7 @@ public class PermissionService {
                     .totalPage(1)
                     .build();
 
-            log.info("Getting all permissions success | RequestId: {}", requestId);
+            log.debug("Getting all permissions success | RequestId: {}", requestId);
 
             return ListDataModel.<PermissionInfo>builder()
                     .data(permissionInfos)
@@ -59,7 +59,7 @@ public class PermissionService {
 
     public PermissionInfo getPermissionById(String id, String requestId) {
         try {
-            log.info("Getting permission by id: {}", id);
+            log.debug("Getting permission by id: {}", id);
 
             Optional<PermissionEntity> permission = permissionRepo.findById(UUID.fromString(id));
 

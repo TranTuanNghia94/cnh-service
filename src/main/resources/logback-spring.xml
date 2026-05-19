@@ -33,8 +33,9 @@
     <property name="LOG_PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [rid=%X{requestId:-} cid=%X{correlationId:-} uid=%X{userId:-}] - %msg%n"/>
 
+  <!-- Dev console: compact, colorized by level -->
     <property name="COLOR_PATTERN"
-              value="%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level){highlight} %clr([%X{requestId:-}]){blue} %clr(%logger{24}){cyan} - %msg%n"/>
+              value="%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level){highlight} %clr([%X{requestId:-}]){blue} %clr(%X{userId:-}){magenta} %clr(%logger{20}){cyan} - %msg%n"/>
 
     <!-- ═══════════════════════════════════════════════════════════════════
          CONSOLE APPENDERS
@@ -156,8 +157,18 @@
         <appender-ref ref="ASYNC_FILE"/>
     </logger>
 
-    <!-- HTTP logging filter - always INFO to capture request/response -->
+    <!-- HTTP logging filter - INFO summary lines; enable DEBUG on this logger for full JSON bodies -->
     <logger name="com.cnh.ies.config.RequestResponseLoggingFilter" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+
+    <!-- Noisy infrastructure: DEBUG only (keeps INFO/WARN readable) -->
+    <logger name="com.cnh.ies.service.redis.RedisService" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </logger>
+    <logger name="com.cnh.ies.service.security.CustomUserService" level="DEBUG" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ASYNC_FILE"/>
     </logger>

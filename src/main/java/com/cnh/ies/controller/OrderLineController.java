@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.model.order.CreateOrderLineRequest;
 import com.cnh.ies.model.order.OrderLineInfo;
 import com.cnh.ies.model.order.UpdateOrderLineRequest;
@@ -30,38 +31,29 @@ public class OrderLineController {
     @PostMapping("/create/{orderId}")
     //example url: /order-line/create/123
     public ApiResponse<List<OrderLineInfo>> createOrderLines(@RequestBody List<CreateOrderLineRequest> payload, @PathVariable String orderId) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         log.info("Creating order lines for orderId: {} | payload: {}", orderId, payload);
 
         List<OrderLineInfo> response = orderDetailService.createOrderLines(payload, UUID.fromString(orderId), requestId);
-
-        log.info("Creating order lines success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Create order lines success");
+return ApiResponse.success(response, "Create order lines success");
     }
 
    
     @PostMapping("/update/{orderId}")
     public ApiResponse<List<OrderLineInfo>> updateOrderLines(@RequestBody List<UpdateOrderLineRequest> payload, @PathVariable String orderId) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         log.info("Updating order lines for orderId: {} | payload: {}", orderId, payload);
 
         List<OrderLineInfo> response = orderDetailService.updateOrderLines(payload, UUID.fromString(orderId), requestId);
-
-        log.info("Updating order lines success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Update order lines success");
+return ApiResponse.success(response, "Update order lines success");
     }
 
     @PostMapping("/delete/{orderId}")
     public ApiResponse<String> deleteOrderLines(@RequestBody List<String> ids, @PathVariable String orderId) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         log.info("Deleting order lines for orderId: {} | ids: {}", orderId, ids);
 
         String response = orderDetailService.deleteOrderLines(ids, UUID.fromString(orderId), requestId);
-
-        log.info("Deleting order lines success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Delete order lines success");
+return ApiResponse.success(response, "Delete order lines success");
     }
 }

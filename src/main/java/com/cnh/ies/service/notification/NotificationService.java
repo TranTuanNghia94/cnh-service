@@ -42,7 +42,7 @@ public class NotificationService {
 
     private static final String UNREAD_COUNT_KEY = "notification:unread:";
     private static final String RECENT_NOTIFICATIONS_KEY = "notification:recent:";
-    private static final String NOTIFICATION_CHANNEL = "notification:channel:";
+    public static final String NOTIFICATION_CHANNEL_PREFIX = "notification:channel:";
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
     private static final int MAX_CACHED_NOTIFICATIONS = 20;
 
@@ -54,15 +54,16 @@ public class NotificationService {
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public NotificationSummary getNotifications(UUID userId, int page, int limit, String requestId) {
-        log.info("Getting notifications for user {} page={} limit={} [rid={}]", userId, page, limit, requestId);
+        log.debug("Getting notifications for user {} page={} limit={}", userId, page, limit);
 
-        // Try cache for first page
+        // Try cache for first page (list only; totals always from DB)
         if (page == 0) {
             List<NotificationInfo> cached = getCachedRecentNotifications(userId);
             if (cached != null && cached.size() >= limit) {
                 long unreadCount = getUnreadCount(userId, requestId);
+                long totalCount = notificationRepo.countByUserId(userId);
                 return NotificationSummary.builder()
-                        .totalCount(cached.size())
+                        .totalCount(totalCount)
                         .unreadCount(unreadCount)
                         .notifications(cached.subList(0, Math.min(limit, cached.size())))
                         .build();
@@ -90,7 +91,7 @@ public class NotificationService {
     }
 
     public List<NotificationInfo> getUnreadNotifications(UUID userId, String requestId) {
-        log.info("Getting unread notifications for user {} [rid={}]", userId, requestId);
+        log.debug("Getting unread notifications for user {} [rid={}]", userId, requestId);
 
         // Try to get from cache first
         List<NotificationInfo> cached = getCachedRecentNotifications(userId);
@@ -131,7 +132,7 @@ public class NotificationService {
 
     @Transactional
     public void markAsRead(UUID notificationId, UUID userId, String requestId) {
-        log.info("Marking notification {} as read for user {} [rid={}]", notificationId, userId, requestId);
+        log.debug("Marking notification {} as read for user {} [rid={}]", notificationId, userId, requestId);
 
         int updated = notificationRepo.markAsRead(notificationId, userId);
         if (updated == 0) {
@@ -144,7 +145,7 @@ public class NotificationService {
 
     @Transactional
     public int markAllAsRead(UUID userId, String requestId) {
-        log.info("Marking all notifications as read for user {} [rid={}]", userId, requestId);
+        log.debug("Marking all notifications as read for user {} [rid={}]", userId, requestId);
         int count = notificationRepo.markAllAsReadByUserId(userId);
         
         invalidateCache(userId);
@@ -154,7 +155,7 @@ public class NotificationService {
 
     @Transactional
     public List<NotificationInfo> createNotifications(CreateNotificationRequest request, String requestId) {
-        log.info("Creating notifications for {} users [rid={}]", 
+        log.debug("Creating notifications for {} users [rid={}]", 
                 request.getUserIds() != null ? request.getUserIds().size() : 0, requestId);
 
         if (request.getUserIds() == null || request.getUserIds().isEmpty()) {
@@ -195,7 +196,7 @@ public class NotificationService {
         }
 
         List<NotificationEntity> saved = notificationRepo.saveAll(notifications);
-        log.info("Created {} notifications [rid={}]", saved.size(), requestId);
+        log.debug("Created {} notifications [rid={}]", saved.size(), requestId);
 
         List<NotificationInfo> result = saved.stream()
                 .map(this::toNotificationInfo)
@@ -221,7 +222,7 @@ public class NotificationService {
      */
     public void sendNotification(UUID userId, String title, String message, String type,
             String category, String referenceId, String referenceType, String actionUrl, String metadata) {
-        log.info("Sending notification to user {}: {}", userId, title);
+        log.debug("Sending notification to user {}: {}", userId, title);
 
         UserEntity user = userRepo.findById(userId).orElse(null);
         if (user == null) {
@@ -253,7 +254,7 @@ public class NotificationService {
 
     public void sendNotificationToUsers(List<UUID> userIds, String title, String message, 
             String type, String category, String referenceId, String referenceType, String actionUrl) {
-        log.info("Sending notification to {} users: {}", userIds.size(), title);
+        log.debug("Sending notification to {} users: {}", userIds.size(), title);
 
         List<UserEntity> users = userRepo.findAllById(userIds);
         List<NotificationEntity> notifications = new ArrayList<>();
@@ -277,7 +278,7 @@ public class NotificationService {
         }
 
         List<NotificationEntity> saved = notificationRepo.saveAll(notifications);
-        log.info("Sent {} notifications", saved.size());
+        log.debug("Sent {} notifications", saved.size());
 
         // Invalidate cache and publish to Redis for each user
         for (NotificationEntity n : saved) {
@@ -340,7 +341,7 @@ public class NotificationService {
 
     private void publishNotification(UUID userId, NotificationInfo notification) {
         try {
-            String channel = NOTIFICATION_CHANNEL + userId;
+            String channel = NOTIFICATION_CHANNEL_PREFIX + userId;
             String json = objectMapper.writeValueAsString(notification);
             redisTemplate.convertAndSend(channel, json);
             log.debug("Published notification to channel {}", channel);
@@ -376,7 +377,7 @@ public class NotificationService {
     }
 
     public String getNotificationChannel(UUID userId) {
-        return NOTIFICATION_CHANNEL + userId;
+        return NOTIFICATION_CHANNEL_PREFIX + userId;
     }
 
     public static class NotificationType {

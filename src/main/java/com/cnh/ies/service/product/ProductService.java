@@ -42,7 +42,7 @@ public class ProductService {
             String productCode,
             String productName,
             String productCategory) {
-        log.info("Getting all products with request: {} page: {} limit: {}", requestId, page, limit);
+        log.debug("Getting all products with request: {} page: {} limit: {}", requestId, page, limit);
 
         Page<ProductEntity> products = productRepo.findAllFiltered(
                 normalizeFilter(productCode),
@@ -99,7 +99,7 @@ public class ProductService {
     }
 
     public ProductInfo getProductById(String id, String requestId) {
-        log.info("Getting product by id: {}", id);
+        log.debug("Getting product by id: {}", id);
 
         Optional<ProductEntity> product = productRepo.findById(UUID.fromString(id));
         if (product.isEmpty()) {
@@ -118,7 +118,7 @@ public class ProductService {
     }
 
     public ProductInfo getProductByCode(String code, String requestId) {
-        log.info("Getting product by code: {}", code);
+        log.debug("Getting product by code: {}", code);
 
         Optional<ProductEntity> product = productRepo.findByCode(code);
         if (product.isEmpty()) {

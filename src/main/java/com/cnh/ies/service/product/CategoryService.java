@@ -33,7 +33,7 @@ public class CategoryService {
 
     public ListDataModel<CategoryInfo> getAllCategories(String requestId) {
         try {
-            log.info("Getting all categories with request: {}", requestId);
+            log.debug("Getting all categories with request: {}", requestId);
 
             List<CategoryEntity> categories = categoryRepo.findAll();
             List<CategoryInfo> categoryInfos = categories.stream().map(categoryMapper::toCategoryInfo).collect(Collectors.toList());
@@ -175,7 +175,7 @@ public class CategoryService {
 
     public CategoryInfo getCategoryById(String id, String requestId) {
         try {
-            log.info("Getting category by id: {}", id);
+            log.debug("Getting category by id: {}", id);
 
             Optional<CategoryEntity> category = categoryRepo.findById(UUID.fromString(id));
 

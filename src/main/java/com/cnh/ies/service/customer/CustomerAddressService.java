@@ -33,7 +33,7 @@ public class CustomerAddressService {
 
     public List<CustomerAddressInfo> getAllAddresses(String requestId, String customerId) {
         try {
-            log.info("Getting all addresses with requestId: {} | customerId: {}", requestId, customerId);
+            log.debug("Getting all addresses with requestId: {} | customerId: {}", requestId, customerId);
 
             Optional<CustomerEntity> customer = customerRepo.findById(UUID.fromString(customerId));
 
@@ -45,7 +45,7 @@ public class CustomerAddressService {
             List<CustomerAddressEntity> customerAddresses = customerAddressRepo.findAllByCustomerId(customer.get().getId());
             List<CustomerAddressInfo> customerAddressInfos = customerAddresses.stream().map(addressMapper::mapToCustomerAddressInfo).collect(Collectors.toList());
 
-            log.info("Getting all addresses success with requestId: {} | customerId: {} | number of addresses: {}", requestId, customerId, customerAddressInfos.size());
+            log.debug("Getting all addresses success with requestId: {} | customerId: {} | number of addresses: {}", requestId, customerId, customerAddressInfos.size());
 
             return customerAddressInfos;
         } catch (Exception e) {
@@ -128,7 +128,7 @@ public class CustomerAddressService {
 
     public List<CustomerAddressInfo> getAddressByCustomerId(String requestId, String customerId) {
         try {
-            log.info("Getting address by customerId: {} | RequestId: {}", customerId, requestId);
+            log.debug("Getting address by customerId: {} | RequestId: {}", customerId, requestId);
 
             List<CustomerAddressEntity> customerAddress = customerAddressRepo.findByCustomerId(UUID.fromString(customerId));
 

@@ -34,7 +34,7 @@ public class VendorBanksService {
 
     public ListDataModel<VendorBanksInfo> getAllVendorBanks(String requestId, Integer page, Integer limit) {
         try {
-            log.info("Getting all vendor banks | RequestId: {} page: {} limit: {}", requestId, page, limit);
+            log.debug("Getting all vendor banks | RequestId: {} page: {} limit: {}", requestId, page, limit);
             Page<VendorBanksEntity> vendorBanks = vendorBanksRepo.findAllAndIsDeletedFalse(PageRequest.of(page, limit));
 
             List<VendorBanksInfo> vendorBanksInfo = vendorBanksMapper.toVendorBanksInfoList(vendorBanks.getContent());
@@ -46,7 +46,7 @@ public class VendorBanksService {
                     .totalPage(vendorBanks.getTotalPages())
                     .build();
 
-            log.info("Getting all vendor banks success | RequestId: {} page: {} limit: {} total: {} totalPage: {}",
+            log.debug("Getting all vendor banks success | RequestId: {} page: {} limit: {} total: {} totalPage: {}",
                     requestId, page, limit, vendorBanks.getTotalElements(), vendorBanks.getTotalPages());
 
             return ListDataModel.<VendorBanksInfo>builder()

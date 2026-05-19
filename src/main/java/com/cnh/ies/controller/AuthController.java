@@ -3,6 +3,7 @@ package com.cnh.ies.controller;
 import java.util.UUID;
 
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.model.auth.LoginModel;
 import com.cnh.ies.model.auth.ResponseLoginModel;
 import com.cnh.ies.service.auth.AuthService;
@@ -27,7 +28,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ApiResponse<ResponseLoginModel> login(@RequestBody LoginModel payload) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         log.info("Login request initiated: {} | RequestId: {}",payload.getEmail(), requestId);
         
         ResponseLoginModel response = authService.login(payload, requestId);
@@ -39,7 +40,7 @@ public class AuthController {
 
     @PostMapping("/refresh-token")
     public ApiResponse<ResponseLoginModel> refreshToken(@RequestBody String refreshToken) {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         log.info("Refresh token request initiated: {} | RequestId: {}", refreshToken, requestId);
         
         ResponseLoginModel response = authService.refreshToken(refreshToken, requestId);
@@ -51,7 +52,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ApiResponse<String> logout() {
-        String requestId = UUID.randomUUID().toString();
+        String requestId = RequestContext.getRequestIdOrGenerate();
         log.info("Logout request initiated: | RequestId: {}", requestId);
         
         String response = authService.logout(requestId);

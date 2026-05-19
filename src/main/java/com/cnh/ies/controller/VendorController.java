@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.dto.common.ApiResponse;
+import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.dto.response.UploadOjectResponse;
 import com.cnh.ies.service.vendor.UploadVendorService;
 import com.cnh.ies.service.vendor.VendorService;
@@ -36,10 +37,8 @@ public class VendorController {
     
     @PostMapping("/list")
     public ApiResponse<ListDataModel<VendorInfo>> getAllVendors(@RequestBody VendorListRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Getting all vendors with initiated requestId: {}", requestId);
-
-        ListDataModel<VendorInfo> response = vendorService.getAllVendors(
+        String requestId = RequestContext.getRequestIdOrGenerate();
+ListDataModel<VendorInfo> response = vendorService.getAllVendors(
                 requestId,
                 request.getPage(),
                 request.getLimit(),
@@ -48,54 +47,34 @@ public class VendorController {
                 request.getMisaCode(),
                 request.getCurrency(),
                 request.getNation());
-
-        log.info("Getting all vendors success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Get all vendors success");
+return ApiResponse.success(response, "Get all vendors success");
     }
 
     @PostMapping("/create")
     public ApiResponse<VendorInfo> createVendor(@RequestBody CreateVendorRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Creating vendor with initiated requestId: {}", requestId);
-
-        VendorInfo response = vendorService.createVendor(request, requestId);
-
-        log.info("Creating vendor success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Create vendor success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+VendorInfo response = vendorService.createVendor(request, requestId);
+return ApiResponse.success(response, "Create vendor success");
     }
 
     @PutMapping("/update")
     public ApiResponse<String> updateVendor(@RequestBody UpdateVendorRequest request) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Updating vendor with initiated requestId: {} request: {}", requestId, request);
-
-        String response = vendorService.updateVendor(request, requestId);
-
-        log.info("Updating vendor success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Update vendor success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = vendorService.updateVendor(request, requestId);
+return ApiResponse.success(response, "Update vendor success");
     }
 
     @DeleteMapping("/delete/{id}")
     public ApiResponse<String> deleteVendor(@PathVariable String id) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Deleting vendor with initiated requestId: {}", requestId);
-
-        String response = vendorService.deleteVendor(id, requestId);
-
-        log.info("Deleting vendor success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Delete vendor success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+String response = vendorService.deleteVendor(id, requestId);
+return ApiResponse.success(response, "Delete vendor success");
     }
 
     @GetMapping("/{id}")
     public ApiResponse<VendorInfo> getVendorById(@PathVariable String id) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Getting vendor by id: {} initiated requestId: {}", id, requestId);
-
-        VendorInfo response = vendorService.getVendorById(id, requestId);
+        String requestId = RequestContext.getRequestIdOrGenerate();
+VendorInfo response = vendorService.getVendorById(id, requestId);
 
         log.info("Getting vendor by id: {} success requestId: {}", id, requestId);
 
@@ -104,13 +83,8 @@ public class VendorController {
 
     @PostMapping("/upload-file-vendor")
     public ApiResponse<UploadOjectResponse> uploadFileVendor(@RequestParam("file") MultipartFile file) {
-        String requestId = UUID.randomUUID().toString();
-        log.info("Uploading file vendor with initiated requestId: {}", requestId);
-
-        UploadOjectResponse response = uploadVendorService.readExcelFile(file, requestId);
-
-        log.info("Uploading file vendor success with requestId: {}", requestId);
-
-        return ApiResponse.success(response, "Upload file vendor success");
+        String requestId = RequestContext.getRequestIdOrGenerate();
+UploadOjectResponse response = uploadVendorService.readExcelFile(file, requestId);
+return ApiResponse.success(response, "Upload file vendor success");
     }
 }
