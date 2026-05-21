@@ -20,6 +20,7 @@ import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.user.ChangePasswordRequest;
 import com.cnh.ies.model.user.CreateUserRequest;
+import com.cnh.ies.model.user.UpdateSelfProfileRequest;
 import com.cnh.ies.model.user.UpdateUserRequest;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.util.RequestContext;
@@ -74,6 +75,70 @@ public class UserService {
                     HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
 
+    }
+
+    public UserInfo updateMyProfile(UpdateSelfProfileRequest request, String requestId) {
+        try {
+            UserEntity user = requireCurrentUser(requestId);
+
+            if (request.getFirstName() != null) {
+                user.setFirstName(request.getFirstName());
+            }
+            if (request.getLastName() != null) {
+                user.setLastName(request.getLastName());
+            }
+            if (request.getPhone() != null) {
+                user.setPhone(request.getPhone());
+            }
+            if (user.getFirstName() != null || user.getLastName() != null) {
+                String first = user.getFirstName() != null ? user.getFirstName() : "";
+                String last = user.getLastName() != null ? user.getLastName() : "";
+                user.setFullName((last + " " + first).trim());
+            }
+
+            userRepo.save(user);
+
+            log.info("Update own profile success: {} | RequestId: {}", user.getUsername(), requestId);
+
+            return userMapper.mapToUserInfo(user);
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error updating own profile", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    public String changeMyPassword(ChangePasswordRequest request, String requestId) {
+        try {
+            UserEntity user = requireCurrentUser(requestId);
+            return changePasswordForUser(request, user, requestId);
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error changing own password", e);
+            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    private UserEntity requireCurrentUser(String requestId) {
+        String username = RequestContext.getCurrentUsername();
+        if (username == null) {
+            throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "Authentication required",
+                    HttpStatus.UNAUTHORIZED.value(), requestId);
+        }
+        Optional<UserEntity> user = userRepo.findOneByUsername(username);
+        if (user.isEmpty()) {
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "User not found: " + username,
+                    HttpStatus.NOT_FOUND.value(), requestId);
+        }
+        if (!user.get().getIsActive()) {
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "User is not active: " + username,
+                    HttpStatus.NOT_FOUND.value(), requestId);
+        }
+        return user.get();
     }
 
     public UserInfo getUserById(UUID id, String requestId) {
@@ -270,34 +335,26 @@ public class UserService {
         }
     }
 
-    public String changePassword(ChangePasswordRequest request, UUID id, String requestId) {
-        try {
-            log.info("Start change password with id: {} | RequestId: {}", id, requestId);
+    private String changePasswordForUser(ChangePasswordRequest request, UserEntity user, String requestId) {
+        log.info("Start change password for user: {} | RequestId: {}", user.getId(), requestId);
 
-            Optional<UserEntity> user = userRepo.findById(id);
-
-            if (user.isEmpty()) {
-                log.error("User not found: {} | RequestId: {}", id, requestId);
-                throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "User not found: " + id, HttpStatus.NOT_FOUND.value(), requestId);
-            }
-
-            
-            if (!BCrypt.checkpw(request.getOldPassword(), user.get().getPassword())) {
-                log.error("Old password is incorrect: {} | RequestId: {}", id, requestId);
-                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Old password is incorrect", HttpStatus.BAD_REQUEST.value(), requestId);
-            }
-
-            user.get().setPassword(BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt()));
-
-            userRepo.save(user.get());
-
-            log.info("Change password success: {} | RequestId: {}", id, requestId);
-
-            return "Password changed successfully";
-        } catch (Exception e) {
-            log.error("Error changing password", e);
-            throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        if (request.getOldPassword() == null || request.getNewPassword() == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Old and new password are required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
         }
+
+        if (!BCrypt.checkpw(request.getOldPassword(), user.getPassword())) {
+            log.error("Old password is incorrect: {} | RequestId: {}", user.getId(), requestId);
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Old password is incorrect",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        user.setPassword(BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt()));
+        userRepo.save(user);
+
+        log.info("Change password success: {} | RequestId: {}", user.getId(), requestId);
+
+        return "Password changed successfully";
     }
 
     public String resetPassword(ChangePasswordRequest request, UUID id, String requestId) {

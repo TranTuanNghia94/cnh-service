@@ -13,6 +13,8 @@ public class PermissionMapper {
         permissionInfo.setName(permission.getName());
         permissionInfo.setCode(permission.getCode());
         permissionInfo.setDescription(permission.getDescription());
+        permissionInfo.setResource(permission.getResource());
+        permissionInfo.setAction(permission.getAction());
         return permissionInfo;
     }
 }

@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.cnh.ies.constant.Constant;
+import com.cnh.ies.constant.PermissionConstants;
 import com.cnh.ies.entity.auth.UserEntity;
 import com.cnh.ies.entity.order.OrderEntity;
 import com.cnh.ies.entity.order.OrderLineEntity;
@@ -35,7 +36,6 @@ import com.cnh.ies.model.payment.ApprovePaymentRequest;
 import com.cnh.ies.model.payment.PaymentFileUploadInfo;
 import com.cnh.ies.model.payment.PaymentRequestApprovalInfo;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
-import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.model.warehouse.WarehouseOutboundCreateRequest;
 import com.cnh.ies.model.warehouse.WarehouseOutboundActionsInfo;
@@ -55,6 +55,7 @@ import com.cnh.ies.repository.warehouse.WarehouseStockTransactionRepo;
 import com.cnh.ies.service.file.FileService;
 import com.cnh.ies.service.notification.NotificationService;
 import com.cnh.ies.service.redis.RedisService;
+import com.cnh.ies.util.PermissionUtils;
 import com.cnh.ies.util.RequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -393,7 +394,7 @@ public class WarehouseOutboundService {
             throw new ApiException(ApiException.ErrorCode.CONFLICT, "This level was already processed",
                     HttpStatus.CONFLICT.value(), requestId);
         }
-        validateOutboundApproverRole(outbound, requestId);
+        validateOutboundApproverRole(outbound, approval.getApprovalRole(), requestId);
         UserEntity user = findUserEntity(requestId);
         approval.setStatus(Constant.PAYMENT_APPROVAL_STATUS_APPROVED);
         approval.setApprover(user);
@@ -423,7 +424,7 @@ public class WarehouseOutboundService {
         WarehouseOutboundApprovalEntity approval = warehouseOutboundApprovalRepo.findByOutboundIdAndLevel(outbound.getId(), level)
                 .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Approval level not found",
                         HttpStatus.NOT_FOUND.value(), requestId));
-        validateOutboundApproverRole(outbound, requestId);
+        validateOutboundApproverRole(outbound, approval.getApprovalRole(), requestId);
         UserEntity user = findUserEntity(requestId);
         approval.setStatus(Constant.PAYMENT_APPROVAL_STATUS_REJECTED);
         approval.setApprover(user);
@@ -632,41 +633,45 @@ public class WarehouseOutboundService {
                         HttpStatus.NOT_FOUND.value(), requestId));
     }
 
-    private void validateOutboundApproverRole(WarehouseOutboundEntity outbound, String requestId) {
+    private void validateOutboundApproverRole(WarehouseOutboundEntity outbound, String approvalRole, String requestId) {
+        String username = RequestContext.getCurrentUsername();
+        UserInfo currentUserInfo = getCurrentUserInfoFromRedis(requestId);
+        if (!PermissionUtils.canActOnWarehouseOutboundApprovalStage(currentUserInfo, approvalRole)) {
+            throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
+                    "Current user does not have permission for this approval level",
+                    HttpStatus.FORBIDDEN.value(), requestId);
+        }
+        if (PermissionUtils.hasPermission(currentUserInfo, PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_FINAL)
+                && username != null
+                && username.equalsIgnoreCase(outbound.getCreatedBy())) {
+            throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
+                    "Final approver cannot self-approve this outbound",
+                    HttpStatus.FORBIDDEN.value(), requestId);
+        }
+    }
+
+    private UserInfo getCurrentUserInfoFromRedis(String requestId) {
         String username = RequestContext.getCurrentUsername();
         Object raw = redisService.get(username);
         if (raw == null) {
             throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "User info not found in session",
                     HttpStatus.UNAUTHORIZED.value(), requestId);
         }
-        UserInfo currentUserInfo = objectMapper.convertValue(raw, UserInfo.class);
-        Set<String> roleCodes = currentUserInfo.getRoles().stream()
-                .map(RoleInfo::getCode)
-                .filter(Objects::nonNull)
-                .map(s -> s.trim().toUpperCase(Locale.ROOT))
-                .collect(Collectors.toSet());
-        boolean isAccountant = roleCodes.contains(Constant.ROLE_ACCOUNTANT);
-        boolean isAccountantManager = roleCodes.contains(Constant.ROLE_ACCOUNTANT_MANAGER);
-        boolean isAdmin = roleCodes.contains(Constant.ROLE_ADMIN);
-        if (!isAccountant && !isAccountantManager && !isAdmin) {
-            throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
-                    "Only ACCOUNTANT, ACCOUNTANT_MANAGER or ADMIN can approve",
-                    HttpStatus.FORBIDDEN.value(), requestId);
-        }
-        if (isAdmin && username != null && username.equalsIgnoreCase(outbound.getCreatedBy())) {
-            throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
-                    "ADMIN cannot self-approve this outbound",
-                    HttpStatus.FORBIDDEN.value(), requestId);
-        }
+        return objectMapper.convertValue(raw, UserInfo.class);
     }
 
     private boolean canCurrentUserApprove(WarehouseOutboundEntity outbound, String requestId) {
-        try {
-            validateOutboundApproverRole(outbound, requestId);
-            return true;
-        } catch (ApiException e) {
-            return false;
-        }
+        int nextLevel = outbound.getCurrentApprovalLevel() + 1;
+        return warehouseOutboundApprovalRepo.findByOutboundIdAndLevel(outbound.getId(), nextLevel)
+                .map(approval -> {
+                    try {
+                        validateOutboundApproverRole(outbound, approval.getApprovalRole(), requestId);
+                        return true;
+                    } catch (ApiException e) {
+                        return false;
+                    }
+                })
+                .orElse(false);
     }
 
     private void notifyAccountantsOutboundPendingApproval(WarehouseOutboundEntity outbound) {

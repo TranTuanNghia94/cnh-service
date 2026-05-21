@@ -25,6 +25,9 @@ public class UserMapper {
         userInfo.setUsername(user.getUsername());
         userInfo.setFullName(user.getFullName());
         userInfo.setEmail(user.getEmail());
+        userInfo.setFirstName(user.getFirstName());
+        userInfo.setLastName(user.getLastName());
+        userInfo.setPhone(user.getPhone());
         userInfo.setIsActive(user.getIsActive());
         userInfo.setCreatedAt(user.getCreatedAt().toString());
         userInfo.setUpdatedAt(user.getUpdatedAt().toString());

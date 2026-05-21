@@ -40,7 +40,6 @@ import com.cnh.ies.model.payment.PaymentFileUploadInfo;
 import com.cnh.ies.model.payment.PaymentRequestApprovalInfo;
 import com.cnh.ies.model.payment.PaymentRequestInfo;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
-import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.model.warehouse.WarehouseInboundAddLineRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundConfirmLineRequest;
@@ -67,6 +66,7 @@ import com.cnh.ies.service.file.FileService;
 import com.cnh.ies.service.notification.NotificationService;
 import com.cnh.ies.service.payment.PaymentRequestService;
 import com.cnh.ies.service.redis.RedisService;
+import com.cnh.ies.util.PermissionUtils;
 import com.cnh.ies.util.RequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -913,26 +913,11 @@ public class WarehouseInboundService {
 
     private void validateInboundApproverRole(String approvalRole, String requestId) {
         UserInfo currentUserInfo = getCurrentUserInfoFromRedis(requestId);
-        if (currentUserInfo.getRoles() == null || currentUserInfo.getRoles().isEmpty()) {
+        if (!PermissionUtils.canActOnWarehouseInboundApprovalStage(currentUserInfo, approvalRole)) {
             throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
-                    "Current user does not have role for this approval level",
+                    "Current user does not have permission for this approval level",
                     HttpStatus.FORBIDDEN.value(), requestId);
         }
-        Set<String> roleCodes = currentUserInfo.getRoles().stream()
-                .map(RoleInfo::getCode)
-                .filter(Objects::nonNull)
-                .map(s -> s.trim().toUpperCase(Locale.ROOT))
-                .collect(Collectors.toSet());
-        String role = approvalRole.trim().toUpperCase(Locale.ROOT);
-        if (roleCodes.contains(role)) return;
-        if ("HEAD_ACCOUNTANT".equals(role)
-                && (roleCodes.contains("ACCOUNTANT_MANAGER") || roleCodes.contains("HEAD_ACCOUNTANT"))) return;
-        if ("FINAL_APPROVER".equals(role)
-                && (roleCodes.contains("ADMIN") || roleCodes.contains("ACCOUNTANT_MANAGER"))) return;
-        if ("ACCOUNTANT".equals(role) && roleCodes.contains("ACCOUNTANT")) return;
-        throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
-                "Current user does not have role for this approval level",
-                HttpStatus.FORBIDDEN.value(), requestId);
     }
 
     private UserInfo getCurrentUserInfoFromRedis(String requestId) {

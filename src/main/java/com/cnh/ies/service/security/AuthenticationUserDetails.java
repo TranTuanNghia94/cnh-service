@@ -1,15 +1,20 @@
 package com.cnh.ies.service.security;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import com.cnh.ies.model.user.PermissionInfo;
+import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.model.user.UserInfo;
+import com.cnh.ies.util.PermissionUtils;
 
 import lombok.Getter;
 
@@ -30,21 +35,32 @@ public class AuthenticationUserDetails implements UserDetails {
         }
         this.userId = userInfo.getId();
         this.username = userInfo.getUsername() != null ? userInfo.getUsername() : "";
+        this.authorities = buildAuthorities(userInfo);
+    }
+
+    private static Collection<? extends GrantedAuthority> buildAuthorities(UserInfo userInfo) {
+        Set<GrantedAuthority> authorities = new LinkedHashSet<>();
+
         if (userInfo.getRoles() != null && !userInfo.getRoles().isEmpty()) {
-            Collection<GrantedAuthority> mapped = userInfo.getRoles().stream()
-                    .filter(r -> r.getCode() != null && !r.getCode().isBlank())
-                    .map(r -> {
-                        String c = r.getCode().trim();
-                        String role = c.startsWith("ROLE_") ? c : "ROLE_" + c;
-                        return new SimpleGrantedAuthority(role);
-                    })
-                    .collect(Collectors.toUnmodifiableSet());
-            this.authorities = mapped.isEmpty()
-                    ? List.of(new SimpleGrantedAuthority("ROLE_USER"))
-                    : mapped;
-        } else {
-            this.authorities = List.of(new SimpleGrantedAuthority("ROLE_USER"));
+            for (RoleInfo role : userInfo.getRoles()) {
+                if (role.getCode() != null && !role.getCode().isBlank()) {
+                    String c = role.getCode().trim();
+                    String roleAuthority = c.startsWith("ROLE_") ? c : "ROLE_" + c;
+                    authorities.add(new SimpleGrantedAuthority(roleAuthority));
+                }
+            }
         }
+
+        for (PermissionInfo permission : PermissionUtils.flattenPermissions(userInfo)) {
+            if (permission.getCode() != null && !permission.getCode().isBlank()) {
+                authorities.add(new SimpleGrantedAuthority(permission.getCode().trim()));
+            }
+        }
+
+        if (authorities.isEmpty()) {
+            return List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        }
+        return List.copyOf(new ArrayList<>(authorities));
     }
 
     @Override

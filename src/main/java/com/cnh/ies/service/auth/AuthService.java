@@ -25,6 +25,7 @@ import com.cnh.ies.mapper.user.UserMapper;
 import com.cnh.ies.repository.auth.UserRepo;
 import com.cnh.ies.service.redis.RedisService;
 import com.cnh.ies.service.security.JwtService;
+import com.cnh.ies.util.PermissionUtils;
 import com.cnh.ies.util.RequestContext;
 
 @Service
@@ -88,6 +89,7 @@ public class AuthService {
                 .tokenType("Bearer")
                 .passkeyRegistered(passkeyRegistered)
                 .passkeyRegistrationRequired(!passkeyRegistered)
+                .permissions(PermissionUtils.flattenPermissions(userInfo))
                 .build();
     }
 

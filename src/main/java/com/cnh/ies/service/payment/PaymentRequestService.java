@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.cnh.ies.constant.Constant;
+import com.cnh.ies.constant.PermissionConstants;
 import com.cnh.ies.entity.auth.UserEntity;
 import com.cnh.ies.entity.payment.PaymentRequestApprovalEntity;
 import com.cnh.ies.entity.payment.PaymentRequestEntity;
@@ -32,7 +33,6 @@ import com.cnh.ies.model.payment.PaymentRequestInfo;
 import com.cnh.ies.model.payment.PaymentRequestItemRequest;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
 import com.cnh.ies.model.payment.SendToAccountantRequest;
-import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.repository.auth.UserRepo;
 import com.cnh.ies.repository.payment.PaymentRequestApprovalRepo;
@@ -46,6 +46,7 @@ import com.cnh.ies.mapper.payment.PaymentRequestMoneyMapper;
 import com.cnh.ies.mapper.payment.PaymentRequestMoneyTotals;
 import com.cnh.ies.service.notification.NotificationService;
 import com.cnh.ies.service.redis.RedisService;
+import com.cnh.ies.util.PermissionUtils;
 import com.cnh.ies.util.RequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -413,10 +414,12 @@ public class PaymentRequestService {
         BigDecimal paidTotal = paymentRequest.getPaidAmount();
         String currency = paymentRequest.getCurrency();
         UserInfo currentUser = getCurrentUserInfoFromRedis(requestId);
-        boolean isAccountantActor = hasAnyRole(currentUser, Constant.ROLE_ACCOUNTANT, Constant.ROLE_ACCOUNTANT_MANAGER);
+        boolean canUploadBankNote = PermissionUtils.hasPermission(currentUser, PermissionConstants.PAYMENT_UPLOAD_BANK_NOTE);
         boolean hasBankNote = request.getBankNote() != null;
-        if (isAccountantActor && hasBankNote) {
-            String actorName = hasAnyRole(currentUser, Constant.ROLE_ACCOUNTANT_MANAGER) ? "kế toán trưởng" : "kế toán";
+        if (canUploadBankNote && hasBankNote) {
+            String actorName = PermissionUtils.hasPermission(currentUser, PermissionConstants.PAYMENT_APPROVE_LEVEL_2)
+                    ? "kế toán trưởng"
+                    : "kế toán";
             notifyPaymentRequestOwner(
                     paymentRequest,
                     "Đã cập nhật chứng từ ngân hàng",
@@ -721,18 +724,9 @@ public class PaymentRequestService {
 
     private void validateApproverRole(String approvalRole, String requestId) {
         UserInfo currentUserInfo = getCurrentUserInfoFromRedis(requestId);
-        Set<String> roleCodes = currentUserInfo.getRoles().stream().map(RoleInfo::getCode).collect(Collectors.toSet());
-        boolean allowed;
-        if ("ACCOUNTANT".equalsIgnoreCase(approvalRole)) {
-            allowed = roleCodes.contains("ACCOUNTANT");
-        } else if ("HEAD_ACCOUNTANT".equalsIgnoreCase(approvalRole)) {
-            allowed = roleCodes.contains("ACCOUNTANT_MANAGER") || roleCodes.contains("HEAD_ACCOUNTANT");
-        } else {
-            allowed = roleCodes.contains("ADMIN") || roleCodes.contains("ACCOUNTANT_MANAGER");
-        }
-        if (!allowed) {
+        if (!PermissionUtils.canActOnPaymentApprovalStage(currentUserInfo, approvalRole)) {
             throw new ApiException(ApiException.ErrorCode.FORBIDDEN,
-                    "Current user does not have role for this approval level",
+                    "Current user does not have permission for this approval level",
                     HttpStatus.FORBIDDEN.value(), requestId);
         }
     }
@@ -877,18 +871,4 @@ public class PaymentRequestService {
         return trimmed.isEmpty() ? "" : trimmed;
     }
 
-    private boolean hasAnyRole(UserInfo userInfo, String... roleCodes) {
-        if (userInfo == null || userInfo.getRoles() == null || userInfo.getRoles().isEmpty()) {
-            return false;
-        }
-        Set<String> roleSet = userInfo.getRoles().stream()
-                .map(RoleInfo::getCode)
-                .collect(Collectors.toSet());
-        for (String roleCode : roleCodes) {
-            if (roleSet.contains(roleCode)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

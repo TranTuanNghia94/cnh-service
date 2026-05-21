@@ -1,9 +1,11 @@
 package com.cnh.ies.service.auth;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,7 +16,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.cnh.ies.constant.PermissionConstants;
 import com.cnh.ies.model.auth.ResponseLoginModel;
+import com.cnh.ies.model.user.PermissionInfo;
+import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.model.user.UserInfo;
 import com.cnh.ies.service.redis.RedisService;
 import com.cnh.ies.service.security.JwtService;
@@ -76,5 +81,33 @@ class AuthServicePasskeyStatusTest {
 
         assertTrue(response.getPasskeyRegistered());
         assertFalse(response.getPasskeyRegistrationRequired());
+    }
+
+    @Test
+    void issueTokens_includesFlattenedPermissionsForFrontend() {
+        UUID userId = UUID.randomUUID();
+        PermissionInfo perm = new PermissionInfo();
+        perm.setCode(PermissionConstants.USER_READ);
+        perm.setDescription("Read users");
+        perm.setResource("USER");
+        perm.setAction("READ");
+
+        RoleInfo role = new RoleInfo();
+        role.setCode("ADMIN");
+        role.setPermissions(Set.of(perm));
+
+        UserInfo userInfo = new UserInfo();
+        userInfo.setId(userId);
+        userInfo.setUsername("admin");
+        userInfo.setRoles(Set.of(role));
+
+        when(jwtService.generateAccessToken(userInfo)).thenReturn("access");
+        when(passkeyService.hasActivePasskey(userId)).thenReturn(true);
+
+        ResponseLoginModel response = authService.issueTokens(userInfo, "req-1");
+
+        assertEquals(1, response.getPermissions().size());
+        assertEquals(PermissionConstants.USER_READ, response.getPermissions().get(0).getCode());
+        assertEquals("Read users", response.getPermissions().get(0).getDescription());
     }
 }
