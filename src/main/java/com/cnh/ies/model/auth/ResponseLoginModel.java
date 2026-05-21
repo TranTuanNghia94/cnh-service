@@ -15,4 +15,6 @@ public class ResponseLoginModel {
     private String tokenType;
     private Long expiresIn;
     private String username;
+    private Boolean passkeyRegistered;
+    private Boolean passkeyRegistrationRequired;
 }

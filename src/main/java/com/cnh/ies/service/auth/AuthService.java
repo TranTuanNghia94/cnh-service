@@ -4,6 +4,8 @@ import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,10 @@ public class AuthService {
     private final RedisService redisService;
     private final ObjectMapper objectMapper;
 
+    @Lazy
+    @Autowired
+    private PasskeyService passkeyService;
+
     public ResponseLoginModel login(LoginModel payload, String requestId) {
         log.info("Login request: {} | RequestId: {}", payload.getEmail(), requestId);
 
@@ -62,13 +68,27 @@ public class AuthService {
 
         log.info("Login success: {} | RequestId: {}", userInfo, requestId);
 
+        return buildLoginResponse(userInfo, accessToken, refreshToken);
+    }
+
+    public ResponseLoginModel issueTokens(UserInfo userInfo, String requestId) {
+        String accessToken = jwtService.generateAccessToken(userInfo);
+        String refreshToken = generateRefreshToken();
+        storeUserTokens(userInfo, accessToken, refreshToken);
+        log.info("Tokens issued for user {} | RequestId: {}", userInfo.getUsername(), requestId);
+        return buildLoginResponse(userInfo, accessToken, refreshToken);
+    }
+
+    private ResponseLoginModel buildLoginResponse(UserInfo userInfo, String accessToken, String refreshToken) {
+        boolean passkeyRegistered = passkeyService.hasActivePasskey(userInfo.getId());
         return ResponseLoginModel.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .username(userInfo.getUsername())
                 .tokenType("Bearer")
+                .passkeyRegistered(passkeyRegistered)
+                .passkeyRegistrationRequired(!passkeyRegistered)
                 .build();
-
     }
 
     public ResponseLoginModel refreshToken(String refreshToken, String requestId) {
@@ -98,12 +118,7 @@ public class AuthService {
 
             log.info("Refresh token success: {} | RequestId: {}", userInfo, requestId);
 
-            return ResponseLoginModel.builder()
-                    .accessToken(accessToken)
-                    .refreshToken(newRefreshToken)
-                    .username(userInfo.getUsername())
-                    .tokenType("Bearer")
-                    .build();
+            return buildLoginResponse(userInfo, accessToken, newRefreshToken);
 
         } catch (Exception e) {
             log.error("Error refreshing token: {}", e.getMessage());

@@ -24,6 +24,7 @@ import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.product.CreateProductRequest;
 import com.cnh.ies.model.product.ProductInfo;
 import com.cnh.ies.model.product.ProductListRequest;
+import com.cnh.ies.model.product.ProductTaxHistoryInfo;
 import com.cnh.ies.model.product.UpdateProductRequest;
 import com.cnh.ies.service.product.ProductService;
 import com.cnh.ies.service.product.UploadProductService;
@@ -65,6 +66,17 @@ ProductInfo response = productService.getProductById(id, requestId);
         log.info("Getting product by id: {} success requestId: {}", id, requestId);
 
         return ApiResponse.success(response, "Get product by id success");
+    }
+
+    @GetMapping("/{id}/tax-history")
+    public ApiResponse<ListDataModel<ProductTaxHistoryInfo>> getProductTaxHistory(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "20") Integer limit) {
+        String requestId = RequestContext.getRequestIdOrGenerate();
+        ListDataModel<ProductTaxHistoryInfo> response =
+                productService.getProductTaxHistory(id, page, limit, requestId);
+        return ApiResponse.success(response, "Get product tax history success");
     }
     
     @GetMapping("/code/{code}")

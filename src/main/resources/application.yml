@@ -97,6 +97,13 @@ jwt:
   expiration: ${JWT_EXPIRATION:14400000}         # 4 h in ms
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:28800000} # 8 h in ms
 
+# WebAuthn / Passkey Configuration
+webauthn:
+  rp-id: ${WEBAUTHN_RP_ID:localhost}
+  rp-name: ${WEBAUTHN_RP_NAME:CNH-WMS}
+  origins: ${WEBAUTHN_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:8080}
+  challenge-ttl-seconds: ${WEBAUTHN_CHALLENGE_TTL:300}
+
 # AWS Configuration (credentials injected via .env; never hardcode keys here)
 aws:
   region: ${AWS_REGION:ap-southeast-1}

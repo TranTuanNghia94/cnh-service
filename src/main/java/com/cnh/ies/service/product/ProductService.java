@@ -16,9 +16,12 @@ import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.product.CreateProductRequest;
 import com.cnh.ies.mapper.product.ProductMapper;
 import com.cnh.ies.model.product.ProductInfo;
+import com.cnh.ies.model.product.ProductTaxHistoryInfo;
 import com.cnh.ies.model.product.UpdateProductRequest;
+import com.cnh.ies.entity.product.ProductTaxHistoryEntity;
 import com.cnh.ies.repository.product.CategoryRepo;
 import com.cnh.ies.repository.product.ProductRepo;
+import com.cnh.ies.repository.product.ProductTaxHistoryRepo;
 import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.entity.product.ProductEntity;
 import com.cnh.ies.exception.ApiException;
@@ -34,6 +37,7 @@ public class ProductService {
     private final CategoryRepo categoryRepo;
     private final ProductMapper productMapper;
     private final ProductRepo productRepo;
+    private final ProductTaxHistoryRepo productTaxHistoryRepo;
 
     public ListDataModel<ProductInfo> getAllProducts(
             String requestId,
@@ -117,6 +121,37 @@ public class ProductService {
         return productMapper.toProductInfo(product.get());
     }
 
+    public ListDataModel<ProductTaxHistoryInfo> getProductTaxHistory(
+            String productId,
+            Integer page,
+            Integer limit,
+            String requestId) {
+        UUID id = parseProductId(productId, requestId);
+        getProductById(productId, requestId);
+
+        int safePage = page == null || page < 0 ? 0 : page;
+        int safeLimit = limit == null || limit < 1 ? 20 : limit;
+
+        Page<ProductTaxHistoryEntity> historyPage = productTaxHistoryRepo
+                .findByProductIdAndIsDeletedFalseOrderByCreatedAtDesc(id, PageRequest.of(safePage, safeLimit));
+
+        List<ProductTaxHistoryInfo> data = historyPage.getContent().stream()
+                .map(entity -> toTaxHistoryInfo(entity, productId))
+                .collect(Collectors.toList());
+
+        PaginationModel pagination = PaginationModel.builder()
+                .page(safePage)
+                .limit(safeLimit)
+                .total(historyPage.getTotalElements())
+                .totalPage(historyPage.getTotalPages())
+                .build();
+
+        return ListDataModel.<ProductTaxHistoryInfo>builder()
+                .data(data)
+                .pagination(pagination)
+                .build();
+    }
+
     public ProductInfo getProductByCode(String code, String requestId) {
         log.debug("Getting product by code: {}", code);
 
@@ -194,5 +229,28 @@ public class ProductService {
         log.info("Product updated successfully with RequestId: {} request: {}", requestId, productEntity);
 
         return productMapper.toProductInfo(productEntity);
+    }
+
+    private UUID parseProductId(String productId, String requestId) {
+        try {
+            return UUID.fromString(productId);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid product id",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+    }
+
+    private ProductTaxHistoryInfo toTaxHistoryInfo(ProductTaxHistoryEntity entity, String productId) {
+        return ProductTaxHistoryInfo.builder()
+                .id(entity.getId().toString())
+                .productId(productId)
+                .oldTax(entity.getOldTax() != null ? entity.getOldTax().toPlainString() : null)
+                .newTax(entity.getNewTax() != null ? entity.getNewTax().toPlainString() : null)
+                .sourceType(entity.getSourceType())
+                .sourceId(entity.getSourceId() != null ? entity.getSourceId().toString() : null)
+                .note(entity.getNote())
+                .createdAt(entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null)
+                .createdBy(entity.getCreatedBy())
+                .build();
     }
 }
