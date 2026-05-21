@@ -44,4 +44,8 @@ public interface VendorsRepo extends BaseRepo<VendorsEntity, UUID> {
     
     @Query("SELECT DISTINCT v FROM VendorsEntity v LEFT JOIN FETCH v.banks b WHERE v.id = :id AND v.isDeleted = false")
     Optional<VendorsEntity> findByIdWithBanks(UUID id);
+
+    @Query("SELECT DISTINCT v FROM VendorsEntity v LEFT JOIN FETCH v.banks b "
+            + "WHERE v.isDeleted = false AND (b IS NULL OR b.isDeleted = false) ORDER BY v.code ASC")
+    List<VendorsEntity> findAllForExport();
 }

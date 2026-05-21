@@ -38,4 +38,8 @@ public interface CustomerRepo extends BaseRepo<CustomerEntity, UUID> {
 
     @Query("SELECT c FROM CustomerEntity c WHERE c.id = :id AND c.isDeleted = false ")
     Optional<CustomerEntity> findByIdAndIsDeletedFalse(UUID id);
+
+    @Query("SELECT DISTINCT c FROM CustomerEntity c LEFT JOIN FETCH c.addresses a "
+            + "WHERE c.isDeleted = false AND (a IS NULL OR a.isDeleted = false) ORDER BY c.code ASC")
+    List<CustomerEntity> findAllForExport();
 }

@@ -42,4 +42,7 @@ public interface ProductRepo extends BaseRepo<ProductEntity, UUID> {
 
     @Query("SELECT p FROM ProductEntity p WHERE p.id IN :ids AND p.isDeleted = false")
     List<ProductEntity> findByIdIn(List<UUID> ids);
+
+    @Query("SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category WHERE p.isDeleted = false ORDER BY p.code ASC")
+    List<ProductEntity> findAllForExport();
 }

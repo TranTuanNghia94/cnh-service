@@ -1,5 +1,6 @@
 package com.cnh.ies.repository.warehouse;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,4 +31,9 @@ public interface WarehouseInventoryRepo extends BaseRepo<WarehouseInventoryEntit
             @Param("productName") String productName,
             @Param("productCategory") String productCategory,
             Pageable pageable);
+
+    @Query("SELECT i FROM WarehouseInventoryEntity i "
+            + "JOIN FETCH i.product p LEFT JOIN FETCH p.category "
+            + "WHERE i.isDeleted = false AND p.isDeleted = false ORDER BY p.code ASC")
+    List<WarehouseInventoryEntity> findAllForExport();
 }

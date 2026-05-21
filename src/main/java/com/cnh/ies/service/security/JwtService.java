@@ -5,7 +5,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -76,23 +75,28 @@ public class JwtService {
                         .sorted()
                         .collect(Collectors.toList());
 
-        Set<String> permissions = userInfo.getRoles() == null ? Set.of()
-                : userInfo.getRoles().stream()
-                        .filter(r -> r.getPermissions() != null)
-                        .flatMap(r -> r.getPermissions().stream())
-                        .map(p -> p.getCode())
-                        .collect(Collectors.toSet());
-
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userInfo.getId() != null ? userInfo.getId().toString() : null);
         claims.put("username", userInfo.getUsername());
-        claims.put("fullName", userInfo.getFullName());
+        claims.put("firstName", userInfo.getFirstName());
+        claims.put("lastName", userInfo.getLastName());
+        claims.put("fullName", resolveFullName(userInfo));
         claims.put("email", userInfo.getEmail());
         claims.put("roles", roles);
-        claims.put("permissions", permissions);
 
-        log.debug("JWT claims — roles: {}, permissions: {}", roles, permissions);
+        log.debug("JWT claims — roles: {}", roles);
         return generate(claims, userInfo.getUsername());
+    }
+
+    private String resolveFullName(UserInfo userInfo) {
+        if (userInfo.getFullName() != null && !userInfo.getFullName().isBlank()) {
+            return userInfo.getFullName();
+        }
+
+        String lastName = userInfo.getLastName() != null ? userInfo.getLastName() : "";
+        String firstName = userInfo.getFirstName() != null ? userInfo.getFirstName() : "";
+        String fullName = (lastName + " " + firstName).trim();
+        return fullName.isEmpty() ? null : fullName;
     }
 
     public String extractUsername(String token) {
