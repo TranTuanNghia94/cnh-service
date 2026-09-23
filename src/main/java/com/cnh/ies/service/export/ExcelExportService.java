@@ -23,10 +23,16 @@ import com.cnh.ies.entity.vendors.VendorBanksEntity;
 import com.cnh.ies.entity.vendors.VendorsEntity;
 import com.cnh.ies.entity.warehouse.WarehouseInventoryEntity;
 import com.cnh.ies.exception.ApiException;
+import com.cnh.ies.entity.export.ExportJobEntity;
+import com.cnh.ies.model.export.ServiceReportExportParams;
 import com.cnh.ies.repository.customer.CustomerRepo;
+import com.cnh.ies.repository.export.ExportJobRepo;
 import com.cnh.ies.repository.product.ProductRepo;
 import com.cnh.ies.repository.vendors.VendorsRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInventoryRepo;
+import com.cnh.ies.service.report.ServiceReportExcelExportService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,8 +49,18 @@ public class ExcelExportService {
     private final VendorsRepo vendorsRepo;
     private final CustomerRepo customerRepo;
     private final WarehouseInventoryRepo warehouseInventoryRepo;
+    private final ExportJobRepo exportJobRepo;
+    private final ObjectMapper objectMapper;
+    private final ServiceReportExcelExportService serviceReportExcelExportService;
 
-    public ExportWorkbookResult export(String type, String requestId) {
+    public ExportWorkbookResult export(String type, java.util.UUID jobId, String requestId) {
+        if (ExportJobType.isServiceReportType(type)) {
+            ExportJobEntity job = exportJobRepo.findByIdAndIsDeletedFalse(jobId)
+                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Export job not found",
+                            HttpStatus.NOT_FOUND.value(), requestId));
+            ServiceReportExportParams params = parseReportParams(job, requestId);
+            return serviceReportExcelExportService.export(type, params, requestId);
+        }
         return switch (type) {
             case ExportJobType.PRODUCTS -> exportProducts(requestId);
             case ExportJobType.VENDORS -> exportVendors(requestId);
@@ -186,6 +202,21 @@ public class ExcelExportService {
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR,
                     "Failed to generate Excel file: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
+        }
+    }
+
+    private ServiceReportExportParams parseReportParams(ExportJobEntity job, String requestId) {
+        if (job.getReportParams() == null || job.getReportParams().isBlank()) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "Export job is missing report parameters",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        try {
+            return objectMapper.readValue(job.getReportParams(), ServiceReportExportParams.class);
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "Invalid report parameters on export job",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
         }
     }
 

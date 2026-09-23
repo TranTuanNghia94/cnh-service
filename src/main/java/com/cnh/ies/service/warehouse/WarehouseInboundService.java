@@ -837,6 +837,39 @@ public class WarehouseInboundService {
         return BigDecimal.ONE;
     }
 
+    @Transactional
+    public WarehouseInboundReceiptInfo replaceFees(String receiptId, List<WarehouseInboundFeeRequest> fees, String requestId) {
+        WarehouseInboundReceiptEntity receipt = loadReceiptForMutation(receiptId, requestId);
+        if (!Constant.WAREHOUSE_INBOUND_STATUS_DRAFT.equals(receipt.getStatus())) {
+            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Only DRAFT receipts can update fees",
+                    HttpStatus.CONFLICT.value(), requestId);
+        }
+        List<WarehouseInboundFeeRequest> nextFees = fees == null ? List.of() : fees;
+        BigDecimal total = BigDecimal.ZERO;
+        for (WarehouseInboundFeeRequest fr : nextFees) {
+            if (fr.getFeeName() == null || fr.getFeeName().isBlank()) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "feeName is required on each fee",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            if (fr.getAmount() == null || fr.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "fee amount must be >= 0",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            total = total.add(fr.getAmount());
+        }
+        String username = RequestContext.getCurrentUsername();
+        for (WarehouseInboundReceiptFeeEntity existing : warehouseInboundReceiptFeeRepo.findByReceiptId(receipt.getId())) {
+            existing.setIsDeleted(true);
+            existing.setUpdatedBy(username);
+            warehouseInboundReceiptFeeRepo.save(existing);
+        }
+        saveFeeEntities(receipt, nextFees);
+        receipt.setFeeAmount(total);
+        receipt.setUpdatedBy(username);
+        warehouseInboundReceiptRepo.save(receipt);
+        return toReceiptInfo(receipt.getId(), requestId);
+    }
+
     private void saveFeeEntities(WarehouseInboundReceiptEntity receipt, List<WarehouseInboundFeeRequest> feeRequests) {
         if (feeRequests == null || feeRequests.isEmpty()) return;
         String feeCreator = RequestContext.getCurrentUsername();

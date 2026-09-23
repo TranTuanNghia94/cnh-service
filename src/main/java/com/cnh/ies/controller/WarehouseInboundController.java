@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,6 +22,7 @@ import com.cnh.ies.model.payment.PaymentRequestInfo;
 import com.cnh.ies.model.payment.RejectPaymentRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundAddLineRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundConfirmRequest;
+import com.cnh.ies.model.warehouse.WarehouseInboundFeeRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundListRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundLinePatchRequest;
 import com.cnh.ies.model.warehouse.WarehouseInboundReceiptInfo;
@@ -143,6 +145,15 @@ public class WarehouseInboundController {
     public ApiResponse<WarehouseInboundReceiptInfo> getReceipt(@PathVariable String receiptId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.getReceipt(receiptId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Get warehouse inbound receipt success");
+    }
+
+    @PutMapping("/receipt/{receiptId}/fees")
+    public ApiResponse<WarehouseInboundReceiptInfo> replaceFees(
+            @PathVariable String receiptId,
+            @RequestBody List<WarehouseInboundFeeRequest> fees) {
+        WarehouseInboundReceiptInfo response = warehouseInboundService.replaceFees(receiptId, fees,
+                RequestContext.getRequestId());
+        return ApiResponse.success(response, "Warehouse inbound fees updated");
     }
 
     @PostMapping("/receipt/{receiptId}/upload-file")

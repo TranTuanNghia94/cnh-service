@@ -29,7 +29,8 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
             + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
             + "AND (:orderNumber = '' OR LOWER(CONCAT(COALESCE(o.orderPrefix, ''), '.', CONCAT('', o.orderNumber))) LIKE LOWER(CONCAT('%', :orderNumber, '%'))) "
             + "AND (:status = '' OR LOWER(COALESCE(o.status, '')) LIKE LOWER(CONCAT('%', :status, '%'))) "
-            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%')))")
+            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%')))"
+            + "ORDER BY o.createdAt DESC")
     Page<OrderEntity> findAllFiltered(
             @Param("createdBy") String createdBy,
             @Param("contractNumber") String contractNumber,

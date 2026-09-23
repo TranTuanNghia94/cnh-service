@@ -22,6 +22,7 @@ import com.cnh.ies.entity.export.ExportJobEntity;
 import com.cnh.ies.entity.file.FileInfoEntity;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.model.export.ExportJobInfo;
+import com.cnh.ies.model.export.ExportNotificationMetadata;
 import com.cnh.ies.repository.export.ExportJobRepo;
 import com.cnh.ies.repository.file.FileInfoRepo;
 import com.cnh.ies.service.file.FileService;
@@ -116,6 +117,30 @@ class ExportJobServiceTest {
         verify(exportJobRepo).save(job);
         assertEquals(ExportJobStatus.SUCCESS, job.getStatus());
         assertEquals(fileInfoId, job.getFileInfoId());
+    }
+
+    @Test
+    void buildNotificationMetadataJson_includesActionTargets() throws Exception {
+        UUID jobId = UUID.randomUUID();
+        ExportJobService service = new ExportJobService(
+                exportJobRepo, fileInfoRepo, fileService, objectMapper, workerService);
+
+        String json = service.buildNotificationMetadataJson(
+                jobId,
+                ExportJobType.PRODUCTS,
+                ExportJobStatus.SUCCESS,
+                "products.xlsx",
+                "/exports/" + jobId,
+                "https://signed-url",
+                "https://signed-url");
+
+        ExportNotificationMetadata metadata = objectMapper.readValue(json, ExportNotificationMetadata.class);
+
+        assertEquals(jobId.toString(), metadata.getJobId());
+        assertEquals(ExportJobStatus.SUCCESS, metadata.getStatus());
+        assertEquals("/exports/" + jobId, metadata.getResultUrl());
+        assertEquals("https://signed-url", metadata.getDownloadUrl());
+        assertEquals("https://signed-url", metadata.getActionUrl());
     }
 
     @Test

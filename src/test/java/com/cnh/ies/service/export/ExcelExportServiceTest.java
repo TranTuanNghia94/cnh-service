@@ -36,6 +36,12 @@ class ExcelExportServiceTest {
     private CustomerRepo customerRepo;
     @Mock
     private WarehouseInventoryRepo warehouseInventoryRepo;
+    @Mock
+    private com.cnh.ies.repository.export.ExportJobRepo exportJobRepo;
+    @Mock
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    @Mock
+    private com.cnh.ies.service.report.ServiceReportExcelExportService serviceReportExcelExportService;
 
     @InjectMocks
     private ExcelExportService excelExportService;
@@ -57,7 +63,7 @@ class ExcelExportServiceTest {
         when(productRepo.findAllForExport()).thenReturn(List.of(product));
 
         ExcelExportService.ExportWorkbookResult result =
-                excelExportService.export(ExportJobType.PRODUCTS, "rid");
+                excelExportService.export(ExportJobType.PRODUCTS, java.util.UUID.randomUUID(), "rid");
 
         assertNotNull(result.content());
         assertTrue(result.fileName().startsWith("products_export_"));
@@ -88,7 +94,7 @@ class ExcelExportServiceTest {
         when(warehouseInventoryRepo.findAllForExport()).thenReturn(List.of(inv));
 
         ExcelExportService.ExportWorkbookResult result =
-                excelExportService.export(ExportJobType.WAREHOUSE_INVENTORY, "rid");
+                excelExportService.export(ExportJobType.WAREHOUSE_INVENTORY, java.util.UUID.randomUUID(), "rid");
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(result.content()))) {
             Sheet sheet = workbook.getSheetAt(0);

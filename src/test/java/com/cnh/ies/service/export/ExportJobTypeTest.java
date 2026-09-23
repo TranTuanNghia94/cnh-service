@@ -19,6 +19,20 @@ class ExportJobTypeTest {
     }
 
     @Test
+    void normalize_acceptsServiceReportTypes() {
+        assertEquals(ExportJobType.SERVICE_ORDER_OVERALL,
+                ExportJobType.normalize("service_order_overall", "rid"));
+        assertEquals(ExportJobType.SERVICE_PAYMENT_REQUEST_DETAIL,
+                ExportJobType.normalize("SERVICE_PAYMENT_REQUEST_DETAIL", "rid"));
+    }
+
+    @Test
+    void validateServiceReportParams_requiresDates() {
+        assertThrows(ApiException.class, () -> ExportJobType.validateServiceReportParams(
+                ExportJobType.SERVICE_ORDER_OVERALL, null, null, "rid"));
+    }
+
+    @Test
     void normalize_rejectsInvalidType() {
         assertThrows(ApiException.class, () -> ExportJobType.normalize("ORDERS", "rid"));
     }

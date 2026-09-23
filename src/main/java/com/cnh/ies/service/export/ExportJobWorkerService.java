@@ -44,7 +44,8 @@ public class ExportJobWorkerService {
 
             exportJobService.markRunning(jobId);
 
-            ExcelExportService.ExportWorkbookResult workbook = excelExportService.export(type, requestId);
+            ExcelExportService.ExportWorkbookResult workbook =
+                    excelExportService.export(type, jobId, requestId);
             String s3Category = ExportJobType.fileNamePrefix(type);
             PaymentFileUploadInfo uploaded = fileService.uploadGeneratedFile(
                     workbook.content(),
@@ -56,8 +57,10 @@ public class ExportJobWorkerService {
             exportJobService.markSuccess(jobId, uploaded.getId(), workbook.fileName());
 
             String downloadUrl = fileService.presignGetUrlForKey(uploaded.getFilePath());
+            String resultUrl = "/exports/" + jobId;
+            String actionUrl = downloadUrl != null && !downloadUrl.isBlank() ? downloadUrl : resultUrl;
             String metadata = exportJobService.buildNotificationMetadataJson(
-                    jobId, type, workbook.fileName(), downloadUrl);
+                    jobId, type, ExportJobStatus.SUCCESS, workbook.fileName(), resultUrl, downloadUrl, actionUrl);
             notificationService.sendNotification(
                     ownerUserId,
                     "Xuất Excel thành công",
@@ -66,15 +69,16 @@ public class ExportJobWorkerService {
                     NotificationService.NotificationCategory.SYSTEM,
                     jobId.toString(),
                     REFERENCE_TYPE,
-                    "/exports/" + jobId,
+                    actionUrl,
                     metadata);
 
         } catch (Exception ex) {
             log.error("Export job {} failed", jobId, ex);
             exportJobService.markFailed(jobId, ex.getMessage());
 
+            String resultUrl = "/exports/" + jobId;
             String metadata = exportJobService.buildNotificationMetadataJson(
-                    jobId, type, null, null);
+                    jobId, type, ExportJobStatus.FAILED, null, resultUrl, null, resultUrl);
             notificationService.sendNotification(
                     ownerUserId,
                     "Xuất Excel thất bại",
@@ -83,7 +87,7 @@ public class ExportJobWorkerService {
                     NotificationService.NotificationCategory.SYSTEM,
                     jobId.toString(),
                     REFERENCE_TYPE,
-                    "/exports/" + jobId,
+                    resultUrl,
                     metadata);
         } finally {
             if (previousMdc != null) {

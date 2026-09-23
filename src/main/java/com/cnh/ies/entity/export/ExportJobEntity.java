@@ -35,6 +35,10 @@ public class ExportJobEntity extends BaseEntity {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    /** JSON for SERVICE_* report export parameters. */
+    @Column(name = "report_params", columnDefinition = "TEXT")
+    private String reportParams;
+
     @Column(name = "started_at")
     private Instant startedAt;
 

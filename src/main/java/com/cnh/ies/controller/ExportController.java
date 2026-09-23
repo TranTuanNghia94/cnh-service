@@ -42,7 +42,13 @@ public class ExportController {
         UUID ownerUserId = getCurrentUserId(userDetails);
         String createdBy = getCurrentUsername(userDetails);
         String jobId = exportJobService.createAndDispatch(
-                request.getType(), ownerUserId, createdBy, requestId);
+                request.getType(),
+                request.getFromDate(),
+                request.getToDate(),
+                request.getFilters(),
+                ownerUserId,
+                createdBy,
+                requestId);
         return ApiResponse.success(jobId, "Export job created");
     }
 

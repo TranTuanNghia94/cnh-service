@@ -1,7 +1,9 @@
 package com.cnh.ies.service.export;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -18,6 +20,7 @@ import com.cnh.ies.entity.export.ExportJobEntity;
 import com.cnh.ies.exception.ApiException;
 import com.cnh.ies.model.export.ExportJobInfo;
 import com.cnh.ies.model.export.ExportNotificationMetadata;
+import com.cnh.ies.model.export.ServiceReportExportParams;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.repository.export.ExportJobRepo;
@@ -53,8 +56,16 @@ public class ExportJobService {
     }
 
     @Transactional
-    public String createAndDispatch(String typeRaw, UUID ownerUserId, String createdBy, String requestId) {
+    public String createAndDispatch(
+            String typeRaw,
+            LocalDate fromDate,
+            LocalDate toDate,
+            Map<String, String> filters,
+            UUID ownerUserId,
+            String createdBy,
+            String requestId) {
         String type = ExportJobType.normalize(typeRaw, requestId);
+        ExportJobType.validateServiceReportParams(type, fromDate, toDate, requestId);
         String actor = resolveActor(createdBy);
 
         ExportJobEntity job = new ExportJobEntity();
@@ -63,11 +74,45 @@ public class ExportJobService {
         job.setStatus(ExportJobStatus.PENDING);
         job.setCreatedBy(actor);
         job.setUpdatedBy(actor);
+        if (ExportJobType.isServiceReportType(type)) {
+            job.setReportParams(serializeReportParams(fromDate, toDate, filters, requestId));
+        }
         job = exportJobRepo.save(job);
 
         UUID jobId = job.getId();
         dispatchAfterCommit(jobId, ownerUserId, type, actor, requestId);
         return jobId.toString();
+    }
+
+    public ServiceReportExportParams loadReportParams(ExportJobEntity job, String requestId) {
+        if (job.getReportParams() == null || job.getReportParams().isBlank()) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "Export job is missing report parameters",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        try {
+            return objectMapper.readValue(job.getReportParams(), ServiceReportExportParams.class);
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "Invalid report parameters on export job",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+    }
+
+    private String serializeReportParams(
+            LocalDate fromDate, LocalDate toDate, Map<String, String> filters, String requestId) {
+        try {
+            ServiceReportExportParams params = ServiceReportExportParams.builder()
+                    .fromDate(fromDate)
+                    .toDate(toDate)
+                    .filters(filters)
+                    .build();
+            return objectMapper.writeValueAsString(params);
+        } catch (JsonProcessingException e) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                    "Failed to serialize report parameters",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
     }
 
     public ExportJobInfo getOwnedJob(String jobId, UUID ownerUserId, String requestId) {
@@ -133,14 +178,20 @@ public class ExportJobService {
     public String buildNotificationMetadataJson(
             UUID jobId,
             String type,
+            String status,
             String fileName,
-            String downloadUrl) {
+            String resultUrl,
+            String downloadUrl,
+            String actionUrl) {
         try {
             ExportNotificationMetadata metadata = ExportNotificationMetadata.builder()
                     .jobId(jobId.toString())
                     .type(type)
+                    .status(status)
                     .fileName(fileName)
+                    .resultUrl(resultUrl)
                     .downloadUrl(downloadUrl)
+                    .actionUrl(actionUrl)
                     .build();
             return objectMapper.writeValueAsString(metadata);
         } catch (JsonProcessingException e) {
@@ -150,22 +201,17 @@ public class ExportJobService {
     }
 
     public String buildSuccessNotificationMessage(String type, String fileName) {
-        return String.format("Xuất Excel %s thành công. File: %s",
+        return String.format("Xuất Excel %s thành công. Nhấn để lấy file: %s",
                 displayTypeName(type), fileName != null ? fileName : "");
     }
 
     public String buildFailureNotificationMessage(String message) {
-        return message != null && !message.isBlank() ? message : "Xuất Excel thất bại";
+        String detail = message != null && !message.isBlank() ? ". " + message : "";
+        return "Xuất Excel thất bại. Nhấn để xem kết quả" + detail;
     }
 
     private static String displayTypeName(String type) {
-        return switch (type) {
-            case ExportJobType.PRODUCTS -> "sản phẩm";
-            case ExportJobType.VENDORS -> "nhà cung cấp";
-            case ExportJobType.CUSTOMERS -> "khách hàng";
-            case ExportJobType.WAREHOUSE_INVENTORY -> "tồn kho";
-            default -> type;
-        };
+        return ExportJobType.displayTypeName(type);
     }
 
     private void dispatchAfterCommit(UUID jobId, UUID ownerUserId, String type, String createdBy, String requestId) {

@@ -22,6 +22,9 @@ public class ExportNotificationMetadata {
 
     private String jobId;
     private String type;
+    private String status;
     private String fileName;
+    private String resultUrl;
     private String downloadUrl;
+    private String actionUrl;
 }
