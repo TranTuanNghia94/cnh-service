@@ -42,6 +42,8 @@ class ExcelExportServiceTest {
     private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     @Mock
     private com.cnh.ies.service.report.ServiceReportExcelExportService serviceReportExcelExportService;
+    @Mock
+    private com.cnh.ies.service.report.OperationalReportExcelService operationalReportExcelService;
 
     @InjectMocks
     private ExcelExportService excelExportService;

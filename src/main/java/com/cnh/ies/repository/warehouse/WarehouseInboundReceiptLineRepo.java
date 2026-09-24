@@ -52,6 +52,11 @@ public interface WarehouseInboundReceiptLineRepo extends BaseRepo<WarehouseInbou
             + "WHERE l.id IN :lineIds AND l.isDeleted = false")
     List<Object[]> findReceiptOwnersByLineIds(@Param("lineIds") Collection<UUID> lineIds);
 
+    @Query("SELECT l.id, r.receiptNumber FROM WarehouseInboundReceiptLineEntity l "
+            + "JOIN l.receipt r "
+            + "WHERE l.id IN :lineIds AND l.isDeleted = false")
+    List<Object[]> findReceiptNumbersByLineIds(@Param("lineIds") Collection<UUID> lineIds);
+
     @Query("SELECT COUNT(l) FROM WarehouseInboundReceiptLineEntity l WHERE l.receipt.id = :receiptId AND l.isDeleted = false")
     long countActiveLinesByReceiptId(@Param("receiptId") UUID receiptId);
 

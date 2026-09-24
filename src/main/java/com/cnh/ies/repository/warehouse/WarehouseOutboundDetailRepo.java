@@ -1,5 +1,6 @@
 package com.cnh.ies.repository.warehouse;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,4 +19,9 @@ public interface WarehouseOutboundDetailRepo extends BaseRepo<WarehouseOutboundD
             + "LEFT JOIN FETCH d.orderLine ol "
             + "WHERE d.outbound.id = :outboundId AND d.isDeleted = false AND p.isDeleted = false AND ol.isDeleted = false")
     List<WarehouseOutboundDetailEntity> findByOutboundId(@Param("outboundId") UUID outboundId);
+
+    @Query("SELECT d.id, o.outboundNumber FROM WarehouseOutboundDetailEntity d "
+            + "JOIN d.outbound o "
+            + "WHERE d.id IN :detailIds AND d.isDeleted = false")
+    List<Object[]> findOutboundNumbersByDetailIds(@Param("detailIds") Collection<UUID> detailIds);
 }

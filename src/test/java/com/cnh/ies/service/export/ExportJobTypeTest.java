@@ -3,6 +3,9 @@ package com.cnh.ies.service.export;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.time.LocalDate;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
 import com.cnh.ies.exception.ApiException;
@@ -30,6 +33,21 @@ class ExportJobTypeTest {
     void validateServiceReportParams_requiresDates() {
         assertThrows(ApiException.class, () -> ExportJobType.validateServiceReportParams(
                 ExportJobType.SERVICE_ORDER_OVERALL, null, null, "rid"));
+    }
+
+    @Test
+    void validateOperationalReportParams_matchesEachReportFilter() {
+        assertEquals(ExportJobType.REPORT_STOCK, ExportJobType.normalize("report_stock", "rid"));
+        ExportJobType.validateOperationalReportParams(
+                ExportJobType.REPORT_STOCK, null, null, Map.of("month", "9", "year", "2026"), "rid");
+        ExportJobType.validateOperationalReportParams(
+                ExportJobType.REPORT_INBOUND, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 23), null, "rid");
+        ExportJobType.validateOperationalReportParams(
+                ExportJobType.REPORT_VENDOR_DEBT, null, null, null, "rid");
+        assertThrows(ApiException.class, () -> ExportJobType.validateOperationalReportParams(
+                ExportJobType.REPORT_STOCK, null, null, Map.of(), "rid"));
+        assertThrows(ApiException.class, () -> ExportJobType.validateOperationalReportParams(
+                ExportJobType.REPORT_OUTBOUND_DETAIL, null, null, null, "rid"));
     }
 
     @Test

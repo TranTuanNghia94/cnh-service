@@ -30,6 +30,8 @@ import com.cnh.ies.repository.export.ExportJobRepo;
 import com.cnh.ies.repository.product.ProductRepo;
 import com.cnh.ies.repository.vendors.VendorsRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInventoryRepo;
+import com.cnh.ies.model.report.OperationalReportRequest;
+import com.cnh.ies.service.report.OperationalReportExcelService;
 import com.cnh.ies.service.report.ServiceReportExcelExportService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,8 +54,12 @@ public class ExcelExportService {
     private final ExportJobRepo exportJobRepo;
     private final ObjectMapper objectMapper;
     private final ServiceReportExcelExportService serviceReportExcelExportService;
+    private final OperationalReportExcelService operationalReportExcelService;
 
     public ExportWorkbookResult export(String type, java.util.UUID jobId, String requestId) {
+        if (ExportJobType.isOperationalReportType(type)) {
+            return exportOperationalReport(type, jobId, requestId);
+        }
         if (ExportJobType.isServiceReportType(type)) {
             ExportJobEntity job = exportJobRepo.findByIdAndIsDeletedFalse(jobId)
                     .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Export job not found",
@@ -69,6 +75,46 @@ public class ExcelExportService {
             default -> throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Unsupported export type: " + type,
                     HttpStatus.BAD_REQUEST.value(), requestId);
         };
+    }
+
+    private ExportWorkbookResult exportOperationalReport(String type, java.util.UUID jobId, String requestId) {
+        ExportJobEntity job = exportJobRepo.findByIdAndIsDeletedFalse(jobId)
+                .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Export job not found",
+                        HttpStatus.NOT_FOUND.value(), requestId));
+        ServiceReportExportParams params = parseReportParams(job, requestId);
+        OperationalReportRequest request = new OperationalReportRequest();
+        request.setFromDate(params.getFromDate());
+        request.setToDate(params.getToDate());
+        if (params.getFilters() != null) {
+            String month = params.getFilters().get("month");
+            String year = params.getFilters().get("year");
+            if (month != null && !month.isBlank()) {
+                request.setMonth(Integer.valueOf(month.trim()));
+            }
+            if (year != null && !year.isBlank()) {
+                request.setYear(Integer.valueOf(year.trim()));
+            }
+            request.setProductName(params.getFilters().get("productName"));
+            request.setProductCode(params.getFilters().get("productCode"));
+            request.setContractNumber(params.getFilters().get("contractNumber"));
+            request.setUserName(params.getFilters().get("userName"));
+            request.setVendor(params.getFilters().get("vendor"));
+            request.setCustomer(params.getFilters().get("customer"));
+            request.setDocumentNumber(params.getFilters().get("documentNumber"));
+        }
+        byte[] bytes = switch (type) {
+            case ExportJobType.REPORT_STOCK -> operationalReportExcelService.stock(request, requestId);
+            case ExportJobType.REPORT_PAYMENT -> operationalReportExcelService.payments(request, requestId);
+            case ExportJobType.REPORT_INBOUND -> operationalReportExcelService.inboundSummary(request, requestId);
+            case ExportJobType.REPORT_INBOUND_DETAIL -> operationalReportExcelService.inboundDetail(request, requestId);
+            case ExportJobType.REPORT_OUTBOUND -> operationalReportExcelService.outboundSummary(request, requestId);
+            case ExportJobType.REPORT_OUTBOUND_DETAIL -> operationalReportExcelService.outboundDetail(request, requestId);
+            case ExportJobType.REPORT_VENDOR_DEBT -> operationalReportExcelService.vendorDebt(request, requestId);
+            case ExportJobType.REPORT_SALES_DETAIL -> operationalReportExcelService.salesDetail(request, requestId);
+            default -> throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Unsupported export type: " + type,
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        };
+        return new ExportWorkbookResult(bytes, buildFileName(type));
     }
 
     private ExportWorkbookResult exportProducts(String requestId) {

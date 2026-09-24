@@ -30,6 +30,7 @@ import com.cnh.ies.model.warehouse.WarehouseStockTransactionInfo;
 import com.cnh.ies.repository.product.ProductRepo;
 import com.cnh.ies.repository.product.ProductTaxHistoryRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptLineRepo;
+import com.cnh.ies.repository.warehouse.WarehouseOutboundDetailRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInventoryRepo;
 import com.cnh.ies.repository.warehouse.WarehouseStockTransactionRepo;
@@ -46,6 +47,7 @@ public class WarehouseInventoryService {
 
     private final WarehouseInboundReceiptRepo warehouseInboundReceiptRepo;
     private final WarehouseInboundReceiptLineRepo warehouseInboundReceiptLineRepo;
+    private final WarehouseOutboundDetailRepo warehouseOutboundDetailRepo;
     private final WarehouseInventoryRepo warehouseInventoryRepo;
     private final WarehouseStockTransactionRepo warehouseStockTransactionRepo;
     private final ProductRepo productRepo;
@@ -158,8 +160,9 @@ public class WarehouseInventoryService {
         List<WarehouseStockTransactionEntity> transactions = warehouseStockTransactionRepo
                 .findByProductIdOrderByCreatedAtDesc(pid);
         Map<UUID, String> inboundOwnerByLineId = loadInboundOwnerByLineId(transactions);
+        Map<UUID, String> documentNumberByReferenceId = loadDocumentNumbers(transactions);
         return transactions.stream()
-                .map(tx -> toTxInfo(tx, resolveOwnerBy(tx, inboundOwnerByLineId)))
+                .map(tx -> toTxInfo(tx, resolveOwnerBy(tx, inboundOwnerByLineId), documentNumberByReferenceId))
                 .collect(Collectors.toList());
     }
 
@@ -297,14 +300,55 @@ public class WarehouseInventoryService {
         return tx.getCreatedBy();
     }
 
+    private Map<UUID, String> loadDocumentNumbers(List<WarehouseStockTransactionEntity> transactions) {
+        List<UUID> inboundLineIds = transactions.stream()
+                .filter(tx -> Constant.WAREHOUSE_STOCK_REF_INBOUND_RECEIPT_LINE.equals(tx.getReferenceType()))
+                .map(WarehouseStockTransactionEntity::getReferenceId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        List<UUID> outboundDetailIds = transactions.stream()
+                .filter(tx -> Constant.WAREHOUSE_STOCK_REF_OUTBOUND_DETAIL.equals(tx.getReferenceType()))
+                .map(WarehouseStockTransactionEntity::getReferenceId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        Map<UUID, String> numbers = new java.util.HashMap<>();
+        if (!inboundLineIds.isEmpty()) {
+            warehouseInboundReceiptLineRepo.findReceiptNumbersByLineIds(inboundLineIds).forEach(row -> {
+                if (row[0] != null && row[1] != null) {
+                    numbers.put((UUID) row[0], row[1].toString());
+                }
+            });
+        }
+        if (!outboundDetailIds.isEmpty()) {
+            warehouseOutboundDetailRepo.findOutboundNumbersByDetailIds(outboundDetailIds).forEach(row -> {
+                if (row[0] != null && row[1] != null) {
+                    numbers.put((UUID) row[0], row[1].toString());
+                }
+            });
+        }
+        return numbers;
+    }
+
     private static WarehouseStockTransactionInfo toTxInfo(WarehouseStockTransactionEntity e, String ownerBy) {
+        return toTxInfo(e, ownerBy, Map.of());
+    }
+
+    private static WarehouseStockTransactionInfo toTxInfo(
+            WarehouseStockTransactionEntity e, String ownerBy, Map<UUID, String> documentNumberByReferenceId) {
         WarehouseStockTransactionInfo i = new WarehouseStockTransactionInfo();
         i.setId(e.getId().toString());
         i.setProductId(e.getProduct().getId().toString());
         i.setDirection(e.getDirection());
         i.setQuantity(e.getQuantity());
         i.setReferenceType(e.getReferenceType());
-        i.setReferenceId(e.getReferenceId() == null ? null : e.getReferenceId().toString());
+        String documentNumber = e.getReferenceId() == null
+                ? null
+                : documentNumberByReferenceId.get(e.getReferenceId());
+        i.setReferenceId(documentNumber != null
+                ? documentNumber
+                : e.getReferenceId() == null ? null : e.getReferenceId().toString());
         i.setNote(e.getNote());
         i.setCreatedBy(e.getCreatedBy());
         i.setOwnerBy(ownerBy);

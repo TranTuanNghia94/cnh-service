@@ -66,6 +66,7 @@ public class ExportJobService {
             String requestId) {
         String type = ExportJobType.normalize(typeRaw, requestId);
         ExportJobType.validateServiceReportParams(type, fromDate, toDate, requestId);
+        ExportJobType.validateOperationalReportParams(type, fromDate, toDate, filters, requestId);
         String actor = resolveActor(createdBy);
 
         ExportJobEntity job = new ExportJobEntity();
@@ -74,7 +75,7 @@ public class ExportJobService {
         job.setStatus(ExportJobStatus.PENDING);
         job.setCreatedBy(actor);
         job.setUpdatedBy(actor);
-        if (ExportJobType.isServiceReportType(type)) {
+        if (ExportJobType.isServiceReportType(type) || ExportJobType.isOperationalReportType(type)) {
             job.setReportParams(serializeReportParams(fromDate, toDate, filters, requestId));
         }
         job = exportJobRepo.save(job);

@@ -244,8 +244,11 @@ public class UserService {
                         HttpStatus.NOT_FOUND.value(), requestId);
             }
 
-            user.get().setFirstName(request.getFirstName());
-            user.get().setLastName(request.getLastName());
+            String lastName = request.getLastName() == null ? "" : request.getLastName().trim();
+            String firstName = request.getFirstName() == null ? "" : request.getFirstName().trim();
+            user.get().setFirstName(firstName);
+            user.get().setLastName(lastName);
+            user.get().setFullName((lastName + " " + firstName).trim());
             user.get().setPhone(request.getPhone());
             user.get().setEmail(request.getEmail());
             user.get().setRoles(new HashSet<>(Arrays.asList(role.get())));
@@ -256,6 +259,8 @@ public class UserService {
 
             return userMapper.mapToUserInfo(user.get());
 
+        } catch (ApiException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error updating user", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
@@ -368,6 +373,11 @@ public class UserService {
                 throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "User not found: " + id, HttpStatus.NOT_FOUND.value(), requestId);
             }
 
+            if (request.getNewPassword() == null || request.getNewPassword().isBlank()) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "New password is required",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+
             user.get().setPassword(BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt()));
 
             userRepo.save(user.get());
@@ -375,6 +385,8 @@ public class UserService {
             log.info("Reset password success: {} | RequestId: {}", id, requestId);
 
             return "Password reset successfully";
+        } catch (ApiException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error resetting password", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
