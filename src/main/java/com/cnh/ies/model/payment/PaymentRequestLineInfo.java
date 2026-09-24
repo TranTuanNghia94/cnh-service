@@ -13,6 +13,8 @@ public class PaymentRequestLineInfo {
     private String purchaseOrderLineId;
     private PurchaseOrderLineInfo purchaseOrderLine;
     private String selectedDocuments;
+    private String documentLabel;
+    private String inboundReceiptNumbers;
     private BigDecimal requestedAmount;
     private BigDecimal paidAmount;
     private String note;

@@ -52,6 +52,33 @@ public interface WarehouseInboundReceiptLineRepo extends BaseRepo<WarehouseInbou
             + "WHERE l.id IN :lineIds AND l.isDeleted = false")
     List<Object[]> findReceiptOwnersByLineIds(@Param("lineIds") Collection<UUID> lineIds);
 
+    @Query("SELECT r.receiptNumber, "
+            + "COALESCE(pol.quote, alt.quote, ''), COALESCE(pol.invoice, alt.invoice, ''), "
+            + "COALESCE(pol.billOfLadding, alt.billOfLadding, ''), "
+            + "COALESCE(pol.receiptWarehouse, alt.receiptWarehouse, ''), "
+            + "COALESCE(pol.trackId, alt.trackId, ''), "
+            + "COALESCE(pol.purchaseContractNumber, alt.purchaseContractNumber, ''), "
+            + "COALESCE(o.contractNumber, altOrder.contractNumber, '') "
+            + "FROM WarehouseInboundReceiptLineEntity l "
+            + "JOIN l.receipt r "
+            + "LEFT JOIN l.purchaseOrderLine pol "
+            + "LEFT JOIN pol.purchaseOrder po "
+            + "LEFT JOIN po.order o "
+            + "LEFT JOIN l.paymentRequestPurchaseOrderLine prpol "
+            + "LEFT JOIN prpol.purchaseOrderLine alt "
+            + "LEFT JOIN alt.purchaseOrder altPo "
+            + "LEFT JOIN altPo.order altOrder "
+            + "WHERE l.isDeleted = false AND r.isDeleted = false "
+            + "AND r.status NOT IN ('CANCELLED', 'REJECTED') "
+            + "AND (pol.quote IN :codes OR alt.quote IN :codes "
+            + "OR pol.invoice IN :codes OR alt.invoice IN :codes "
+            + "OR pol.billOfLadding IN :codes OR alt.billOfLadding IN :codes "
+            + "OR pol.receiptWarehouse IN :codes OR alt.receiptWarehouse IN :codes "
+            + "OR pol.trackId IN :codes OR alt.trackId IN :codes "
+            + "OR pol.purchaseContractNumber IN :codes OR alt.purchaseContractNumber IN :codes "
+            + "OR o.contractNumber IN :codes OR altOrder.contractNumber IN :codes)")
+    List<Object[]> findReceiptNumbersByDocumentCodes(@Param("codes") Collection<String> codes);
+
     @Query("SELECT l.id, r.receiptNumber FROM WarehouseInboundReceiptLineEntity l "
             + "JOIN l.receipt r "
             + "WHERE l.id IN :lineIds AND l.isDeleted = false")

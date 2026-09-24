@@ -23,6 +23,7 @@ import com.cnh.ies.mapper.purchaseorder.PurchaseOrderLineMapper;
 import com.cnh.ies.mapper.purchaseorder.PurchaseOrderMapper;
 import com.cnh.ies.repository.payment.PaymentRequestExtraFeeRepo;
 import com.cnh.ies.repository.payment.PaymentRequestPurchaseOrderLineRepo;
+import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptLineRepo;
 import com.cnh.ies.model.payment.CreateOrUpdatePaymentRequest;
 import com.cnh.ies.model.payment.PaymentBankInfoObject;
 import com.cnh.ies.model.payment.PaymentBankNoteObject;
@@ -48,6 +49,16 @@ public class PaymentRequestMapper {
     private final PaymentRequestExtraFeeRepo paymentRequestExtraFeeRepo;
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final PurchaseOrderMapper purchaseOrderMapper;
+    private final WarehouseInboundReceiptLineRepo warehouseInboundReceiptLineRepo;
+
+    private static final java.util.List<String> DOCUMENT_TYPES = java.util.List.of(
+            "quote", "invoice", "billOfLadding", "receiptWarehouse", "trackId");
+    private static final java.util.Map<String, String> DOCUMENT_LABELS = java.util.Map.of(
+            "quote", "Quote",
+            "invoice", "Invoice",
+            "billOfLadding", "Bill of lading",
+            "receiptWarehouse", "Receipt warehouse",
+            "trackId", "Track ID");
 
     public void applyHeaderFromCreateOrUpdate(PaymentRequestEntity entity, CreateOrUpdatePaymentRequest request,
             UserEntity requestor, VendorsEntity vendor, BigDecimal requestedAmount, BigDecimal feeAmount,
@@ -141,7 +152,9 @@ public class PaymentRequestMapper {
         info.setPaidBy(entity.getPaidBy() == null ? null : entity.getPaidBy().getId().toString());
         info.setPaidAt(entity.getPaidAt() == null ? null : entity.getPaidAt().toString());
 
-        info.setItems(itemEntities.stream().map(item -> toLineInfo(item, docEntities)).toList());
+        List<PaymentRequestLineInfo> lines = itemEntities.stream().map(item -> toLineInfo(item, docEntities)).toList();
+        attachInboundReceiptNumbers(lines, itemEntities);
+        info.setItems(lines);
         info.setFees(feeEntities.stream().map(PaymentRequestMapper::toFeeInfo).toList());
 
         PaymentRequestMoneyTotals totals = moneyMapper.computeMoneyTotals(
@@ -187,11 +200,100 @@ public class PaymentRequestMapper {
                 .filter(doc -> doc.getPaymentRequestItem().getId().equals(item.getId()))
                 .map(PaymentRequestItemDocumentEntity::getDocumentType)
                 .collect(Collectors.joining(","));
-        lineInfo.setSelectedDocuments(selectedDocuments.isBlank() ? item.getSelectedDocuments() : selectedDocuments);
+        String documents = selectedDocuments.isBlank() ? item.getSelectedDocuments() : selectedDocuments;
+        lineInfo.setSelectedDocuments(documents);
+        lineInfo.setDocumentLabel(documentLabel(pol, documents));
         lineInfo.setRequestedAmount(item.getRequestedAmount());
         lineInfo.setPaidAmount(item.getPaidAmount());
         lineInfo.setNote(item.getNote());
         return lineInfo;
+    }
+
+    private void attachInboundReceiptNumbers(
+            List<PaymentRequestLineInfo> lines, List<PaymentRequestPurchaseOrderLineEntity> items) {
+        java.util.Map<String, java.util.Set<String>> codesByLine = new java.util.LinkedHashMap<>();
+        java.util.Set<String> allCodes = new java.util.LinkedHashSet<>();
+        for (int index = 0; index < lines.size(); index++) {
+            java.util.Set<String> codes = lookupCodes(items.get(index).getPurchaseOrderLine());
+            codesByLine.put(lines.get(index).getId(), codes);
+            allCodes.addAll(codes);
+        }
+        if (allCodes.isEmpty()) {
+            return;
+        }
+        java.util.Map<String, java.util.Set<String>> receiptsByCode = new java.util.HashMap<>();
+        for (Object[] row : warehouseInboundReceiptLineRepo.findReceiptNumbersByDocumentCodes(allCodes)) {
+            String receiptNumber = row[0] == null ? "" : row[0].toString().trim();
+            if (receiptNumber.isEmpty()) {
+                continue;
+            }
+            for (int index = 1; index < row.length; index++) {
+                String code = row[index] == null ? "" : row[index].toString().trim();
+                if (!code.isEmpty() && allCodes.contains(code)) {
+                    receiptsByCode.computeIfAbsent(code, ignored -> new java.util.LinkedHashSet<>()).add(receiptNumber);
+                }
+            }
+        }
+        for (PaymentRequestLineInfo line : lines) {
+            java.util.Set<String> numbers = new java.util.LinkedHashSet<>();
+            for (String code : codesByLine.getOrDefault(line.getId(), java.util.Set.of())) {
+                numbers.addAll(receiptsByCode.getOrDefault(code, java.util.Set.of()));
+            }
+            line.setInboundReceiptNumbers(String.join(", ", numbers));
+        }
+    }
+
+    private static java.util.Set<String> lookupCodes(PurchaseOrderLineEntity pol) {
+        java.util.Set<String> codes = new java.util.LinkedHashSet<>();
+        if (pol == null) {
+            return codes;
+        }
+        addCode(codes, pol.getQuote());
+        addCode(codes, pol.getInvoice());
+        addCode(codes, pol.getBillOfLadding());
+        addCode(codes, pol.getReceiptWarehouse());
+        addCode(codes, pol.getTrackId());
+        addCode(codes, pol.getPurchaseContractNumber());
+        if (pol.getPurchaseOrder() != null && pol.getPurchaseOrder().getOrder() != null) {
+            addCode(codes, pol.getPurchaseOrder().getOrder().getContractNumber());
+        }
+        return codes;
+    }
+
+    private static void addCode(java.util.Set<String> codes, String value) {
+        if (value != null && !value.isBlank()) {
+            codes.add(value.trim());
+        }
+    }
+
+    private static String documentLabel(PurchaseOrderLineEntity line, String selectedDocuments) {
+        if (line == null) {
+            return "";
+        }
+        java.util.List<String> selected = java.util.Arrays.stream(selectedDocuments == null ? new String[0] : selectedDocuments.split("[,|\\n]"))
+                .map(String::trim)
+                .filter(token -> !token.isEmpty())
+                .map(token -> token.contains(":") ? token.split(":", 2)[0].trim() : token)
+                .filter(DOCUMENT_LABELS::containsKey)
+                .toList();
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<String> types = selected.isEmpty()
+                ? DOCUMENT_TYPES
+                : DOCUMENT_TYPES.stream().filter(selected::contains).toList();
+        for (String type : types) {
+            String code = switch (type) {
+                case "quote" -> line.getQuote();
+                case "invoice" -> line.getInvoice();
+                case "billOfLadding" -> line.getBillOfLadding();
+                case "receiptWarehouse" -> line.getReceiptWarehouse();
+                case "trackId" -> line.getTrackId();
+                default -> "";
+            };
+            if (code != null && !code.isBlank()) {
+                labels.add(code.trim() + " - " + DOCUMENT_LABELS.get(type));
+            }
+        }
+        return String.join(", ", labels);
     }
 
     public static PaymentRequestFeeInfo toFeeInfo(PaymentRequestExtraFeeEntity fee) {
