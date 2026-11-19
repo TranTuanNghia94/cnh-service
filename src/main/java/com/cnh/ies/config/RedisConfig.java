@@ -1,5 +1,6 @@
 package com.cnh.ies.config;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.convert.DurationUnit;
 import org.springframework.cache.CacheManager;
@@ -27,8 +28,11 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 @Configuration
 @EnableCaching
@@ -103,28 +107,48 @@ public class RedisConfig {
     }
 
     /**
+     * Object mapper for Redis JSON serialization (with type information).
+     * Must be qualified everywhere — Spring Boot's primary ObjectMapper has no default typing
+     * and would deserialize cache values as LinkedHashMap.
+     */
+    @Bean("redisObjectMapper")
+    public ObjectMapper redisObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.registerModule(new Jdk8Module());
+        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper.activateDefaultTyping(
+                LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY);
+        return mapper;
+    }
+
+    @Bean
+    public GenericJackson2JsonRedisSerializer redisJsonSerializer(
+            @Qualifier("redisObjectMapper") ObjectMapper redisObjectMapper) {
+        return new GenericJackson2JsonRedisSerializer(redisObjectMapper);
+    }
+
+    /**
      * Redis template for key-value operations
      */
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory,
-            ObjectMapper redisObjectMapper) {
+            GenericJackson2JsonRedisSerializer redisJsonSerializer) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        // Configure serializers
         StringRedisSerializer stringSerializer = new StringRedisSerializer();
-        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(redisObjectMapper);
 
-        // Key serializer
         template.setKeySerializer(stringSerializer);
         template.setHashKeySerializer(stringSerializer);
+        template.setValueSerializer(redisJsonSerializer);
+        template.setHashValueSerializer(redisJsonSerializer);
 
-        // Value serializer
-        template.setValueSerializer(jsonSerializer);
-        template.setHashValueSerializer(jsonSerializer);
-
-        // Enable transaction support
-        template.setEnableTransactionSupport(true);
+        // Keep false: transaction-aware ops break simple get/set used by auth session keys.
+        template.setEnableTransactionSupport(false);
 
         template.afterPropertiesSet();
         return template;
@@ -134,35 +158,21 @@ public class RedisConfig {
      * Cache manager configuration
      */
     @Bean
-    public CacheManager cacheManager(RedisConnectionFactory connectionFactory, ObjectMapper redisObjectMapper) {
-        // Default cache configuration
+    public CacheManager cacheManager(RedisConnectionFactory connectionFactory,
+            GenericJackson2JsonRedisSerializer redisJsonSerializer) {
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(30)) // Default TTL: 30 minutes
+                .entryTtl(Duration.ofMinutes(30))
                 .serializeKeysWith(
                         RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair
-                        .fromSerializer(new GenericJackson2JsonRedisSerializer(redisObjectMapper)))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(redisJsonSerializer))
                 .disableCachingNullValues();
 
-        // Custom cache configurations
         Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
-
-        // User cache - 1 hour TTL
         cacheConfigurations.put("user", defaultConfig.entryTtl(Duration.ofHours(1)));
-
-        // Session cache - 2 hours TTL
         cacheConfigurations.put("session", defaultConfig.entryTtl(Duration.ofHours(2)));
-
-        // Token cache - 30 minutes TTL
         cacheConfigurations.put("token", defaultConfig.entryTtl(Duration.ofMinutes(30)));
-
-        // Rate limiting cache - 1 minute TTL
         cacheConfigurations.put("rateLimit", defaultConfig.entryTtl(Duration.ofMinutes(1)));
-
-        // API response cache - 5 minutes TTL
         cacheConfigurations.put("apiResponse", defaultConfig.entryTtl(Duration.ofMinutes(5)));
-
-        // Reference data — short TTL; mutate methods should @CacheEvict
         cacheConfigurations.put("roles", defaultConfig.entryTtl(Duration.ofMinutes(15)));
         cacheConfigurations.put("permissions", defaultConfig.entryTtl(Duration.ofMinutes(15)));
         cacheConfigurations.put("categories", defaultConfig.entryTtl(Duration.ofMinutes(15)));
@@ -170,23 +180,7 @@ public class RedisConfig {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(cacheConfigurations)
-                .transactionAware()
                 .build();
-    }
-
-    /**
-     * Object mapper for Redis JSON serialization (with type information)
-     * This mapper is specifically for Redis and includes type information
-     */
-    @Bean("redisObjectMapper")
-    public ObjectMapper redisObjectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        mapper.activateDefaultTyping(
-                LaissezFaireSubTypeValidator.instance,
-                ObjectMapper.DefaultTyping.NON_FINAL,
-                JsonTypeInfo.As.PROPERTY);
-        return mapper;
     }
 
     /**

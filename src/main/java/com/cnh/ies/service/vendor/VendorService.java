@@ -181,6 +181,7 @@ public class VendorService {
             if (request.getBanks() != null) {
                 java.util.Set<UUID> keptIds = request.getBanks().stream()
                         .map(bank -> bank.getId())
+                        .flatMap(Optional::stream)
                         .filter(id -> id != null && !id.isBlank())
                         .map(UUID::fromString)
                         .collect(Collectors.toSet());

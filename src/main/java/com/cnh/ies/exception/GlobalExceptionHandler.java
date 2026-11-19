@@ -2,6 +2,8 @@ package com.cnh.ies.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
@@ -34,6 +36,20 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(status).body(response);
+    }
+
+    @ExceptionHandler({ AccessDeniedException.class, AuthorizationDeniedException.class })
+    public ResponseEntity<ApiResponse<Object>> handleAccessDenied(Exception ex, WebRequest request) {
+        log.warn("Access denied on {}: {}", request.getDescription(false), ex.getMessage());
+
+        ApiResponse<Object> response = ApiResponse.<Object>builder()
+                .success(false)
+                .error("Access denied")
+                .errorCode(ApiException.ErrorCode.FORBIDDEN)
+                .status(HttpStatus.FORBIDDEN.value())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
     @ExceptionHandler(Exception.class)

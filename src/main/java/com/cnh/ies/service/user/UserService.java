@@ -69,6 +69,8 @@ public class UserService {
             log.debug("Getting user info success: {} | RequestId: {}", username, requestId);
 
             return userMapper.mapToUserInfo(user.get());
+        } catch (ApiException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error getting user info", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
