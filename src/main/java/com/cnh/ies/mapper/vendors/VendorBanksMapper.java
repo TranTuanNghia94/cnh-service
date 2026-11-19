@@ -57,12 +57,15 @@ public class VendorBanksMapper {
     public VendorBanksEntity toVendorBanksEntity(UpdateVendorBanksRequest request, VendorsEntity vendor) {
         VendorBanksEntity vendorBanksEntity = new VendorBanksEntity();
         vendorBanksEntity.setVendor(vendor);
+        if (request.getId() != null && !request.getId().isBlank()) {
+            vendorBanksEntity.setId(UUID.fromString(request.getId()));
+        }
         vendorBanksEntity.setBankName(request.getBankName());
         vendorBanksEntity.setBankAccountName(request.getBankAccountName());
         vendorBanksEntity.setBankAccountNumber(request.getBankAccountNumber());
-        vendorBanksEntity.setBankAccountBranch(request.getBankAccountBranch().orElse(null));
-        vendorBanksEntity.setBankAccountSwift(request.getBankAccountSwift().orElse(null));
-        vendorBanksEntity.setBankAccountIban(request.getBankAccountIban().orElse(null));
+        vendorBanksEntity.setBankAccountBranch(request.getBankAccountBranch() != null ? request.getBankAccountBranch().orElse(null) : null);
+        vendorBanksEntity.setBankAccountSwift(request.getBankAccountSwift() != null ? request.getBankAccountSwift().orElse(null) : null);
+        vendorBanksEntity.setBankAccountIban(request.getBankAccountIban() != null ? request.getBankAccountIban().orElse(null) : null);
         vendorBanksEntity.setIsActive(true);
         vendorBanksEntity.setUpdatedBy(RequestContext.getCurrentUsername());
         vendorBanksEntity.setIsDeleted(request.getIsDeleted() != null ? request.getIsDeleted().orElse(false) : false);

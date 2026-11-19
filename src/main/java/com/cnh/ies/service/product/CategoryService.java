@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,7 @@ public class CategoryService {
     private final CategoryRepo categoryRepo;
     private final CategoryMapper categoryMapper;
 
+    @Cacheable(cacheNames = "categories", key = "'all'")
     public ListDataModel<CategoryInfo> getAllCategories(String requestId) {
         try {
             log.debug("Getting all categories with request: {}", requestId);
@@ -59,6 +62,7 @@ public class CategoryService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "categories", allEntries = true)
     public CategoryInfo createCategory(CreateCategoryRequest request, String requestId) {
         try {
             log.info("Creating category with request: {}", request);
@@ -82,6 +86,7 @@ public class CategoryService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "categories", allEntries = true)
     public String updateCategory(UpdateCategoryRequest request, String requestId) {
         try {
             log.info("Updating category with requestID: {} request: {}", requestId, request);
@@ -116,6 +121,7 @@ public class CategoryService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "categories", allEntries = true)
     public String deleteCategory(String id, String requestId) {
         try {
             log.info("Deleting category with id: {}", id);
@@ -147,6 +153,7 @@ public class CategoryService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "categories", allEntries = true)
     public String restoreCategory(String id, String requestId) {
         try {
             log.info("Restoring category with id: {}", id);

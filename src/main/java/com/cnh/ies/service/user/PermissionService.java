@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,7 @@ public class PermissionService {
     private final PermissionRepo permissionRepo;
     private final PermissionMapper permissionMapper;
 
+    @Cacheable(cacheNames = "permissions", key = "'all'")
     public ListDataModel<PermissionInfo> getAllPermissions(String requestId) {
         try {
             log.debug("Getting all permissions | RequestId: {}", requestId);

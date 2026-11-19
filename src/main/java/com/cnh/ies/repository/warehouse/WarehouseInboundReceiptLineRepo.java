@@ -38,6 +38,27 @@ public interface WarehouseInboundReceiptLineRepo extends BaseRepo<WarehouseInbou
             + "WHERE l.receipt.id = :receiptId AND l.isDeleted = false")
     List<WarehouseInboundReceiptLineEntity> findByReceiptId(@Param("receiptId") UUID receiptId);
 
+    @Query("SELECT l FROM WarehouseInboundReceiptLineEntity l "
+            + "LEFT JOIN FETCH l.paymentRequestPurchaseOrderLine prpol "
+            + "LEFT JOIN FETCH prpol.purchaseOrderLine prpol_pol "
+            + "LEFT JOIN FETCH l.purchaseOrderLine pol "
+            + "LEFT JOIN FETCH pol.vendor "
+            + "LEFT JOIN FETCH pol.purchaseOrder po "
+            + "LEFT JOIN FETCH po.order o "
+            + "LEFT JOIN FETCH o.customer "
+            + "LEFT JOIN FETCH pol.saleOrderLine sol "
+            + "LEFT JOIN FETCH sol.order so "
+            + "LEFT JOIN FETCH so.customer "
+            + "LEFT JOIN FETCH prpol_pol.vendor "
+            + "LEFT JOIN FETCH prpol_pol.purchaseOrder prpol_po "
+            + "LEFT JOIN FETCH prpol_po.order prpol_o "
+            + "LEFT JOIN FETCH prpol_o.customer "
+            + "LEFT JOIN FETCH prpol_pol.saleOrderLine prpol_sol "
+            + "LEFT JOIN FETCH prpol_sol.order prpol_so "
+            + "LEFT JOIN FETCH prpol_so.customer "
+            + "WHERE l.receipt.id IN :receiptIds AND l.isDeleted = false")
+    List<WarehouseInboundReceiptLineEntity> findByReceiptIdIn(@Param("receiptIds") Collection<UUID> receiptIds);
+
     @Query("SELECT l FROM WarehouseInboundReceiptLineEntity l WHERE l.id = :lineId AND l.receipt.id = :receiptId "
             + "AND l.isDeleted = false")
     Optional<WarehouseInboundReceiptLineEntity> findByIdAndReceiptId(

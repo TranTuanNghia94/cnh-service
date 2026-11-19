@@ -10,6 +10,7 @@ import java.util.UUID;
 import com.cnh.ies.entity.vendors.VendorBanksEntity;
 import com.cnh.ies.repository.BaseRepo;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 @Repository
 public interface VendorBanksRepo extends BaseRepo<VendorBanksEntity, UUID> {
@@ -18,9 +19,12 @@ public interface VendorBanksRepo extends BaseRepo<VendorBanksEntity, UUID> {
     Page<VendorBanksEntity> findAllAndIsDeletedFalse(PageRequest pageable);
 
     @Query("SELECT v FROM VendorBanksEntity v WHERE v.vendor.id = :vendorId AND v.isDeleted = false")
-    Page<VendorBanksEntity> findByVendorId(UUID vendorId, PageRequest pageable);
+    Page<VendorBanksEntity> findByVendorId(@Param("vendorId") UUID vendorId, PageRequest pageable);
 
     @Query("SELECT v FROM VendorBanksEntity v WHERE v.vendor.id = :vendorId AND v.isDeleted = false")
-    List<VendorBanksEntity> findByVendorAndIsDeletedFalse(UUID vendorId);
+    List<VendorBanksEntity> findByVendorAndIsDeletedFalse(@Param("vendorId") UUID vendorId);
+
+    @Query("SELECT v FROM VendorBanksEntity v WHERE v.vendor.id IN :vendorIds AND v.isDeleted = false")
+    List<VendorBanksEntity> findByVendorIdInAndIsDeletedFalse(@Param("vendorIds") List<UUID> vendorIds);
     
 }

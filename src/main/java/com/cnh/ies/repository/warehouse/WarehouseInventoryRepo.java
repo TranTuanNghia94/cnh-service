@@ -1,5 +1,6 @@
 package com.cnh.ies.repository.warehouse;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,6 +19,9 @@ public interface WarehouseInventoryRepo extends BaseRepo<WarehouseInventoryEntit
 
     @Query("SELECT i FROM WarehouseInventoryEntity i WHERE i.product.id = :productId AND i.isDeleted = false")
     Optional<WarehouseInventoryEntity> findByProductId(@Param("productId") UUID productId);
+
+    @Query("SELECT i FROM WarehouseInventoryEntity i JOIN FETCH i.product WHERE i.product.id IN :productIds AND i.isDeleted = false")
+    List<WarehouseInventoryEntity> findByProductIdIn(@Param("productIds") Collection<UUID> productIds);
 
     @Query("SELECT i FROM WarehouseInventoryEntity i "
             + "JOIN FETCH i.product p "

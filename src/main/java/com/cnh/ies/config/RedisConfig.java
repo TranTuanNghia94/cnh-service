@@ -89,9 +89,14 @@ public class RedisConfig {
         poolConfig.setTestWhileIdle(true);
         poolConfig.setTimeBetweenEvictionRuns(Duration.ofMinutes(1));
 
+        @SuppressWarnings("unchecked")
+        GenericObjectPoolConfig<io.lettuce.core.api.StatefulConnection<?, ?>> typedPool =
+                (GenericObjectPoolConfig<io.lettuce.core.api.StatefulConnection<?, ?>>) (GenericObjectPoolConfig<?>) poolConfig;
+
         LettucePoolingClientConfiguration clientConfig = LettucePoolingClientConfiguration.builder()
                 .commandTimeout(redisTimeout)
                 .shutdownTimeout(Duration.ofSeconds(2))
+                .poolConfig(typedPool)
                 .build();
 
         return new LettuceConnectionFactory(config, clientConfig);
@@ -156,6 +161,11 @@ public class RedisConfig {
 
         // API response cache - 5 minutes TTL
         cacheConfigurations.put("apiResponse", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+
+        // Reference data — short TTL; mutate methods should @CacheEvict
+        cacheConfigurations.put("roles", defaultConfig.entryTtl(Duration.ofMinutes(15)));
+        cacheConfigurations.put("permissions", defaultConfig.entryTtl(Duration.ofMinutes(15)));
+        cacheConfigurations.put("categories", defaultConfig.entryTtl(Duration.ofMinutes(15)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)

@@ -21,7 +21,17 @@ public interface PurchaseOrderRepo extends BaseRepo<PurchaseOrderEntity, UUID> {
     @Query("SELECT po FROM PurchaseOrderEntity po WHERE po.isDeleted = false")
     Page<PurchaseOrderEntity> findAllAndIsDeletedFalse(Pageable pageable);
 
-    @Query("SELECT po FROM PurchaseOrderEntity po "
+    @Query(value = "SELECT po FROM PurchaseOrderEntity po "
+            + "LEFT JOIN FETCH po.order o "
+            + "LEFT JOIN FETCH o.customer c "
+            + "LEFT JOIN FETCH o.customerAddress a "
+            + "LEFT JOIN FETCH a.customer "
+            + "WHERE po.isDeleted = false "
+            + "AND (:purchaseOrderNumber = '' OR LOWER(CONCAT(COALESCE(po.poPrefix, ''), '.', CONCAT('', po.poNumber))) LIKE LOWER(CONCAT('%', :purchaseOrderNumber, '%'))) "
+            + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
+            + "AND (:createdBy = '' OR LOWER(COALESCE(po.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
+            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%')))",
+            countQuery = "SELECT COUNT(po) FROM PurchaseOrderEntity po "
             + "LEFT JOIN po.order o "
             + "LEFT JOIN o.customer c "
             + "WHERE po.isDeleted = false "
@@ -42,6 +52,11 @@ public interface PurchaseOrderRepo extends BaseRepo<PurchaseOrderEntity, UUID> {
     @Query("SELECT MAX(po.poNumber) FROM PurchaseOrderEntity po WHERE po.poPrefix = :poPrefix AND po.isDeleted = false")
     Integer findMaxSequenceForPrefix(String poPrefix);
 
-    @Query("SELECT po FROM PurchaseOrderEntity po WHERE po.poPrefix = :poPrefix AND po.poNumber = :poNumber AND po.isDeleted = false")
+    @Query("SELECT po FROM PurchaseOrderEntity po "
+            + "LEFT JOIN FETCH po.order o "
+            + "LEFT JOIN FETCH o.customer "
+            + "LEFT JOIN FETCH o.customerAddress a "
+            + "LEFT JOIN FETCH a.customer "
+            + "WHERE po.poPrefix = :poPrefix AND po.poNumber = :poNumber AND po.isDeleted = false")
     Optional<PurchaseOrderEntity> findByPoPrefixAndPoNumber(String poPrefix, Integer poNumber);
 }

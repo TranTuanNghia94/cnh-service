@@ -192,9 +192,7 @@ public class WarehouseInboundService {
                         orderNumberFilter,
                         statusFilter,
                         PageRequest.of(safePage, safeLimit));
-        List<WarehouseInboundReceiptInfo> data = receipts.stream()
-                .map(receipt -> toReceiptInfo(receipt.getId(), requestId))
-                .toList();
+        List<WarehouseInboundReceiptInfo> data = toReceiptListInfos(receipts.getContent());
 
         PaginationModel pagination = PaginationModel.builder()
                 .page(safePage)
@@ -1016,6 +1014,48 @@ public class WarehouseInboundService {
     // ──────────────────────────────────────────────────────────────
     // DTO mappers
     // ──────────────────────────────────────────────────────────────
+
+    /** List rows: header + order/PO summaries only (no lines/fees/files/approvals). */
+    private List<WarehouseInboundReceiptInfo> toReceiptListInfos(List<WarehouseInboundReceiptEntity> receipts) {
+        if (receipts == null || receipts.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> receiptIds = receipts.stream().map(WarehouseInboundReceiptEntity::getId).toList();
+        Map<UUID, List<WarehouseInboundReceiptLineEntity>> linesByReceipt = warehouseInboundReceiptLineRepo
+                .findByReceiptIdIn(receiptIds)
+                .stream()
+                .collect(Collectors.groupingBy(line -> line.getReceipt().getId()));
+
+        List<WarehouseInboundReceiptInfo> result = new ArrayList<>(receipts.size());
+        for (WarehouseInboundReceiptEntity receipt : receipts) {
+            List<WarehouseInboundReceiptLineEntity> lineEntities = linesByReceipt.getOrDefault(receipt.getId(), List.of());
+            WarehouseInboundReceiptInfo info = new WarehouseInboundReceiptInfo();
+            info.setId(receipt.getId().toString());
+            info.setReceiptNumber(receipt.getReceiptNumber());
+            info.setPaymentRequestId(receipt.getPaymentRequest() != null ? receipt.getPaymentRequest().getId().toString() : null);
+            info.setStatus(receipt.getStatus());
+            info.setApprovalLevels(receipt.getApprovalLevels());
+            info.setCurrentApprovalLevel(receipt.getCurrentApprovalLevel());
+            info.setCurrency(receipt.getCurrency());
+            info.setExchangeRate(receipt.getExchangeRate());
+            info.setFeeAmount(receipt.getFeeAmount());
+            info.setFees(List.of());
+            info.setRealBillAmount(receipt.getRealBillAmount());
+            info.setBillOnPaperAmount(receipt.getBillOnPaperAmount());
+            info.setNote(receipt.getNote());
+            info.setReceivedDate(receipt.getReceivedDate() != null ? receipt.getReceivedDate().toString() : null);
+            info.setInventoryPostedAt(receipt.getInventoryPostedAt() == null ? null : receipt.getInventoryPostedAt().toString());
+            info.setCreatedAt(receipt.getCreatedAt() != null ? receipt.getCreatedAt().toString() : null);
+            info.setCreatedBy(receipt.getCreatedBy());
+            info.setLines(List.of());
+            info.setPurchaseOrders(extractPurchaseOrderSummaries(lineEntities));
+            info.setOrders(extractOrderSummaries(lineEntities));
+            info.setAttachments(List.of());
+            info.setApprovals(List.of());
+            result.add(info);
+        }
+        return result;
+    }
 
     private WarehouseInboundReceiptInfo toReceiptInfo(UUID receiptId, String requestId) {
         WarehouseInboundReceiptEntity receipt = warehouseInboundReceiptRepo.findByIdAndIsDeletedFalse(receiptId)

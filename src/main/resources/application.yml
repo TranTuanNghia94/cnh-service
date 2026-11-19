@@ -18,6 +18,7 @@ spring:
       max-lifetime: 1800000
   
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: false   # SQL is logged via SLF4J (logback-spring.xml), not stdout
@@ -36,7 +37,7 @@ spring:
   redis:
     host: ${REDIS_HOST:localhost}
     port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD}
+    password: ${REDIS_PASSWORD:}
     database: 0
     timeout: 2000ms
     lettuce:
@@ -54,8 +55,9 @@ spring:
   
   security:
     user:
-      name: ${ADMIN_USERNAME}
-      password: ${ADMIN_PASSWORD}
+      # Defaults only for local boot when .env is not loaded; override via .env in real use.
+      name: ${ADMIN_USERNAME:admin}
+      password: ${ADMIN_PASSWORD:admin123}
   
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}

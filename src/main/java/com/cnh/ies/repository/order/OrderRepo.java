@@ -24,13 +24,24 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
     @Query("SELECT o FROM OrderEntity o LEFT JOIN FETCH o.customer WHERE o.isDeleted = false")
     Page<OrderEntity> findAllAndIsDeletedFalse(Pageable pageable);
 
-    @Query("SELECT o FROM OrderEntity o LEFT JOIN o.customer c WHERE o.isDeleted = false "
+    @Query(value = "SELECT o FROM OrderEntity o "
+            + "LEFT JOIN FETCH o.customer c "
+            + "LEFT JOIN FETCH o.customerAddress a "
+            + "LEFT JOIN FETCH a.customer "
+            + "WHERE o.isDeleted = false "
             + "AND (:createdBy = '' OR LOWER(COALESCE(o.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
             + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
             + "AND (:orderNumber = '' OR LOWER(CONCAT(COALESCE(o.orderPrefix, ''), '.', CONCAT('', o.orderNumber))) LIKE LOWER(CONCAT('%', :orderNumber, '%'))) "
             + "AND (:status = '' OR LOWER(COALESCE(o.status, '')) LIKE LOWER(CONCAT('%', :status, '%'))) "
-            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%')))"
-            + "ORDER BY o.createdAt DESC")
+            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%'))) "
+            + "ORDER BY o.createdAt DESC",
+            countQuery = "SELECT COUNT(o) FROM OrderEntity o LEFT JOIN o.customer c "
+            + "WHERE o.isDeleted = false "
+            + "AND (:createdBy = '' OR LOWER(COALESCE(o.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
+            + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
+            + "AND (:orderNumber = '' OR LOWER(CONCAT(COALESCE(o.orderPrefix, ''), '.', CONCAT('', o.orderNumber))) LIKE LOWER(CONCAT('%', :orderNumber, '%'))) "
+            + "AND (:status = '' OR LOWER(COALESCE(o.status, '')) LIKE LOWER(CONCAT('%', :status, '%'))) "
+            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%')))")
     Page<OrderEntity> findAllFiltered(
             @Param("createdBy") String createdBy,
             @Param("contractNumber") String contractNumber,
@@ -51,7 +62,11 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
     @Query(value = "SELECT pg_advisory_xact_lock(hashtext(:orderPrefix))", nativeQuery = true)
     void acquireOrderPrefixAllocationLock(@Param("orderPrefix") String orderPrefix);
 
-    @Query("SELECT o FROM OrderEntity o WHERE o.orderPrefix = :orderPrefix AND o.orderNumber = :orderNumber AND o.isDeleted = false")
+    @Query("SELECT o FROM OrderEntity o "
+            + "LEFT JOIN FETCH o.customer "
+            + "LEFT JOIN FETCH o.customerAddress a "
+            + "LEFT JOIN FETCH a.customer "
+            + "WHERE o.orderPrefix = :orderPrefix AND o.orderNumber = :orderNumber AND o.isDeleted = false")
     Optional<OrderEntity> findByOrderPrefixAndOrderNumber(String orderPrefix, Integer orderNumber);
 
     @Query("SELECT o FROM OrderEntity o WHERE o.contractNumber = :contractNumber AND o.isDeleted = false")

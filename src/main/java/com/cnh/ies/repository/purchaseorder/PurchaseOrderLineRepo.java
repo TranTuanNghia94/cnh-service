@@ -17,7 +17,13 @@ public interface PurchaseOrderLineRepo extends JpaRepository<PurchaseOrderLineEn
     @Query("SELECT pol FROM PurchaseOrderLineEntity pol WHERE pol.purchaseOrder.id = :purchaseOrderId AND pol.isDeleted = false")
     List<PurchaseOrderLineEntity> findByPurchaseOrderId(UUID purchaseOrderId);
 
-    @Query("SELECT pol FROM PurchaseOrderLineEntity pol LEFT JOIN FETCH pol.product LEFT JOIN FETCH pol.vendor WHERE pol.purchaseOrder.id = :purchaseOrderId AND pol.isDeleted = false")
+    @Query("SELECT DISTINCT pol FROM PurchaseOrderLineEntity pol "
+            + "LEFT JOIN FETCH pol.product p "
+            + "LEFT JOIN FETCH p.category "
+            + "LEFT JOIN FETCH pol.vendor v "
+            + "LEFT JOIN FETCH v.banks "
+            + "LEFT JOIN FETCH pol.saleOrderLine "
+            + "WHERE pol.purchaseOrder.id = :purchaseOrderId AND pol.isDeleted = false")
     List<PurchaseOrderLineEntity> findAllByPurchaseOrderId(UUID purchaseOrderId);
 
     @Query("SELECT pol FROM PurchaseOrderLineEntity pol LEFT JOIN FETCH pol.saleOrderLine WHERE pol.purchaseOrder.id IN :purchaseOrderIds AND pol.isDeleted = false")

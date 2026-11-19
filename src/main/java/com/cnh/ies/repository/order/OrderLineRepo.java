@@ -19,6 +19,11 @@ public interface OrderLineRepo extends JpaRepository<OrderLineEntity, UUID> {
     @Query("SELECT o FROM OrderLineEntity o WHERE o.isDeleted = false")
     Page<OrderLineEntity> findAllAndIsDeletedFalse(Pageable pageable);
 
-    @Query("SELECT o FROM OrderLineEntity o LEFT JOIN FETCH o.product LEFT JOIN FETCH o.vendor WHERE o.order.id = :orderId AND o.isDeleted = false")
+    @Query("SELECT DISTINCT o FROM OrderLineEntity o "
+            + "LEFT JOIN FETCH o.product p "
+            + "LEFT JOIN FETCH p.category "
+            + "LEFT JOIN FETCH o.vendor v "
+            + "LEFT JOIN FETCH v.banks "
+            + "WHERE o.order.id = :orderId AND o.isDeleted = false")
     List<OrderLineEntity> findAllByOrderId(UUID orderId);
 }

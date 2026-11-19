@@ -190,7 +190,24 @@ public class CustomerService {
             log.info("Customer updated successfully with request 1/3: {}", requestId);
 
             if (request.getAddresses() != null) {
-                List<CustomerAddressEntity> addresses = request.getAddresses().stream().map(address -> addressMapper.mapToCustomerAddressEntity(address, customerEntity)).collect(Collectors.toList());
+                java.util.Set<UUID> keptIds = request.getAddresses().stream()
+                        .map(address -> address.getId() != null ? address.getId().orElse(null) : null)
+                        .filter(id -> id != null && !id.isBlank())
+                        .map(UUID::fromString)
+                        .collect(Collectors.toSet());
+
+                List<CustomerAddressEntity> existing = customerAddressRepo.findAllByCustomerId(customerEntity.getId());
+                for (CustomerAddressEntity existingAddress : existing) {
+                    if (!keptIds.contains(existingAddress.getId())) {
+                        existingAddress.setIsDeleted(true);
+                        existingAddress.setUpdatedBy(RequestContext.getCurrentUsername());
+                    }
+                }
+                customerAddressRepo.saveAll(existing);
+
+                List<CustomerAddressEntity> addresses = request.getAddresses().stream()
+                        .map(address -> addressMapper.mapToCustomerAddressEntity(address, customerEntity))
+                        .collect(Collectors.toList());
                 customerAddressRepo.saveAll(addresses);
                 log.info("Customer addresses updated successfully with request 2/3: {}", requestId);
             }

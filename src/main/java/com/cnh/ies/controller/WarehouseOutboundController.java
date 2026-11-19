@@ -50,6 +50,15 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Create warehouse outbound success");
     }
 
+    @PostMapping("/{outboundId}/update")
+    public ApiResponse<WarehouseOutboundInfo> update(
+            @PathVariable String outboundId,
+            @RequestBody WarehouseOutboundCreateRequest request) {
+        WarehouseOutboundInfo response = warehouseOutboundService.updateOutbound(
+                outboundId, request, RequestContext.getRequestId());
+        return ApiResponse.success(response, "Update warehouse outbound success");
+    }
+
     @PostMapping("/list")
     public ApiResponse<ListDataModel<WarehouseOutboundInfo>> list(
             @RequestBody WarehouseOutboundListRequest request) {

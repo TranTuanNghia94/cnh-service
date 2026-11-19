@@ -72,13 +72,20 @@ public class OperationalReportService {
 
     public OperationalReportPage<OutboundSummaryReportRow> outboundSummary(OperationalReportRequest request) {
         LocalDate[] range = dateRange(request);
-        return page(outboundSummaryRows(request), request, range[0], range[1].minusDays(1));
+        long total = repository.countOutboundSummaryRows(range[0], range[1], request);
+        List<OutboundSummaryReportRow> rows = mapOutboundSummaryRows(
+                repository.outboundSummaryRows(range[0], range[1], request, true));
+        return pageFromTotal(rows, total, request, range[0], range[1].minusDays(1));
     }
 
     public List<OutboundSummaryReportRow> outboundSummaryRows(OperationalReportRequest request) {
         LocalDate[] range = dateRange(request);
+        return mapOutboundSummaryRows(repository.outboundSummaryRows(range[0], range[1], request, false));
+    }
+
+    private List<OutboundSummaryReportRow> mapOutboundSummaryRows(List<Object[]> rawRows) {
         List<OutboundSummaryReportRow> rows = new ArrayList<>();
-        for (Object[] raw : repository.outboundSummaryRows(range[0], range[1], request)) {
+        for (Object[] raw : rawRows) {
             rows.add(OutboundSummaryReportRow.builder()
                     .userName(OperationalReportRepository.text(raw[0]))
                     .outboundDate(OperationalReportFormulas.formatDate(OperationalReportRepository.date(raw[1])))
@@ -95,13 +102,20 @@ public class OperationalReportService {
 
     public OperationalReportPage<OutboundDetailReportRow> outboundDetail(OperationalReportRequest request) {
         LocalDate[] range = dateRange(request);
-        return page(outboundDetailRows(request), request, range[0], range[1].minusDays(1));
+        long total = repository.countOutboundDetailRows(range[0], range[1], request);
+        List<OutboundDetailReportRow> rows = mapOutboundDetailRows(
+                repository.outboundDetailRows(range[0], range[1], request, true));
+        return pageFromTotal(rows, total, request, range[0], range[1].minusDays(1));
     }
 
     public List<OutboundDetailReportRow> outboundDetailRows(OperationalReportRequest request) {
         LocalDate[] range = dateRange(request);
+        return mapOutboundDetailRows(repository.outboundDetailRows(range[0], range[1], request, false));
+    }
+
+    private List<OutboundDetailReportRow> mapOutboundDetailRows(List<Object[]> rawRows) {
         List<OutboundDetailReportRow> rows = new ArrayList<>();
-        for (Object[] raw : repository.outboundDetailRows(range[0], range[1], request)) {
+        for (Object[] raw : rawRows) {
             LocalDate date = OperationalReportRepository.date(raw[0]);
             String number = OperationalReportRepository.text(raw[1]);
             String customerCode = OperationalReportRepository.text(raw[2]);
@@ -408,6 +422,25 @@ public class OperationalReportService {
                         .page(page)
                         .limit(limit)
                         .total((long) rows.size())
+                        .totalPage(totalPage)
+                        .build())
+                .build();
+    }
+
+    /** Build a page when rows are already sliced in SQL. */
+    private <T> OperationalReportPage<T> pageFromTotal(
+            List<T> pageRows, long total, OperationalReportRequest request, LocalDate fromDate, LocalDate toDate) {
+        int page = request.getPage() == null ? 0 : request.getPage();
+        int limit = request.getLimit() == null ? 20 : request.getLimit();
+        int totalPage = limit == 0 ? 0 : (int) Math.ceil(total / (double) limit);
+        return OperationalReportPage.<T>builder()
+                .fromDate(fromDate)
+                .toDate(toDate)
+                .data(pageRows)
+                .pagination(PaginationModel.builder()
+                        .page(page)
+                        .limit(limit)
+                        .total(total)
                         .totalPage(totalPage)
                         .build())
                 .build();

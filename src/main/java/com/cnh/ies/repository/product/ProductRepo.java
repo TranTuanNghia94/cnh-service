@@ -29,7 +29,12 @@ public interface ProductRepo extends BaseRepo<ProductEntity, UUID> {
     @Query("SELECT p FROM ProductEntity p WHERE p.isDeleted = false ORDER BY p.createdAt DESC")
     Page<ProductEntity> findAllAndIsDeletedFalse(Pageable pageable);
 
-    @Query("SELECT p FROM ProductEntity p LEFT JOIN p.category c "
+    @Query(value = "SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category c "
+            + "WHERE p.isDeleted = false "
+            + "AND (:productCode = '' OR LOWER(p.code) LIKE LOWER(CONCAT('%', :productCode, '%'))) "
+            + "AND (:productName = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :productName, '%'))) "
+            + "AND (:productCategory = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :productCategory, '%')))",
+            countQuery = "SELECT COUNT(p) FROM ProductEntity p LEFT JOIN p.category c "
             + "WHERE p.isDeleted = false "
             + "AND (:productCode = '' OR LOWER(p.code) LIKE LOWER(CONCAT('%', :productCode, '%'))) "
             + "AND (:productName = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :productName, '%'))) "

@@ -91,8 +91,13 @@ public class WarehouseOutboundService {
             throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "No order lines found for contract number",
                     HttpStatus.NOT_FOUND.value(), requestId);
         }
+        Map<UUID, WarehouseInventoryEntity> inventoryByProduct = loadInventoryByProductIds(
+                orderLines.stream()
+                        .map(line -> line.getProduct() == null ? null : line.getProduct().getId())
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()));
         List<WarehouseOutboundOrderLineInfo> lines = orderLines.stream()
-                .map(this::toOrderLineInfo)
+                .map(line -> toOrderLineInfo(line, inventoryByProduct))
                 .toList();
         WarehouseOutboundOrderSearchInfo info = new WarehouseOutboundOrderSearchInfo();
         info.setOrderId(order.getId().toString());
@@ -146,7 +151,7 @@ public class WarehouseOutboundService {
                 statusFilter,
                 PageRequest.of(safePage, safeLimit));
         List<WarehouseOutboundInfo> data = outbounds.stream()
-                .map(outbound -> toInfo(outbound, requestId))
+                .map(this::toListInfo)
                 .toList();
         return ListDataModel.<WarehouseOutboundInfo>builder()
                 .data(data)
@@ -269,17 +274,7 @@ public class WarehouseOutboundService {
             qtyByProductId.merge(productId, quantity, BigDecimal::add);
         }
 
-        for (Map.Entry<UUID, BigDecimal> entry : qtyByProductId.entrySet()) {
-            WarehouseInventoryEntity inventory = warehouseInventoryRepo.findByProductId(entry.getKey())
-                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.BAD_REQUEST,
-                            "No inventory record for product", HttpStatus.BAD_REQUEST.value(), requestId));
-            BigDecimal onHand = inventory.getQuantityOnHand() == null ? BigDecimal.ZERO : inventory.getQuantityOnHand();
-            if (onHand.compareTo(entry.getValue()) < 0) {
-                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
-                        "Insufficient quantity on hand for product " + inventory.getProduct().getCode(),
-                        HttpStatus.BAD_REQUEST.value(), requestId);
-            }
-        }
+        assertSufficientInventory(qtyByProductId, requestId);
 
         String username = RequestContext.getCurrentUsername();
         WarehouseOutboundEntity outbound = new WarehouseOutboundEntity();
@@ -350,6 +345,145 @@ public class WarehouseOutboundService {
         outbound.setTotalAmount(totalAmount);
         outbound.setTaxAmount(totalTaxAmount);
         outbound.setUpdatedBy(username);
+        warehouseOutboundRepo.save(outbound);
+
+        List<UUID> fileIds = parseFileIds(request.getAttachedFileIds(), requestId);
+        fileService.linkFilesToWarehouseOutbound(fileIds, outbound.getId(), requestId);
+
+        return toInfo(outbound, requestId);
+    }
+
+    @Transactional
+    public WarehouseOutboundInfo updateOutbound(String outboundId, WarehouseOutboundCreateRequest request, String requestId) {
+        WarehouseOutboundEntity outbound = loadOutboundForMutation(outboundId, requestId);
+        if (!Constant.WAREHOUSE_OUTBOUND_STATUS_DRAFT.equals(outbound.getStatus())) {
+            throw new ApiException(ApiException.ErrorCode.CONFLICT, "Only DRAFT outbound can be updated",
+                    HttpStatus.CONFLICT.value(), requestId);
+        }
+        if (request == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Request body is required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        String outboundReason = normalize(request.getOutboundReason());
+        if (outboundReason == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "outboundReason is required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        OrderEntity order = outbound.getOrder();
+        if (order == null) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Outbound has no linked order",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+        List<OrderLineEntity> orderLines = orderLineRepo.findAllByOrderId(order.getId());
+        Map<UUID, OrderLineEntity> orderLineById = new HashMap<>();
+        for (OrderLineEntity orderLine : orderLines) {
+            orderLineById.put(orderLine.getId(), orderLine);
+        }
+
+        List<WarehouseOutboundDetailRequest> effectiveDetails = request.getDetails();
+        if (effectiveDetails == null || effectiveDetails.isEmpty()) {
+            throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "At least one outbound detail is required",
+                    HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+
+        Map<UUID, BigDecimal> qtyByProductId = new HashMap<>();
+        for (WarehouseOutboundDetailRequest detail : effectiveDetails) {
+            UUID orderLineId = parseUuid(detail.getOrderLineId(), "details.orderLineId", requestId);
+            OrderLineEntity orderLine = orderLineById.get(orderLineId);
+            if (orderLine == null) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                        "Order line does not belong to contract: " + detail.getOrderLineId(),
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            if (orderLine.getProduct() == null || Boolean.TRUE.equals(orderLine.getProduct().getIsDeleted())) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Order line has invalid product",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            BigDecimal quantity = detail.getQuantity();
+            if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Detail quantity must be greater than 0",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            BigDecimal maxQty = orderLine.getQuantity() == null ? BigDecimal.ZERO : orderLine.getQuantity();
+            if (quantity.compareTo(maxQty) > 0) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                        "Outbound quantity cannot exceed order line quantity",
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            qtyByProductId.merge(orderLine.getProduct().getId(), quantity, BigDecimal::add);
+        }
+
+        assertSufficientInventory(qtyByProductId, requestId);
+
+        String username = RequestContext.getCurrentUsername();
+        for (WarehouseOutboundDetailEntity existing : warehouseOutboundDetailRepo.findByOutboundId(outbound.getId())) {
+            existing.setIsDeleted(true);
+            existing.setUpdatedBy(username);
+            warehouseOutboundDetailRepo.save(existing);
+        }
+
+        outbound.setOutboundReason(outboundReason);
+        outbound.setNote(request.getNote());
+        if (request.getOutboundDate() != null) {
+            outbound.setOutboundDate(request.getOutboundDate());
+        }
+        if (normalize(request.getCurrency()) != null) {
+            outbound.setCurrency(normalize(request.getCurrency()));
+        }
+        outbound.setUpdatedBy(username);
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal totalTaxAmount = BigDecimal.ZERO;
+        for (WarehouseOutboundDetailRequest detail : effectiveDetails) {
+            UUID orderLineId = parseUuid(detail.getOrderLineId(), "details.orderLineId", requestId);
+            OrderLineEntity orderLine = orderLineById.get(orderLineId);
+            ProductEntity product = orderLine.getProduct();
+            BigDecimal quantity = detail.getQuantity();
+            BigDecimal unitPrice = orderLine.getUnitPrice() != null ? orderLine.getUnitPrice() : BigDecimal.ZERO;
+            BigDecimal vat = product.getTax() != null ? product.getTax() : BigDecimal.ZERO;
+            BigDecimal grossAmount = unitPrice.multiply(quantity);
+            BigDecimal lineTaxAmount;
+            BigDecimal linePriceWithoutTax;
+            if (Boolean.TRUE.equals(orderLine.getIsIncludedTax())) {
+                BigDecimal divisor = BigDecimal.ONE.add(vat.divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP));
+                linePriceWithoutTax = unitPrice.divide(divisor, 2, RoundingMode.HALF_UP);
+                lineTaxAmount = grossAmount.subtract(linePriceWithoutTax.multiply(quantity));
+            } else {
+                linePriceWithoutTax = unitPrice;
+                lineTaxAmount = grossAmount.multiply(vat).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+            }
+            BigDecimal lineTotalAmount = grossAmount;
+            String lineCurrency = normalize(detail.getCurrency());
+            if (lineCurrency == null) {
+                lineCurrency = outbound.getCurrency();
+            }
+
+            WarehouseOutboundDetailEntity entity = new WarehouseOutboundDetailEntity();
+            entity.setOutbound(outbound);
+            entity.setOrderLine(orderLine);
+            entity.setProduct(product);
+            entity.setQuantity(quantity);
+            entity.setBox(detail.getBox());
+            entity.setReferenceCode(detail.getReferenceCode());
+            entity.setUnitPrice(unitPrice);
+            entity.setPriceWithoutTax(linePriceWithoutTax);
+            entity.setVat(vat);
+            entity.setCurrency(lineCurrency);
+            entity.setTotalAmount(lineTotalAmount);
+            entity.setTaxAmount(lineTaxAmount);
+            entity.setNote(detail.getNote());
+            entity.setCreatedBy(username);
+            entity.setUpdatedBy(username);
+            entity.setIsDeleted(false);
+            warehouseOutboundDetailRepo.save(entity);
+
+            totalAmount = totalAmount.add(lineTotalAmount);
+            totalTaxAmount = totalTaxAmount.add(lineTaxAmount);
+        }
+        outbound.setTotalAmount(totalAmount);
+        outbound.setTaxAmount(totalTaxAmount);
         warehouseOutboundRepo.save(outbound);
 
         List<UUID> fileIds = parseFileIds(request.getAttachedFileIds(), requestId);
@@ -476,18 +610,15 @@ public class WarehouseOutboundService {
         return toInfo(outbound, requestId);
     }
 
-    private WarehouseOutboundInfo toInfo(WarehouseOutboundEntity outbound, String requestId) {
-        List<WarehouseOutboundDetailEntity> details = warehouseOutboundDetailRepo.findByOutboundId(outbound.getId());
-        List<PaymentFileUploadInfo> attachments = fileService.listUploadedFilesForWarehouseOutbound(
-                outbound.getId().toString(), requestId);
-        List<PaymentRequestApprovalInfo> approvals = warehouseOutboundApprovalRepo.findByOutboundId(outbound.getId()).stream()
-                .map(this::toApprovalInfo)
-                .toList();
+    /** List rows: header only — details/files/approvals load on get-by-id. */
+    private WarehouseOutboundInfo toListInfo(WarehouseOutboundEntity outbound) {
         WarehouseOutboundInfo info = new WarehouseOutboundInfo();
         info.setId(outbound.getId().toString());
         info.setOutboundNumber(outbound.getOutboundNumber());
-        info.setOrderId(outbound.getOrder().getId().toString());
-        info.setOrderNumber(outbound.getOrder().getOrderPrefix() + outbound.getOrder().getOrderNumber());
+        if (outbound.getOrder() != null) {
+            info.setOrderId(outbound.getOrder().getId().toString());
+            info.setOrderNumber(outbound.getOrder().getOrderPrefix() + outbound.getOrder().getOrderNumber());
+        }
         info.setContractNumber(outbound.getContractNumber());
         info.setOutboundReason(outbound.getOutboundReason());
         info.setNote(outbound.getNote());
@@ -500,6 +631,20 @@ public class WarehouseOutboundService {
         info.setTaxAmount(outbound.getTaxAmount());
         info.setCreatedBy(outbound.getCreatedBy());
         info.setCreatedAt(outbound.getCreatedAt() == null ? null : outbound.getCreatedAt().toString());
+        info.setDetails(List.of());
+        info.setAttachments(List.of());
+        info.setApprovals(List.of());
+        return info;
+    }
+
+    private WarehouseOutboundInfo toInfo(WarehouseOutboundEntity outbound, String requestId) {
+        List<WarehouseOutboundDetailEntity> details = warehouseOutboundDetailRepo.findByOutboundId(outbound.getId());
+        List<PaymentFileUploadInfo> attachments = fileService.listUploadedFilesForWarehouseOutbound(
+                outbound.getId().toString(), requestId);
+        List<PaymentRequestApprovalInfo> approvals = warehouseOutboundApprovalRepo.findByOutboundId(outbound.getId()).stream()
+                .map(this::toApprovalInfo)
+                .toList();
+        WarehouseOutboundInfo info = toListInfo(outbound);
         info.setDetails(details.stream().map(this::toDetailInfo).toList());
         info.setAttachments(attachments);
         info.setApprovals(approvals);
@@ -526,15 +671,17 @@ public class WarehouseOutboundService {
         return info;
     }
 
-    private WarehouseOutboundOrderLineInfo toOrderLineInfo(OrderLineEntity orderLine) {
+    private WarehouseOutboundOrderLineInfo toOrderLineInfo(
+            OrderLineEntity orderLine,
+            Map<UUID, WarehouseInventoryEntity> inventoryByProduct) {
         WarehouseOutboundOrderLineInfo info = new WarehouseOutboundOrderLineInfo();
         info.setOrderLineId(orderLine.getId().toString());
         info.setProductId(orderLine.getProduct().getId().toString());
         info.setProductCode(orderLine.getProduct().getCode());
         info.setProductName(orderLine.getProduct().getName());
         info.setOrderQuantity(orderLine.getQuantity());
-        WarehouseInventoryEntity inv = warehouseInventoryRepo.findByProductId(orderLine.getProduct().getId()).orElse(null);
-        info.setAvailableQuantity(inv == null ? BigDecimal.ZERO : inv.getQuantityOnHand());
+        WarehouseInventoryEntity inv = inventoryByProduct.get(orderLine.getProduct().getId());
+        info.setAvailableQuantity(inv == null || inv.getQuantityOnHand() == null ? BigDecimal.ZERO : inv.getQuantityOnHand());
         info.setUnitPrice(orderLine.getUnitPrice());
         info.setVat(orderLine.getProduct().getTax());
         info.setIncludedTax(orderLine.getIsIncludedTax());
@@ -542,6 +689,34 @@ public class WarehouseOutboundService {
         info.setTotalAmount(orderLine.getTotalAmount());
         info.setTaxAmount(orderLine.getTaxAmount());
         return info;
+    }
+
+    private Map<UUID, WarehouseInventoryEntity> loadInventoryByProductIds(java.util.Collection<UUID> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+        return warehouseInventoryRepo.findByProductIdIn(productIds).stream()
+                .collect(Collectors.toMap(
+                        inv -> inv.getProduct().getId(),
+                        inv -> inv,
+                        (a, b) -> a));
+    }
+
+    private void assertSufficientInventory(Map<UUID, BigDecimal> qtyByProductId, String requestId) {
+        Map<UUID, WarehouseInventoryEntity> inventoryByProduct = loadInventoryByProductIds(qtyByProductId.keySet());
+        for (Map.Entry<UUID, BigDecimal> entry : qtyByProductId.entrySet()) {
+            WarehouseInventoryEntity inventory = inventoryByProduct.get(entry.getKey());
+            if (inventory == null) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                        "No inventory record for product", HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+            BigDecimal onHand = inventory.getQuantityOnHand() == null ? BigDecimal.ZERO : inventory.getQuantityOnHand();
+            if (onHand.compareTo(entry.getValue()) < 0) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                        "Insufficient quantity on hand for product " + inventory.getProduct().getCode(),
+                        HttpStatus.BAD_REQUEST.value(), requestId);
+            }
+        }
     }
 
     private List<WarehouseOutboundDetailRequest> buildDetailsFromOrder(List<OrderLineEntity> lines, String currency) {
@@ -716,15 +891,22 @@ public class WarehouseOutboundService {
     private void applyOutboundToInventory(WarehouseOutboundEntity outbound, String requestId) {
         String username = RequestContext.getCurrentUsername();
         List<WarehouseOutboundDetailEntity> details = warehouseOutboundDetailRepo.findByOutboundId(outbound.getId());
+        Map<UUID, WarehouseInventoryEntity> inventoryByProduct = loadInventoryByProductIds(
+                details.stream()
+                        .map(detail -> detail.getProduct() == null ? null : detail.getProduct().getId())
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()));
         for (WarehouseOutboundDetailEntity detail : details) {
             ProductEntity product = detail.getProduct();
             BigDecimal quantity = detail.getQuantity() == null ? BigDecimal.ZERO : detail.getQuantity();
             if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            WarehouseInventoryEntity inventory = warehouseInventoryRepo.findByProductId(product.getId())
-                    .orElseThrow(() -> new ApiException(ApiException.ErrorCode.BAD_REQUEST,
-                            "No inventory record for product", HttpStatus.BAD_REQUEST.value(), requestId));
+            WarehouseInventoryEntity inventory = inventoryByProduct.get(product.getId());
+            if (inventory == null) {
+                throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
+                        "No inventory record for product", HttpStatus.BAD_REQUEST.value(), requestId);
+            }
             BigDecimal onHand = inventory.getQuantityOnHand() == null ? BigDecimal.ZERO : inventory.getQuantityOnHand();
             if (onHand.compareTo(quantity) < 0) {
                 throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,

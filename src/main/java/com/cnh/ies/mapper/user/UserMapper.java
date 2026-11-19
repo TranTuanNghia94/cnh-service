@@ -29,6 +29,7 @@ public class UserMapper {
         userInfo.setLastName(user.getLastName());
         userInfo.setPhone(user.getPhone());
         userInfo.setIsActive(user.getIsActive());
+        userInfo.setIsDeleted(Boolean.TRUE.equals(user.getIsDeleted()));
         userInfo.setCreatedAt(user.getCreatedAt().toString());
         userInfo.setUpdatedAt(user.getUpdatedAt().toString());
         

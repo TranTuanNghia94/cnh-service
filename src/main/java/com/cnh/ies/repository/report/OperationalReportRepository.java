@@ -60,8 +60,12 @@ public class OperationalReportRepository {
         return query.getResultList();
     }
 
-    @SuppressWarnings("unchecked")
     public List<Object[]> outboundSummaryRows(LocalDate start, LocalDate end, OperationalReportRequest request) {
+        return outboundSummaryRows(start, end, request, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> outboundSummaryRows(LocalDate start, LocalDate end, OperationalReportRequest request, boolean paginate) {
         String sql = """
                 SELECT COALESCE(u.full_name, o.created_by, ''),
                        o.outbound_date,
@@ -92,11 +96,44 @@ public class OperationalReportRepository {
         bindContains(query, "contractNumber", request.getContractNumber());
         bindContains(query, "customer", request.getCustomer());
         bindContains(query, "documentNumber", request.getDocumentNumber());
+        if (paginate) {
+            applySqlPagination(query, request);
+        }
         return query.getResultList();
     }
 
-    @SuppressWarnings("unchecked")
+    public long countOutboundSummaryRows(LocalDate start, LocalDate end, OperationalReportRequest request) {
+        String sql = """
+                SELECT COUNT(*)
+                FROM warehouse_outbounds o
+                LEFT JOIN orders ord ON ord.id = o.order_id
+                LEFT JOIN customers cu ON cu.id = ord.customer_id
+                LEFT JOIN users u ON u.username = o.created_by OR CAST(u.id AS text) = o.created_by
+                WHERE o.is_deleted = false
+                  AND o.status = 'APPROVED'
+                  AND o.outbound_date >= :startDate
+                  AND o.outbound_date < :endDate
+                  AND (:userName = '' OR LOWER(COALESCE(u.full_name, o.created_by, '')) LIKE :userNameLike)
+                  AND (:contractNumber = '' OR LOWER(COALESCE(o.contract_number, '')) LIKE :contractNumberLike)
+                  AND (:customer = '' OR LOWER(COALESCE(cu.name, '')) LIKE :customerLike
+                       OR LOWER(COALESCE(cu.code, '')) LIKE :customerLike
+                       OR LOWER(COALESCE(cu.misa_code, '')) LIKE :customerLike)
+                  AND (:documentNumber = '' OR LOWER(COALESCE(o.outbound_number, '')) LIKE :documentNumberLike)
+                """;
+        return countFromSql(sql, start, end, request, query -> {
+            bindContains(query, "userName", request.getUserName());
+            bindContains(query, "contractNumber", request.getContractNumber());
+            bindContains(query, "customer", request.getCustomer());
+            bindContains(query, "documentNumber", request.getDocumentNumber());
+        });
+    }
+
     public List<Object[]> outboundDetailRows(LocalDate start, LocalDate end, OperationalReportRequest request) {
+        return outboundDetailRows(start, end, request, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> outboundDetailRows(LocalDate start, LocalDate end, OperationalReportRequest request, boolean paginate) {
         String sql = """
                 SELECT o.outbound_date,
                        o.outbound_number,
@@ -134,7 +171,41 @@ public class OperationalReportRepository {
         bindContains(query, "documentNumber", request.getDocumentNumber());
         bindContains(query, "contractNumber", request.getContractNumber());
         bindContains(query, "userName", request.getUserName());
+        if (paginate) {
+            applySqlPagination(query, request);
+        }
         return query.getResultList();
+    }
+
+    public long countOutboundDetailRows(LocalDate start, LocalDate end, OperationalReportRequest request) {
+        String sql = """
+                SELECT COUNT(*)
+                FROM warehouse_outbound_details d
+                JOIN warehouse_outbounds o ON o.id = d.outbound_id
+                LEFT JOIN orders ord ON ord.id = o.order_id
+                LEFT JOIN customers cu ON cu.id = ord.customer_id
+                LEFT JOIN products p ON p.id = d.product_id
+                LEFT JOIN users u ON u.username = o.created_by OR CAST(u.id AS text) = o.created_by
+                WHERE d.is_deleted = false
+                  AND o.is_deleted = false
+                  AND o.status = 'APPROVED'
+                  AND o.outbound_date >= :startDate
+                  AND o.outbound_date < :endDate
+                  AND (:productName = '' OR LOWER(COALESCE(p.name, '')) LIKE :productNameLike)
+                  AND (:customer = '' OR LOWER(COALESCE(cu.name, '')) LIKE :customerLike
+                       OR LOWER(COALESCE(cu.code, '')) LIKE :customerLike
+                       OR LOWER(COALESCE(cu.misa_code, '')) LIKE :customerLike)
+                  AND (:documentNumber = '' OR LOWER(COALESCE(o.outbound_number, '')) LIKE :documentNumberLike)
+                  AND (:contractNumber = '' OR LOWER(COALESCE(o.contract_number, '')) LIKE :contractNumberLike)
+                  AND (:userName = '' OR LOWER(COALESCE(u.full_name, o.created_by, '')) LIKE :userNameLike)
+                """;
+        return countFromSql(sql, start, end, request, query -> {
+            bindContains(query, "productName", request.getProductName());
+            bindContains(query, "customer", request.getCustomer());
+            bindContains(query, "documentNumber", request.getDocumentNumber());
+            bindContains(query, "contractNumber", request.getContractNumber());
+            bindContains(query, "userName", request.getUserName());
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -481,6 +552,26 @@ public class OperationalReportRepository {
         query.setParameter("startDate", start);
         query.setParameter("endDate", end);
         return query;
+    }
+
+    /** Apply SQL LIMIT/OFFSET for list-style operational reports. */
+    public Query applySqlPagination(Query query, OperationalReportRequest request) {
+        int page = request.getPage() == null || request.getPage() < 0 ? 0 : request.getPage();
+        int limit = request.getLimit() == null || request.getLimit() <= 0 ? 20 : request.getLimit();
+        query.setFirstResult(page * limit);
+        query.setMaxResults(limit);
+        return query;
+    }
+
+    public long countFromSql(String countSql, LocalDate start, LocalDate end, OperationalReportRequest request,
+            java.util.function.Consumer<Query> binder) {
+        Query query = bindDates(entityManager.createNativeQuery(countSql), start, end);
+        binder.accept(query);
+        Object result = query.getSingleResult();
+        if (result instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.parseLong(result.toString());
     }
 
     public static BigDecimal decimal(Object value) {

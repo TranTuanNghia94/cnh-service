@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +33,7 @@ public class RoleService {
     private final PermissionRepo permissionRepo;
 
 
+    @Cacheable(cacheNames = "roles", key = "'all'")
     public ListDataModel<RoleInfo> getAllRoles(String requestId) { 
         try {
             log.debug("Getting all roles | RequestId: {}", requestId);
@@ -60,6 +63,7 @@ public class RoleService {
         }
     }
 
+    @CacheEvict(cacheNames = "roles", allEntries = true)
     public RoleInfo createRole(RoleRequest request, String requestId) {
         try {
             log.info("Creating role: {} | RequestId: {}", request, requestId);
@@ -80,6 +84,7 @@ public class RoleService {
         }
     }
 
+    @CacheEvict(cacheNames = "roles", allEntries = true)
     public RoleInfo updateRole(RoleRequest request, String requestId) {
         try {
             log.info("Updating role: {} | RequestId: {}", request, requestId);
@@ -111,6 +116,7 @@ public class RoleService {
         }
     }
 
+    @CacheEvict(cacheNames = "roles", allEntries = true)
     public String deleteRole(UUID id, String requestId) {
         try {
             log.info("Deleting role: {} | RequestId: {}", id, requestId);
@@ -136,6 +142,7 @@ public class RoleService {
         }
     }
 
+    @CacheEvict(cacheNames = "roles", allEntries = true)
     public String restoreRole(UUID id, String requestId) {
         try {
             log.info("Restoring role: {} | RequestId: {}", id, requestId);

@@ -135,8 +135,9 @@ public class PaymentRequestService {
                 normalizeFilter(numberOfPaper),
                 normalizeFilter(status),
                 PageRequest.of(page, limit));
+        // List uses header amounts only — avoid per-row line/fee reloads (detail realigns on get-by-id).
         List<PaymentRequestInfo> data = requests.stream()
-                .map(e -> paymentRequestMapper.toSummaryInfoWithAlignedAmounts(e, requestId))
+                .map(paymentRequestMapper::toSummaryInfo)
                 .toList();
         PaginationModel pagination = PaginationModel.builder()
                 .page(page)

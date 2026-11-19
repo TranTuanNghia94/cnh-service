@@ -17,6 +17,7 @@ public class UserInfo {
     private String phone;
     private String avatar;
     private Boolean isActive;
+    private Boolean isDeleted;
     private String createdAt;
     private String updatedAt;
     private Set<RoleInfo> roles = new CopyOnWriteArraySet<>();

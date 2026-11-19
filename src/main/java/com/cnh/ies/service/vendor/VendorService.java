@@ -23,6 +23,7 @@ import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
@@ -60,10 +61,18 @@ public class VendorService {
                     normalizeFilter(nation),
                     PageRequest.of(page, limit));
             
+            List<UUID> vendorIds = vendors.getContent().stream()
+                    .map(VendorsEntity::getId)
+                    .collect(Collectors.toList());
+            Map<UUID, List<VendorBanksEntity>> banksByVendor = vendorIds.isEmpty()
+                    ? Map.of()
+                    : vendorBanksRepo.findByVendorIdInAndIsDeletedFalse(vendorIds).stream()
+                            .collect(Collectors.groupingBy(bank -> bank.getVendor().getId()));
+
             List<VendorInfo> vendorInfos = vendors.getContent().stream()
                     .map(vendor -> vendorsMapper.toVendorInfoWithBanks(
                             vendor,
-                            vendorBanksRepo.findByVendorAndIsDeletedFalse(vendor.getId())))
+                            banksByVendor.getOrDefault(vendor.getId(), List.of())))
                     .collect(Collectors.toList());
            
 
@@ -170,7 +179,24 @@ public class VendorService {
             log.info("Vendor updated successfully with request 1/3: {}", requestId);
 
             if (request.getBanks() != null) {
-                List<VendorBanksEntity> vendorBanks = request.getBanks().stream().map(bank -> vendorBanksMapper.toVendorBanksEntity(bank, vendor.get())).collect(Collectors.toList());
+                java.util.Set<UUID> keptIds = request.getBanks().stream()
+                        .map(bank -> bank.getId())
+                        .filter(id -> id != null && !id.isBlank())
+                        .map(UUID::fromString)
+                        .collect(Collectors.toSet());
+
+                List<VendorBanksEntity> existingBanks = vendorBanksRepo.findByVendorAndIsDeletedFalse(vendor.get().getId());
+                for (VendorBanksEntity existingBank : existingBanks) {
+                    if (!keptIds.contains(existingBank.getId())) {
+                        existingBank.setIsDeleted(true);
+                        existingBank.setUpdatedBy(RequestContext.getCurrentUsername());
+                    }
+                }
+                vendorBanksRepo.saveAll(existingBanks);
+
+                List<VendorBanksEntity> vendorBanks = request.getBanks().stream()
+                        .map(bank -> vendorBanksMapper.toVendorBanksEntity(bank, vendor.get()))
+                        .collect(Collectors.toList());
                 vendorBanksRepo.saveAll(vendorBanks);
 
                 log.info("Vendor banks updated successfully with request 2/3: {}", requestId);
