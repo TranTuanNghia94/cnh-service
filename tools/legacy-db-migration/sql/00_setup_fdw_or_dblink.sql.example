@@ -1,0 +1,35 @@
+-- Preferred workflow (dump-first):
+--   1) ./scripts/restore_legacy_dump.sh
+--        → loads workspace postgres_19_11_2026.dump into DB cnh_legacy
+--   2) ./scripts/link_legacy_fdw.sh
+--        → on TARGET creates foreign schemas legacy_core / legacy_ies
+--   3) Stage SQL uses: FROM legacy_ies."VEN_VENDOR" ...
+--
+-- Do not restore the dump into cnh_wms. Keep legacy and target as separate databases.
+-- Do not commit real host/user/password.
+
+-- ---------------------------------------------------------------------------
+-- What link_legacy_fdw.sh runs (illustrated; prefer the script):
+-- ---------------------------------------------------------------------------
+-- CREATE EXTENSION IF NOT EXISTS postgres_fdw;
+-- CREATE SERVER legacy_cnh FOREIGN DATA WRAPPER postgres_fdw
+--   OPTIONS (host 'localhost', dbname 'cnh_legacy', port '5432');
+-- CREATE USER MAPPING FOR CURRENT_USER SERVER legacy_cnh
+--   OPTIONS (user 'postgres', password 'LEGACY_PASSWORD');
+-- CREATE SCHEMA IF NOT EXISTS legacy_core;
+-- CREATE SCHEMA IF NOT EXISTS legacy_ies;
+-- IMPORT FOREIGN SCHEMA core FROM SERVER legacy_cnh INTO legacy_core;
+-- IMPORT FOREIGN SCHEMA ies FROM SERVER legacy_cnh INTO legacy_ies;
+
+-- ---------------------------------------------------------------------------
+-- Alternative: dblink (if FDW not allowed)
+-- ---------------------------------------------------------------------------
+-- CREATE EXTENSION IF NOT EXISTS dblink;
+-- SELECT dblink_connect('legacy', current_setting('cnh.legacy_conninfo', true));
+
+-- ---------------------------------------------------------------------------
+-- Alternative: offline — no live link
+-- ---------------------------------------------------------------------------
+-- Run sql/01_extract_counts.sql on LEGACY_DATABASE_URL only.
+-- Export CSV / COPY from cnh_legacy, transform offline, COPY into target.
+-- Stage INSERT...SELECT from legacy_* will not work without FDW/dblink.

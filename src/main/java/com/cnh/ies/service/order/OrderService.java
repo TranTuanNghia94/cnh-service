@@ -208,16 +208,10 @@ public class OrderService {
     @Transactional
     public OrderInfo updateOrderStatus(String id, String status, String requestId) {
         log.info("Updating order status with requestId: {} | id: {} | status: {}", requestId, id, status);
-        Optional<OrderEntity> order = orderRepo.findById(UUID.fromString(id));
+        Optional<OrderEntity> order = orderRepo.findByIdAndIsDeletedFalse(UUID.fromString(id));
         if (order.isEmpty()) {
             log.error("Order not found with id: {} | RequestId: {}", id, requestId);
             throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Order not found",
-                    HttpStatus.NOT_FOUND.value(), requestId);
-        }
-
-        if (order.get().getIsDeleted()) {
-            log.error("Order already deleted with id: {} | RequestId: {}", id, requestId);
-            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Order already deleted",
                     HttpStatus.NOT_FOUND.value(), requestId);
         }
 
@@ -294,19 +288,14 @@ public class OrderService {
 
             orderRepo.save(order.get());
 
-            // log.info("Order deleted successfully with request 1/3: {}", requestId);
-
-            // if (order.get().getOrderLines() != null) {
-            //     List<OrderLineEntity> orderLines = order.get().getOrderLines().stream().map(orderLine -> {
-            //         orderLine.setIsDeleted(true);
-            //         orderLineRepo.save(orderLine);
-            //         return orderLine;
-            //     }).collect(Collectors.toList());
-            //     orderLineRepo.saveAll(orderLines);
-            //     log.info("Order lines deleted successfully with request 2/3: {}", requestId);
-            // }
-
-            // log.info("Order deleted successfully with request 3/3: {}", requestId);
+            List<OrderLineEntity> orderLines = orderLineRepo.findByOrderId(order.get().getId());
+            if (!orderLines.isEmpty()) {
+                for (OrderLineEntity orderLine : orderLines) {
+                    orderLine.setIsDeleted(true);
+                    orderLine.setUpdatedBy(RequestContext.getCurrentUsername());
+                }
+                orderLineRepo.saveAll(orderLines);
+            }
 
             return "Order deleted successfully";
         } catch (Exception e) {

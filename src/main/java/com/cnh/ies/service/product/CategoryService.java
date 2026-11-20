@@ -38,13 +38,14 @@ public class CategoryService {
         try {
             log.debug("Getting all categories with request: {}", requestId);
 
-            List<CategoryEntity> categories = categoryRepo.findAll();
+            List<CategoryEntity> categories = categoryRepo.findAll().stream()
+                .filter(c -> !Boolean.TRUE.equals(c.getIsDeleted()))
+                .collect(Collectors.toList());
             List<CategoryInfo> categoryInfos = categories.stream().map(categoryMapper::toCategoryInfo).collect(Collectors.toList());
-
 
             PaginationModel pagination = PaginationModel.builder()
                 .page(1)
-                .limit(10)
+                .limit(Math.max(categories.size(), 1))
                 .total((long) categories.size())
                 .totalPage(1)
                 .build();

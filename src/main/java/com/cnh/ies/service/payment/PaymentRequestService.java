@@ -59,7 +59,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PaymentRequestService {
     private static final Set<String> VALID_DOCUMENT_TYPES = Set.of(
-            "invoice", "quote", "bill_of_ladding", "track_id", "receipt_warehouse");
+            "invoice", "quote",
+            "bill_of_ladding", "billOfLadding",
+            "track_id", "trackId",
+            "receipt_warehouse", "receiptWarehouse");
     private static final Set<String> DRAFT_OR_REJECTED = Set.of(
             Constant.PAYMENT_REQUEST_STATUS_DRAFT,
             Constant.PAYMENT_REQUEST_STATUS_REJECTED);
@@ -151,9 +154,9 @@ public class PaymentRequestService {
     @Transactional
     public PaymentRequestInfo getById(String id, String requestId) {
         PaymentRequestEntity paymentRequest = findPaymentRequest(id, requestId);
+        // Recalculate in-memory for draft/rejected display; persist only on create/update.
         if (DRAFT_OR_REJECTED.contains(paymentRequest.getStatus())) {
             recalculateAmountsBeforeSave(paymentRequest, requestId);
-            paymentRequestRepo.saveAndFlush(paymentRequest);
         }
         return toInfo(paymentRequest, requestId);
     }
@@ -596,7 +599,7 @@ public class PaymentRequestService {
 
     private void validateDocumentExists(PurchaseOrderLineEntity line, String documentType, String requestId) {
         String value;
-        switch (documentType) {
+        switch (normalizeDocumentType(documentType)) {
             case "invoice" -> value = line.getInvoice();
             case "quote" -> value = line.getQuote();
             case "billOfLadding" -> value = line.getBillOfLadding();
@@ -608,6 +611,19 @@ public class PaymentRequestService {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST,
                     "Purchase order line missing document: " + documentType, HttpStatus.BAD_REQUEST.value(), requestId);
         }
+    }
+
+    /** Accepts both camelCase (FE) and snake_case (legacy/storage) document type keys. */
+    private static String normalizeDocumentType(String documentType) {
+        if (documentType == null) {
+            return "";
+        }
+        return switch (documentType) {
+            case "bill_of_ladding" -> "billOfLadding";
+            case "track_id" -> "trackId";
+            case "receipt_warehouse" -> "receiptWarehouse";
+            default -> documentType;
+        };
     }
 
     private void validateSameVendor(List<PurchaseOrderLineEntity> poLines, String requestId) {

@@ -40,7 +40,7 @@ public interface WarehouseInboundReceiptRepo extends BaseRepo<WarehouseInboundRe
             + "AND r.status NOT IN ('CANCELLED', 'REJECTED')")
     BigDecimal sumReceivedQuantityByPurchaseOrderLineId(@Param("polId") UUID polId);
 
-    @Query("SELECT r FROM WarehouseInboundReceiptEntity r "
+    @Query(value = "SELECT DISTINCT r FROM WarehouseInboundReceiptEntity r "
             + "LEFT JOIN r.paymentRequest pr "
             + "LEFT JOIN PaymentRequestPurchaseOrderLineEntity prpol ON prpol.paymentRequest.id = pr.id "
             + "LEFT JOIN prpol.purchaseOrderLine pol "
@@ -54,7 +54,21 @@ public interface WarehouseInboundReceiptRepo extends BaseRepo<WarehouseInboundRe
             + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%'))) "
             + "AND (:orderNumber = '' OR LOWER(CONCAT(COALESCE(o.orderPrefix, ''), '.', CONCAT('', o.orderNumber))) LIKE LOWER(CONCAT('%', :orderNumber, '%'))) "
             + "AND (:status = '' OR LOWER(COALESCE(r.status, '')) LIKE LOWER(CONCAT('%', :status, '%'))) "
-            + "ORDER BY r.createdAt DESC")
+            + "ORDER BY r.createdAt DESC",
+            countQuery = "SELECT COUNT(DISTINCT r) FROM WarehouseInboundReceiptEntity r "
+            + "LEFT JOIN r.paymentRequest pr "
+            + "LEFT JOIN PaymentRequestPurchaseOrderLineEntity prpol ON prpol.paymentRequest.id = pr.id "
+            + "LEFT JOIN prpol.purchaseOrderLine pol "
+            + "LEFT JOIN pol.purchaseOrder po "
+            + "LEFT JOIN po.order o "
+            + "LEFT JOIN o.customer c "
+            + "WHERE r.isDeleted = false "
+            + "AND (:createdBy = '' OR LOWER(COALESCE(r.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
+            + "AND (:inboundNumber = '' OR LOWER(COALESCE(r.receiptNumber, '')) LIKE LOWER(CONCAT('%', :inboundNumber, '%'))) "
+            + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
+            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%'))) "
+            + "AND (:orderNumber = '' OR LOWER(CONCAT(COALESCE(o.orderPrefix, ''), '.', CONCAT('', o.orderNumber))) LIKE LOWER(CONCAT('%', :orderNumber, '%'))) "
+            + "AND (:status = '' OR LOWER(COALESCE(r.status, '')) LIKE LOWER(CONCAT('%', :status, '%')))")
     Page<WarehouseInboundReceiptEntity> findAllFiltered(
             @Param("createdBy") String createdBy,
             @Param("inboundNumber") String inboundNumber,
@@ -74,4 +88,8 @@ public interface WarehouseInboundReceiptRepo extends BaseRepo<WarehouseInboundRe
 
     @Query("SELECT r FROM WarehouseInboundReceiptEntity r LEFT JOIN FETCH r.paymentRequest WHERE r.id = :id AND r.isDeleted = false")
     Optional<WarehouseInboundReceiptEntity> findByIdAndIsDeletedFalse(@Param("id") UUID id);
+
+    @Query("SELECT r.id, r.receiptNumber FROM WarehouseInboundReceiptEntity r "
+            + "WHERE r.isDeleted = false AND r.id IN :ids")
+    List<Object[]> findReceiptNumbersByIds(@Param("ids") java.util.Collection<UUID> ids);
 }

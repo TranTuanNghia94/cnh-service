@@ -24,7 +24,8 @@ public class VendorsMapper {
         return vendorsEntity.stream().map(this::toVendorInfo).collect(Collectors.toList());
     }
     
-    public VendorInfo toVendorInfo(VendorsEntity vendorsEntity) { 
+    /** Slim vendor for nested line maps — never touches lazy banks (avoids CME under open-in-view=false). */
+    public VendorInfo toVendorInfoBasic(VendorsEntity vendorsEntity) {
         VendorInfo vendorInfo = new VendorInfo();
         vendorInfo.setId(vendorsEntity.getId().toString());
         vendorInfo.setCode(vendorsEntity.getCode());
@@ -43,6 +44,12 @@ public class VendorsMapper {
         vendorInfo.setCreatedBy(vendorsEntity.getCreatedBy());
         vendorInfo.setUpdatedBy(vendorsEntity.getUpdatedBy());
         vendorInfo.setIsDeleted(vendorsEntity.getIsDeleted());
+        vendorInfo.setBanks(List.of());
+        return vendorInfo;
+    }
+
+    public VendorInfo toVendorInfo(VendorsEntity vendorsEntity) { 
+        VendorInfo vendorInfo = toVendorInfoBasic(vendorsEntity);
         vendorInfo.setBanks(vendorsEntity.getBanks() != null ? 
             vendorsEntity.getBanks().stream()
                 .filter(bank -> !bank.getIsDeleted()) // Filter out deleted banks

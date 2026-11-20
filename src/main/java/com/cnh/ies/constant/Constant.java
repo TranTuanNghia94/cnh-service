@@ -106,9 +106,13 @@ public class Constant {
     /** Stock ledger directions (warehouse_stock_transactions.direction). */
     public static final String WAREHOUSE_STOCK_DIRECTION_INBOUND = "INBOUND";
     public static final String WAREHOUSE_STOCK_DIRECTION_OUTBOUND = "OUTBOUND";
+    /** Opening / legacy stocktake balance snapshot. */
+    public static final String WAREHOUSE_STOCK_DIRECTION_IMPORT = "IMPORT";
 
     public static final String WAREHOUSE_STOCK_REF_INBOUND_RECEIPT_LINE = "WAREHOUSE_INBOUND_RECEIPT_LINE";
     public static final String WAREHOUSE_STOCK_REF_OUTBOUND_DETAIL = "WAREHOUSE_OUTBOUND_DETAIL";
+    public static final String WAREHOUSE_STOCK_REF_LEGACY_IMPORT_REQUEST = "LEGACY_IMPORT_REQUEST";
+    public static final String WAREHOUSE_STOCK_REF_LEGACY_EXPORT_REQUEST = "LEGACY_EXPORT_REQUEST";
 
     public static final String WAREHOUSE_OUTBOUND_STATUS_DRAFT = "DRAFT";
     public static final String WAREHOUSE_OUTBOUND_STATUS_SUBMITTED = "SUBMITTED";

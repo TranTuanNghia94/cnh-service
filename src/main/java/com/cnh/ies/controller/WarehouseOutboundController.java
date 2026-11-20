@@ -2,6 +2,7 @@ package com.cnh.ies.controller;
 
 import java.util.List;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.cnh.ies.constant.PermissionConstants;
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.payment.ApprovePaymentRequest;
@@ -35,6 +37,7 @@ public class WarehouseOutboundController {
     private final WarehouseOutboundService warehouseOutboundService;
     private final FileService fileService;
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @GetMapping("/order-lines")
     public ApiResponse<WarehouseOutboundOrderSearchInfo> getOrderLinesByContract(
             @RequestParam("contractNumber") String contractNumber) {
@@ -43,6 +46,7 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Get order lines by contract number success");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @PostMapping("/create")
     public ApiResponse<WarehouseOutboundInfo> create(@RequestBody WarehouseOutboundCreateRequest request) {
         WarehouseOutboundInfo response = warehouseOutboundService.createOutboundByContract(
@@ -50,6 +54,7 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Create warehouse outbound success");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_UPDATE + "')")
     @PostMapping("/{outboundId}/update")
     public ApiResponse<WarehouseOutboundInfo> update(
             @PathVariable String outboundId,
@@ -59,6 +64,7 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Update warehouse outbound success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @PostMapping("/list")
     public ApiResponse<ListDataModel<WarehouseOutboundInfo>> list(
             @RequestBody WarehouseOutboundListRequest request) {
@@ -73,12 +79,14 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Get warehouse outbound list success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @GetMapping("/{outboundId}")
     public ApiResponse<WarehouseOutboundInfo> getOutbound(@PathVariable String outboundId) {
         WarehouseOutboundInfo response = warehouseOutboundService.getOutbound(outboundId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Get warehouse outbound success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_UPDATE + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_LEVEL_1 + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_LEVEL_2 + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_FINAL + "')")
     @GetMapping("/{outboundId}/actions")
     public ApiResponse<WarehouseOutboundActionsInfo> getAllowedActions(@PathVariable String outboundId) {
         WarehouseOutboundActionsInfo response = warehouseOutboundService.getAllowedActions(
@@ -86,12 +94,14 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Get warehouse outbound allowed actions success");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_UPDATE + "')")
     @PostMapping("/{outboundId}/submit")
     public ApiResponse<WarehouseOutboundInfo> submit(@PathVariable String outboundId) {
         WarehouseOutboundInfo response = warehouseOutboundService.submitForApproval(outboundId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Submit warehouse outbound for approval success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_LEVEL_1 + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_LEVEL_2 + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_FINAL + "')")
     @PostMapping("/{outboundId}/approve")
     public ApiResponse<WarehouseOutboundInfo> approve(
             @PathVariable String outboundId,
@@ -100,6 +110,7 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Approve warehouse outbound success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_LEVEL_1 + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_LEVEL_2 + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_APPROVE_FINAL + "')")
     @PostMapping("/{outboundId}/reject")
     public ApiResponse<WarehouseOutboundInfo> reject(
             @PathVariable String outboundId,
@@ -108,18 +119,21 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Reject warehouse outbound success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_UPDATE + "')")
     @PostMapping("/{outboundId}/cancel")
     public ApiResponse<WarehouseOutboundInfo> cancel(@PathVariable String outboundId) {
         WarehouseOutboundInfo response = warehouseOutboundService.cancel(outboundId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Cancel warehouse outbound success");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_UPDATE + "')")
     @PostMapping("/{outboundId}/resubmit")
     public ApiResponse<WarehouseOutboundInfo> resubmit(@PathVariable String outboundId) {
         WarehouseOutboundInfo response = warehouseOutboundService.resubmit(outboundId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Resubmit warehouse outbound success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_UPDATE + "')")
     @PostMapping("/{outboundId}/upload-file")
     public ApiResponse<PaymentFileUploadInfo> uploadFile(
             @PathVariable String outboundId,
@@ -130,6 +144,7 @@ public class WarehouseOutboundController {
         return ApiResponse.success(response, "Upload warehouse outbound file success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @GetMapping("/{outboundId}/files")
     public ApiResponse<List<PaymentFileUploadInfo>> listFiles(@PathVariable String outboundId) {
         List<PaymentFileUploadInfo> response = fileService.listUploadedFilesForWarehouseOutbound(outboundId,

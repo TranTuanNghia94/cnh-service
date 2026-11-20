@@ -1,5 +1,6 @@
 package com.cnh.ies.repository.warehouse;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,6 +27,10 @@ public interface WarehouseOutboundRepo extends BaseRepo<WarehouseOutboundEntity,
             + "WHERE o.id = :id AND o.isDeleted = false")
     Optional<WarehouseOutboundEntity> findByIdAndIsDeletedFalse(@Param("id") UUID id);
 
+    @Query("SELECT o.id, o.outboundNumber FROM WarehouseOutboundEntity o "
+            + "WHERE o.isDeleted = false AND o.id IN :ids")
+    List<Object[]> findOutboundNumbersByIds(@Param("ids") Collection<UUID> ids);
+
     @Query("SELECT o FROM WarehouseOutboundEntity o "
             + "LEFT JOIN FETCH o.order ord "
             + "LEFT JOIN FETCH ord.customer "
@@ -40,6 +45,7 @@ public interface WarehouseOutboundRepo extends BaseRepo<WarehouseOutboundEntity,
             + "WHERE o.outboundNumber = :outboundNumber AND o.isDeleted = false")
     Optional<WarehouseOutboundEntity> findByOutboundNumberForDeliverySlip(@Param("outboundNumber") String outboundNumber);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"order"})
     @Query("SELECT o FROM WarehouseOutboundEntity o "
             + "WHERE o.isDeleted = false "
             + "AND (:createdBy = '' OR LOWER(COALESCE(o.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "

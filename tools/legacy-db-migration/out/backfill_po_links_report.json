@@ -1,0 +1,18 @@
+{
+  "pol_after": {
+    "total": 27491,
+    "null_product": 4,
+    "null_sol": 275,
+    "null_vnd": 0
+  },
+  "po_order_id_linked": 1341,
+  "po_after": {
+    "total": 2324,
+    "null_order_id": 98
+  },
+  "spot_PO_2026_11_039": {
+    "id": "0aafa488-c9d8-4b5a-b684-5e0a77a20de8",
+    "order_id": "6e625838-e5a3-47c9-9a1a-c5b23d923d17",
+    "lines_with_product": 1
+  }
+}

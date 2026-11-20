@@ -26,7 +26,8 @@ public interface PaymentRequestRepo extends BaseRepo<PaymentRequestEntity, UUID>
             + "AND (:paymentRequestNumber = '' OR LOWER(COALESCE(pr.requestNumber, '')) LIKE LOWER(CONCAT('%', :paymentRequestNumber, '%'))) "
             + "AND (:vendorCode = '' OR LOWER(COALESCE(v.code, '')) LIKE LOWER(CONCAT('%', :vendorCode, '%'))) "
             + "AND (:numberOfPaper = '' OR LOWER(COALESCE(CAST(pr.papers AS string), '')) LIKE LOWER(CONCAT('%', :numberOfPaper, '%'))) "
-            + "AND (:status = '' OR LOWER(COALESCE(pr.status, '')) LIKE LOWER(CONCAT('%', :status, '%')))")
+            + "AND (:status = '' OR LOWER(COALESCE(pr.status, '')) LIKE LOWER(CONCAT('%', :status, '%'))) "
+            + "ORDER BY pr.requestDate DESC, pr.createdAt DESC")
     Page<PaymentRequestEntity> findAllFiltered(
             @Param("createdBy") String createdBy,
             @Param("paymentRequestNumber") String paymentRequestNumber,
@@ -42,6 +43,8 @@ public interface PaymentRequestRepo extends BaseRepo<PaymentRequestEntity, UUID>
             + "WHERE pr.requestNumber LIKE CONCAT(:prefix, '.%') AND pr.isDeleted = false")
     List<String> findRequestNumbersByPrefix(String prefix);
 
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtext(:prefix))", nativeQuery = true)
+    void acquirePaymentRequestPrefixAllocationLock(@Param("prefix") String prefix);
     @Query("SELECT DISTINCT pr FROM PaymentRequestEntity pr LEFT JOIN FETCH pr.vendor "
             + "WHERE pr.isDeleted = false AND LOWER(COALESCE(pr.notes, '')) LIKE LOWER(CONCAT('%', :q, '%')) "
             + "ORDER BY pr.requestDate DESC")

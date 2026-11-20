@@ -1,0 +1,19 @@
+{
+  "products": {
+    "inserted": 571,
+    "skip_existing_id": 24802,
+    "skip_code": 0
+  },
+  "customer_addresses": {
+    "inserted": 14,
+    "skip_existing": 63,
+    "skip_missing_customer": 0
+  },
+  "orders_address_relink": {
+    "updated": 5
+  },
+  "users": {
+    "inserted": 6,
+    "skipped": 26
+  }
+}

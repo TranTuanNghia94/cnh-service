@@ -105,7 +105,7 @@ public class ProductService {
     public ProductInfo getProductById(String id, String requestId) {
         log.debug("Getting product by id: {}", id);
 
-        Optional<ProductEntity> product = productRepo.findById(UUID.fromString(id));
+        Optional<ProductEntity> product = productRepo.findByIdWithCategory(UUID.fromString(id));
         if (product.isEmpty()) {
             log.error("Product not found with id: {}", id);
             throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found", HttpStatus.NOT_FOUND.value(), requestId);
@@ -127,7 +127,7 @@ public class ProductService {
             Integer limit,
             String requestId) {
         UUID id = parseProductId(productId, requestId);
-        getProductById(productId, requestId);
+        ensureProductExists(id, requestId);
 
         int safePage = page == null || page < 0 ? 0 : page;
         int safeLimit = limit == null || limit < 1 ? 20 : limit;
@@ -237,6 +237,15 @@ public class ProductService {
         } catch (IllegalArgumentException e) {
             throw new ApiException(ApiException.ErrorCode.BAD_REQUEST, "Invalid product id",
                     HttpStatus.BAD_REQUEST.value(), requestId);
+        }
+    }
+
+    private void ensureProductExists(UUID id, String requestId) {
+        Optional<ProductEntity> product = productRepo.findById(id);
+        if (product.isEmpty() || Boolean.TRUE.equals(product.get().getIsDeleted())) {
+            log.error("Product not found with id: {} RequestId: {}", id, requestId);
+            throw new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found",
+                    HttpStatus.NOT_FOUND.value(), requestId);
         }
     }
 

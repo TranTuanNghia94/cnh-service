@@ -526,6 +526,15 @@ public class FileService {
         }
 
         String prevStatus = entity.getStatus();
+        // Align paid amounts with header totals so bank-note auto-PAID matches markPaid semantics.
+        java.math.BigDecimal total = entity.getTotalAmount() == null
+                ? java.math.BigDecimal.ZERO
+                : entity.getTotalAmount();
+        java.math.BigDecimal totalVnd = entity.getTotalAmountVnd() == null
+                ? java.math.BigDecimal.ZERO
+                : entity.getTotalAmountVnd();
+        entity.setPaidAmount(total);
+        entity.setPaidAmountVnd(totalVnd);
         entity.setStatus(Constant.PAYMENT_REQUEST_STATUS_PAID);
         entity.setPaidAt(Instant.now());
         entity.setUpdatedBy(RequestContext.getCurrentUsername());

@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -87,6 +88,7 @@ public class PermissionService {
         }
     }
 
+    @CacheEvict(cacheNames = "permissions", allEntries = true)
     public String deletePermission(String id, String requestId) {
         try {
             log.info("Deleting permission with id: {}", id);
@@ -113,6 +115,7 @@ public class PermissionService {
         }
     }
 
+    @CacheEvict(cacheNames = "permissions", allEntries = true)
     public String restorePermission(String id, String requestId) {
         try {
             log.info("Restoring permission with id: {}", id);

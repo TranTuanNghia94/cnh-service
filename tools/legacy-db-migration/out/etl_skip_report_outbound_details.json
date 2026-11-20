@@ -1,0 +1,11 @@
+{
+  "inserted": 25901,
+  "skipped": {
+    "existing_id": 0,
+    "missing_outbound": 0,
+    "missing_product": 0,
+    "no_sale_order": 0,
+    "no_order_line": 146,
+    "conflict": 0
+  }
+}

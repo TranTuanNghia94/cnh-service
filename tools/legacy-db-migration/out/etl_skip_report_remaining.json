@@ -1,0 +1,20 @@
+{
+  "order_lines": {
+    "inserted": 961,
+    "skipped": {
+      "existing_id": 35053,
+      "missing_order": 0,
+      "missing_product": 0,
+      "conflict": 0
+    }
+  },
+  "warehouse_inventory": {
+    "inserted": 411,
+    "skipped": {
+      "missing_product": 0,
+      "existing_product": 18837,
+      "existing_id": 0,
+      "conflict": 0
+    }
+  }
+}

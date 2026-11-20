@@ -6,8 +6,10 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -20,7 +22,9 @@ import com.cnh.ies.model.user.RoleRequest;
 import com.cnh.ies.model.user.RoleInfo;
 import com.cnh.ies.repository.auth.PermissionRepo;
 import com.cnh.ies.repository.auth.RoleRepo;
+import com.cnh.ies.repository.auth.UserRepo;
 import com.cnh.ies.mapper.user.RoleMapper;
+import com.cnh.ies.service.auth.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,6 +35,11 @@ public class RoleService {
     private final RoleRepo roleRepo;
     private final RoleMapper roleMapper;
     private final PermissionRepo permissionRepo;
+    private final UserRepo userRepo;
+
+    @Lazy
+    @Autowired
+    private AuthService authService;
 
 
     @Cacheable(cacheNames = "roles", key = "'all'")
@@ -168,6 +177,7 @@ public class RoleService {
         }
     }
 
+    @CacheEvict(cacheNames = "roles", allEntries = true)
     public String assignPermissionToRole(UUID roleId, UUID permissionId, String requestId) {
         try {
             log.info("Assigning permission: {} to role: {} | RequestId: {}", permissionId, roleId, requestId);
@@ -188,6 +198,7 @@ public class RoleService {
 
             role.get().getPermissions().add(permission.get());
             roleRepo.save(role.get());
+            invalidateSessionsForRole(role.get().getCode());
 
             log.info("Assigning permission: {} to role: {} | RequestId: {}", permissionId, roleId, requestId);
 
@@ -198,6 +209,7 @@ public class RoleService {
         }
     }
 
+    @CacheEvict(cacheNames = "roles", allEntries = true)
     public String unassignPermissionFromRole(UUID roleId, UUID permissionId, String requestId) {
         try {
             log.info("Unassigning permission: {} from role: {} | RequestId: {}", permissionId, roleId, requestId);
@@ -218,6 +230,7 @@ public class RoleService {
 
             role.get().getPermissions().remove(permission.get());
             roleRepo.save(role.get());
+            invalidateSessionsForRole(role.get().getCode());
 
             log.info("Unassigning permission: {} from role: {} | RequestId: {}", permissionId, roleId, requestId);
 
@@ -226,5 +239,12 @@ public class RoleService {
             log.error("Error unassigning permission from role", e);
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
+    }
+
+    private void invalidateSessionsForRole(String roleCode) {
+        if (roleCode == null || roleCode.isBlank()) {
+            return;
+        }
+        userRepo.findByRoleCode(roleCode).forEach(u -> authService.invalidateUserSession(u.getUsername()));
     }
 }

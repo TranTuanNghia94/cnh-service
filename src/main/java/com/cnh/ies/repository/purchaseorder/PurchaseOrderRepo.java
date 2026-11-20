@@ -30,7 +30,8 @@ public interface PurchaseOrderRepo extends BaseRepo<PurchaseOrderEntity, UUID> {
             + "AND (:purchaseOrderNumber = '' OR LOWER(CONCAT(COALESCE(po.poPrefix, ''), '.', CONCAT('', po.poNumber))) LIKE LOWER(CONCAT('%', :purchaseOrderNumber, '%'))) "
             + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
             + "AND (:createdBy = '' OR LOWER(COALESCE(po.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
-            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%')))",
+            + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%'))) "
+            + "ORDER BY po.createdAt DESC",
             countQuery = "SELECT COUNT(po) FROM PurchaseOrderEntity po "
             + "LEFT JOIN po.order o "
             + "LEFT JOIN o.customer c "
@@ -51,6 +52,9 @@ public interface PurchaseOrderRepo extends BaseRepo<PurchaseOrderEntity, UUID> {
 
     @Query("SELECT MAX(po.poNumber) FROM PurchaseOrderEntity po WHERE po.poPrefix = :poPrefix AND po.isDeleted = false")
     Integer findMaxSequenceForPrefix(String poPrefix);
+
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtext(:poPrefix))", nativeQuery = true)
+    void acquirePoPrefixAllocationLock(@Param("poPrefix") String poPrefix);
 
     @Query("SELECT po FROM PurchaseOrderEntity po "
             + "LEFT JOIN FETCH po.order o "

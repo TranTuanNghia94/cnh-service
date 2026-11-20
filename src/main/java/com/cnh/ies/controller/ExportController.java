@@ -2,6 +2,7 @@ package com.cnh.ies.controller;
 
 import java.util.UUID;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cnh.ies.constant.PermissionConstants;
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.export.CreateExportJobRequest;
 import com.cnh.ies.model.export.ExportJobInfo;
@@ -32,8 +34,19 @@ import lombok.extern.slf4j.Slf4j;
 @Tag(name = "Export", description = "Async Excel export job APIs")
 public class ExportController {
 
+    private static final String EXPORT_ANY_READ = "hasAnyAuthority('"
+            + PermissionConstants.WAREHOUSE_INVENTORY_READ + "','"
+            + PermissionConstants.WAREHOUSE_INBOUND_READ + "','"
+            + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "','"
+            + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','"
+            + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "','"
+            + PermissionConstants.PAYMENT_READ + "','"
+            + PermissionConstants.PAYMENT_CREATE + "','"
+            + PermissionConstants.USER_READ + "')";
+
     private final ExportJobService exportJobService;
 
+    @PreAuthorize(EXPORT_ANY_READ)
     @PostMapping
     public ApiResponse<String> createExportJob(
             @Valid @RequestBody CreateExportJobRequest request,
@@ -52,6 +65,7 @@ public class ExportController {
         return ApiResponse.success(jobId, "Export job created");
     }
 
+    @PreAuthorize(EXPORT_ANY_READ)
     @GetMapping
     public ApiResponse<ListDataModel<ExportJobInfo>> listExportJobs(
             @RequestParam(defaultValue = "0") Integer page,
@@ -64,6 +78,7 @@ public class ExportController {
         return ApiResponse.success(response, "List export jobs success");
     }
 
+    @PreAuthorize(EXPORT_ANY_READ)
     @GetMapping("/{jobId}")
     public ApiResponse<ExportJobInfo> getExportJob(
             @PathVariable String jobId,

@@ -31,91 +31,102 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/reports")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('"
-        + PermissionConstants.WAREHOUSE_INVENTORY_READ + "','"
-        + PermissionConstants.WAREHOUSE_INBOUND_READ + "','"
-        + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','"
-        + PermissionConstants.PAYMENT_READ + "')")
 public class OperationalReportController {
 
     private final OperationalReportService reportService;
     private final OperationalReportExcelService excelService;
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_INVENTORY_READ + "')")
     @PostMapping("/stock")
     public ApiResponse<OperationalReportPage<StockLedgerRow>> stock(@Valid @RequestBody OperationalReportRequest request) {
         return ApiResponse.success(reportService.stock(request), "Stock report success");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_INVENTORY_READ + "')")
     @PostMapping("/stock/export")
     public ResponseEntity<byte[]> exportStock(@Valid @RequestBody OperationalReportRequest request) {
         return excel(excelService.stock(request, RequestContext.getRequestIdOrGenerate()), "xuat-nhap-ton.xlsx");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.PAYMENT_READ + "','" + PermissionConstants.PAYMENT_CREATE + "')")
     @PostMapping("/payment")
     public ApiResponse<OperationalReportPage<PaymentLedgerRow>> payment(@Valid @RequestBody OperationalReportRequest request) {
         return ApiResponse.success(reportService.payments(request), "Payment report success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.PAYMENT_READ + "','" + PermissionConstants.PAYMENT_CREATE + "')")
     @PostMapping("/payment/export")
     public ResponseEntity<byte[]> exportPayment(@Valid @RequestBody OperationalReportRequest request) {
         return excel(excelService.payments(request, RequestContext.getRequestIdOrGenerate()), "bao-cao-thanh-toan.xlsx");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.PAYMENT_READ + "','" + PermissionConstants.PAYMENT_CREATE + "','" + PermissionConstants.WAREHOUSE_INBOUND_READ + "')")
     @PostMapping("/vendor-debt")
     public ApiResponse<OperationalReportPage<VendorDebtRow>> vendorDebt(@Valid @RequestBody OperationalReportRequest request) {
         return ApiResponse.success(reportService.vendorDebt(request), "Vendor debt report success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.PAYMENT_READ + "','" + PermissionConstants.PAYMENT_CREATE + "','" + PermissionConstants.WAREHOUSE_INBOUND_READ + "')")
     @PostMapping("/vendor-debt/export")
     public ResponseEntity<byte[]> exportVendorDebt(@Valid @RequestBody OperationalReportRequest request) {
         return excel(excelService.vendorDebt(request, RequestContext.getRequestIdOrGenerate()), "bao-cao-tong-hop.xlsx");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.PAYMENT_READ + "','" + PermissionConstants.PAYMENT_CREATE + "','" + PermissionConstants.WAREHOUSE_INBOUND_READ + "')")
     @PostMapping("/sales-detail")
     public ApiResponse<OperationalReportPage<SalesDetailReportRow>> salesDetail(@Valid @RequestBody OperationalReportRequest request) {
         return ApiResponse.success(reportService.salesDetail(request), "Sales detail report success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.PAYMENT_READ + "','" + PermissionConstants.PAYMENT_CREATE + "','" + PermissionConstants.WAREHOUSE_INBOUND_READ + "')")
     @PostMapping("/sales-detail/export")
     public ResponseEntity<byte[]> exportSalesDetail(@Valid @RequestBody OperationalReportRequest request) {
         return excel(excelService.salesDetail(request, RequestContext.getRequestIdOrGenerate()), "bao-cao-chi-tiet.xlsx");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @PostMapping("/outbound")
     public ApiResponse<OperationalReportPage<OutboundSummaryReportRow>> outbound(@Valid @RequestBody OperationalReportRequest request) {
         return ApiResponse.success(reportService.outboundSummary(request), "Outbound report success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @PostMapping("/outbound/export")
     public ResponseEntity<byte[]> exportOutbound(@Valid @RequestBody OperationalReportRequest request) {
         return excel(excelService.outboundSummary(request, RequestContext.getRequestIdOrGenerate()), "bao-cao-xuat-kho.xlsx");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @PostMapping("/outbound-detail")
     public ApiResponse<OperationalReportPage<OutboundDetailReportRow>> outboundDetail(@Valid @RequestBody OperationalReportRequest request) {
         return ApiResponse.success(reportService.outboundDetail(request), "Outbound detail report success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_OUTBOUND_READ + "','" + PermissionConstants.WAREHOUSE_OUTBOUND_CREATE + "')")
     @PostMapping("/outbound-detail/export")
     public ResponseEntity<byte[]> exportOutboundDetail(@Valid @RequestBody OperationalReportRequest request) {
         return excel(excelService.outboundDetail(request, RequestContext.getRequestIdOrGenerate()), "bao-cao-chi-tiet-xuat-kho.xlsx");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @PostMapping("/inbound")
     public ApiResponse<OperationalReportPage<InboundSummaryReportRow>> inbound(@Valid @RequestBody OperationalReportRequest request) {
         return ApiResponse.success(reportService.inboundSummary(request), "Inbound report success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @PostMapping("/inbound/export")
     public ResponseEntity<byte[]> exportInbound(@Valid @RequestBody OperationalReportRequest request) {
         return excel(excelService.inboundSummary(request, RequestContext.getRequestIdOrGenerate()), "bao-cao-nhap-kho.xlsx");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @PostMapping("/inbound-detail")
     public ApiResponse<OperationalReportPage<InboundDetailReportRow>> inboundDetail(@Valid @RequestBody OperationalReportRequest request) {
         return ApiResponse.success(reportService.inboundDetail(request), "Inbound detail report success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @PostMapping("/inbound-detail/export")
     public ResponseEntity<byte[]> exportInboundDetail(@Valid @RequestBody OperationalReportRequest request) {
         return excel(excelService.inboundDetail(request, RequestContext.getRequestIdOrGenerate()), "bao-cao-chi-tiet-nhap-kho.xlsx");

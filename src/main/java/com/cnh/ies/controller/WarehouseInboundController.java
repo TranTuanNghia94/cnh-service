@@ -2,6 +2,7 @@ package com.cnh.ies.controller;
 
 import java.util.List;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.cnh.ies.constant.PermissionConstants;
 import com.cnh.ies.dto.common.ApiResponse;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.payment.ApprovePaymentRequest;
@@ -41,19 +43,20 @@ public class WarehouseInboundController {
     private final WarehouseInboundService warehouseInboundService;
     private final FileService fileService;
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @GetMapping("/search")
     public ApiResponse<WarehouseInboundSearchResponse> search(
             @RequestParam(name = "notesContains", required = false) String notesContains,
             @RequestParam(name = "paperType", required = false) String paperType,
-            @RequestParam(name = "paperCode", required = false) String paperCode) {
-        WarehouseInboundSearchResponse response = warehouseInboundService.search(notesContains, paperType, paperCode,
-                RequestContext.getRequestId());
-        return ApiResponse.success(response, "Warehouse inbound search success");
+            @RequestParam(name = "limit", required = false) Integer limit) {
+        WarehouseInboundSearchResponse response = warehouseInboundService.searchEligiblePaymentRequests(
+                notesContains, paperType, limit, RequestContext.getRequestId());
+        return ApiResponse.success(response, "Search warehouse inbound candidates success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @PostMapping("/list")
-    public ApiResponse<ListDataModel<WarehouseInboundReceiptInfo>> list(
-            @RequestBody WarehouseInboundListRequest request) {
+    public ApiResponse<ListDataModel<WarehouseInboundReceiptInfo>> list(@RequestBody WarehouseInboundListRequest request) {
         ListDataModel<WarehouseInboundReceiptInfo> response = warehouseInboundService.list(
                 RequestContext.getRequestId(),
                 request.getPage(),
@@ -64,36 +67,41 @@ public class WarehouseInboundController {
                 request.getCustomerName(),
                 request.getOrderNumber(),
                 request.getStatus());
-        return ApiResponse.success(response, "Get warehouse inbound list success");
+        return ApiResponse.success(response, "List warehouse inbound receipts success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @GetMapping("/payment-request/{paymentRequestId}")
     public ApiResponse<PaymentRequestInfo> getPaymentRequest(@PathVariable String paymentRequestId) {
-        PaymentRequestInfo response = warehouseInboundService.getPaymentRequestDetail(paymentRequestId,
+        PaymentRequestInfo response = warehouseInboundService.getPaymentRequestForInbound(paymentRequestId,
                 RequestContext.getRequestId());
         return ApiResponse.success(response, "Get payment request for inbound success");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @PostMapping("/confirm")
     public ApiResponse<WarehouseInboundReceiptInfo> confirm(@RequestBody WarehouseInboundConfirmRequest request) {
-        WarehouseInboundReceiptInfo response = warehouseInboundService.confirmInbound(request, RequestContext.getRequestId());
-        return ApiResponse.success(response, "Warehouse inbound saved as draft; submit for approval when ready");
+        WarehouseInboundReceiptInfo response = warehouseInboundService.confirm(request, RequestContext.getRequestId());
+        return ApiResponse.success(response, "Confirm warehouse inbound success");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_UPDATE + "')")
     @PostMapping("/receipt/{receiptId}/submit")
-    public ApiResponse<WarehouseInboundReceiptInfo> submitForApproval(@PathVariable String receiptId) {
+    public ApiResponse<WarehouseInboundReceiptInfo> submit(@PathVariable String receiptId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.submitForApproval(receiptId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Warehouse inbound submitted for approval");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_APPROVE_LEVEL_1 + "','" + PermissionConstants.WAREHOUSE_INBOUND_APPROVE_LEVEL_2 + "','" + PermissionConstants.WAREHOUSE_INBOUND_APPROVE_FINAL + "')")
     @PostMapping("/receipt/{receiptId}/approve")
     public ApiResponse<WarehouseInboundReceiptInfo> approve(
             @PathVariable String receiptId,
             @RequestBody(required = false) ApprovePaymentRequest request) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.approve(receiptId, request, RequestContext.getRequestId());
-        return ApiResponse.success(response, "Warehouse inbound approval recorded");
+        return ApiResponse.success(response, "Warehouse inbound approved");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_APPROVE_LEVEL_1 + "','" + PermissionConstants.WAREHOUSE_INBOUND_APPROVE_LEVEL_2 + "','" + PermissionConstants.WAREHOUSE_INBOUND_APPROVE_FINAL + "')")
     @PostMapping("/receipt/{receiptId}/reject")
     public ApiResponse<WarehouseInboundReceiptInfo> reject(
             @PathVariable String receiptId,
@@ -102,12 +110,14 @@ public class WarehouseInboundController {
         return ApiResponse.success(response, "Warehouse inbound rejected");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "','" + PermissionConstants.WAREHOUSE_INBOUND_UPDATE + "')")
     @PostMapping("/receipt/{receiptId}/cancel")
     public ApiResponse<WarehouseInboundReceiptInfo> cancel(@PathVariable String receiptId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.cancel(receiptId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Warehouse inbound cancelled");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_UPDATE + "')")
     @DeleteMapping("/receipt/{receiptId}/lines/{lineId}")
     public ApiResponse<WarehouseInboundReceiptInfo> deleteLine(@PathVariable String receiptId, @PathVariable String lineId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.deleteInboundLine(receiptId, lineId,
@@ -115,6 +125,7 @@ public class WarehouseInboundController {
         return ApiResponse.success(response, "Inbound line removed");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_UPDATE + "')")
     @PostMapping("/receipt/{receiptId}/lines")
     public ApiResponse<WarehouseInboundReceiptInfo> addLine(
             @PathVariable String receiptId,
@@ -124,6 +135,7 @@ public class WarehouseInboundController {
         return ApiResponse.success(response, "Inbound line added");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_UPDATE + "')")
     @PatchMapping("/receipt/{receiptId}/lines/{lineId}")
     public ApiResponse<WarehouseInboundReceiptInfo> patchLine(
             @PathVariable String receiptId,
@@ -134,6 +146,7 @@ public class WarehouseInboundController {
         return ApiResponse.success(response, "Inbound line updated");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @GetMapping("/payment-request/{paymentRequestId}/receipts")
     public ApiResponse<List<WarehouseInboundReceiptInfo>> listReceipts(@PathVariable String paymentRequestId) {
         List<WarehouseInboundReceiptInfo> response = warehouseInboundService.listReceiptsForPaymentRequest(paymentRequestId,
@@ -141,12 +154,14 @@ public class WarehouseInboundController {
         return ApiResponse.success(response, "List warehouse inbound receipts success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @GetMapping("/receipt/{receiptId}")
     public ApiResponse<WarehouseInboundReceiptInfo> getReceipt(@PathVariable String receiptId) {
         WarehouseInboundReceiptInfo response = warehouseInboundService.getReceipt(receiptId, RequestContext.getRequestId());
         return ApiResponse.success(response, "Get warehouse inbound receipt success");
     }
 
+    @PreAuthorize("hasAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_UPDATE + "')")
     @PutMapping("/receipt/{receiptId}/fees")
     public ApiResponse<WarehouseInboundReceiptInfo> replaceFees(
             @PathVariable String receiptId,
@@ -156,6 +171,7 @@ public class WarehouseInboundController {
         return ApiResponse.success(response, "Warehouse inbound fees updated");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "','" + PermissionConstants.WAREHOUSE_INBOUND_UPDATE + "')")
     @PostMapping("/receipt/{receiptId}/upload-file")
     public ApiResponse<PaymentFileUploadInfo> uploadFile(
             @PathVariable String receiptId,
@@ -166,6 +182,7 @@ public class WarehouseInboundController {
         return ApiResponse.success(response, "Upload warehouse inbound file success");
     }
 
+    @PreAuthorize("hasAnyAuthority('" + PermissionConstants.WAREHOUSE_INBOUND_READ + "','" + PermissionConstants.WAREHOUSE_INBOUND_CREATE + "')")
     @GetMapping("/receipt/{receiptId}/files")
     public ApiResponse<List<PaymentFileUploadInfo>> listFiles(@PathVariable String receiptId) {
         List<PaymentFileUploadInfo> response = fileService.listUploadedFilesForWarehouseInboundReceipt(

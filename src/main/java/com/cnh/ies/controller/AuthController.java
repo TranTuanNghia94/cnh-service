@@ -41,12 +41,12 @@ public class AuthController {
     @PostMapping("/refresh-token")
     public ApiResponse<ResponseLoginModel> refreshToken(@RequestBody String refreshToken) {
         String requestId = RequestContext.getRequestIdOrGenerate();
-        log.info("Refresh token request initiated: {} | RequestId: {}", refreshToken, requestId);
-        
+        log.info("Refresh token request initiated | RequestId: {}", requestId);
+
         ResponseLoginModel response = authService.refreshToken(refreshToken, requestId);
 
-        log.info("Refresh token request completed: {} | RequestId: {}", refreshToken, requestId);
-        
+        log.info("Refresh token request completed | RequestId: {}", requestId);
+
         return ApiResponse.success(response, "Refresh token success");
     }
 

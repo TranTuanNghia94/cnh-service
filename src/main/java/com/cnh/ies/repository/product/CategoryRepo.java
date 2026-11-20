@@ -15,10 +15,10 @@ import org.springframework.data.repository.query.Param;
 @Repository
 public interface CategoryRepo extends BaseRepo<CategoryEntity, UUID> {
 
-    @Query("SELECT c FROM CategoryEntity c WHERE c.code = :code")
+    @Query("SELECT c FROM CategoryEntity c WHERE c.code = :code AND c.isDeleted = false")
     Optional<CategoryEntity> findByCode(String code);
 
-    @Query("SELECT c FROM CategoryEntity c WHERE c.code IN :codes")
+    @Query("SELECT c FROM CategoryEntity c WHERE c.code IN :codes AND c.isDeleted = false")
     List<CategoryEntity> findByCodeIn(@Param("codes") Collection<String> codes);
 
     @Query("SELECT c FROM CategoryEntity c WHERE c.name = :name AND c.isDeleted = false")

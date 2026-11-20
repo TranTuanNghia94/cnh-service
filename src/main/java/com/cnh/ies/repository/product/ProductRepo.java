@@ -16,8 +16,14 @@ import com.cnh.ies.repository.BaseRepo;
 
 @Repository
 public interface ProductRepo extends BaseRepo<ProductEntity, UUID> {
-    Optional<ProductEntity> findByCode(String code);
-    Optional<ProductEntity> findByCodeIgnoreCase(String code);
+    @Query("SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category WHERE p.id = :id")
+    Optional<ProductEntity> findByIdWithCategory(@Param("id") UUID id);
+
+    @Query("SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category WHERE p.code = :code AND p.isDeleted = false")
+    Optional<ProductEntity> findByCode(@Param("code") String code);
+
+    @Query("SELECT p FROM ProductEntity p WHERE LOWER(p.code) = LOWER(:code) AND p.isDeleted = false")
+    Optional<ProductEntity> findByCodeIgnoreCase(@Param("code") String code);
 
     @Query("SELECT p FROM ProductEntity p WHERE LOWER(p.code) IN :codes AND p.isDeleted = false")
     List<ProductEntity> findByCodeInIgnoreCaseAndIsDeletedFalse(@Param("codes") Collection<String> codes);

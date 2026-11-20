@@ -39,7 +39,7 @@ public class OrderLineMapper {
         info.setVendorName(hasVendor ? e.getVendor().getName() : e.getVendorNameSuggest());
         info.setVendorCodeSuggest(hasVendor ? e.getVendor().getCode() : e.getVendorCodeSuggest());
         info.setVendorNameSuggest(hasVendor ? e.getVendor().getName() : e.getVendorNameSuggest());
-        info.setVendor(hasVendor ? vendorMapper.toVendorInfo(e.getVendor()) : null);
+        info.setVendor(hasVendor ? vendorMapper.toVendorInfoBasic(e.getVendor()) : null);
 
         info.setQuantity(e.getQuantity());
         info.setUnitPrice(e.getUnitPrice());

@@ -1,0 +1,181 @@
+{
+  "ok": true,
+  "failures": [],
+  "results": [
+    {
+      "check": "products_active",
+      "legacy": 25347,
+      "target": 25347,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "customers_active",
+      "legacy": 175,
+      "target": 175,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "vendors_active",
+      "legacy": 520,
+      "target": 520,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "categories_active",
+      "legacy": 4,
+      "target": 4,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "customer_addresses_active",
+      "legacy": 70,
+      "target": 70,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "orders_active",
+      "legacy": 1236,
+      "target": 1236,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "order_lines_active",
+      "legacy": 30776,
+      "target": 30787,
+      "gap": -11,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "purchase_orders_active",
+      "legacy": 2324,
+      "target": 2324,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "purchase_order_lines_active",
+      "legacy": 27491,
+      "target": 27491,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "payment_requests_active",
+      "legacy": 1062,
+      "target": 1062,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "inbound_receipts_active",
+      "legacy": 2406,
+      "target": 2406,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "inbound_lines_active",
+      "legacy": 24257,
+      "target": 24257,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "outbounds_active",
+      "legacy": 1692,
+      "target": 1692,
+      "gap": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "outbound_details_active",
+      "legacy": 21248,
+      "target": 21175,
+      "gap": 73,
+      "max_allowed": 150,
+      "ok": true
+    },
+    {
+      "check": "stock_tx_active",
+      "legacy": 43000,
+      "target": 42983,
+      "gap": 17,
+      "max_allowed": 30,
+      "ok": true
+    },
+    {
+      "check": "order_lines_missing_product",
+      "orphans": 0,
+      "ok": true
+    },
+    {
+      "check": "outbound_detail_missing_order_line",
+      "orphans": 0,
+      "ok": true
+    },
+    {
+      "check": "inventory_missing_product",
+      "orphans": 0,
+      "ok": true
+    },
+    {
+      "check": "approvals_legacy_migrate",
+      "count": 0,
+      "max_allowed": 0,
+      "ok": true
+    },
+    {
+      "check": "stock_tx_legacy_migrate_non_opening",
+      "count": 0,
+      "max_allowed": 50,
+      "ok": true
+    },
+    {
+      "check": "po_null_order_id_with_sol",
+      "count": 0,
+      "max_allowed": 20,
+      "ok": true
+    },
+    {
+      "check": "pol_null_total_price_vnd",
+      "count": 0,
+      "max_allowed": 100,
+      "ok": true
+    },
+    {
+      "check": "pol_null_product_recoverable",
+      "count": 0,
+      "ok": true
+    },
+    {
+      "check": "spot_order_lines",
+      "lines": 4,
+      "ok": true
+    },
+    {
+      "check": "spot_PO_2026_11_039",
+      "has_order": true,
+      "lines_with_product": 1,
+      "ok": true
+    }
+  ]
+}

@@ -36,7 +36,7 @@ public class PurchaseOrderLineMapper {
         boolean hasVendor = e.getVendor() != null;
         info.setVendorId(hasVendor ? e.getVendor().getId().toString() : null);
         info.setVendorName(hasVendor ? e.getVendor().getName() : null);
-        info.setVendor(hasVendor ? vendorMapper.toVendorInfo(e.getVendor()) : null);
+        info.setVendor(hasVendor ? vendorMapper.toVendorInfoBasic(e.getVendor()) : null);
 
         info.setLink(e.getLink());
         info.setQuantity(e.getQuantity());

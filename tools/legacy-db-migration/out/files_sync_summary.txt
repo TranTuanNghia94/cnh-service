@@ -1,0 +1,9 @@
+disk_files=5409
+sys_media=5142
+matched=5126
+disk_only=280
+db_only=16
+matched_by_folder:
+  PAPERWORK=2831
+  BANK_NOTE=928
+  QUOTE=1367

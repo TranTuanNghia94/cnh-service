@@ -60,23 +60,12 @@ public class ServiceReportRepository {
             LocalDate fromDate, LocalDate toDate,
             String createdBy, String inboundNumber, String contractNumber,
             String customerName, String orderNumber, String status) {
+        // Sum lines once per receipt — filter receipts via DISTINCT id subquery to avoid PRPOL fan-out.
         String jpql = "SELECT COALESCE(SUM(l.quantityExpected), 0), COALESCE(SUM(l.quantityReceived), 0) "
                 + "FROM WarehouseInboundReceiptLineEntity l "
-                + "JOIN l.receipt r "
-                + "LEFT JOIN r.paymentRequest pr "
-                + "LEFT JOIN PaymentRequestPurchaseOrderLineEntity prpol ON prpol.paymentRequest.id = pr.id "
-                + "LEFT JOIN prpol.purchaseOrderLine pol "
-                + "LEFT JOIN pol.purchaseOrder po "
-                + "LEFT JOIN po.order o "
-                + "LEFT JOIN o.customer c "
-                + "WHERE r.isDeleted = false AND l.isDeleted = false "
-                + "AND r.receivedDate >= :fromDate AND r.receivedDate <= :toDate "
-                + "AND (:createdBy = '' OR LOWER(COALESCE(r.createdBy, '')) LIKE LOWER(CONCAT('%', :createdBy, '%'))) "
-                + "AND (:inboundNumber = '' OR LOWER(COALESCE(r.receiptNumber, '')) LIKE LOWER(CONCAT('%', :inboundNumber, '%'))) "
-                + "AND (:contractNumber = '' OR LOWER(COALESCE(o.contractNumber, '')) LIKE LOWER(CONCAT('%', :contractNumber, '%'))) "
-                + "AND (:customerName = '' OR LOWER(COALESCE(c.name, '')) LIKE LOWER(CONCAT('%', :customerName, '%'))) "
-                + "AND (:orderNumber = '' OR LOWER(CONCAT(COALESCE(o.orderPrefix, ''), '.', CONCAT('', o.orderNumber))) LIKE LOWER(CONCAT('%', :orderNumber, '%'))) "
-                + "AND (:status = '' OR LOWER(COALESCE(r.status, '')) LIKE LOWER(CONCAT('%', :status, '%')))";
+                + "JOIN l.receipt rcpt "
+                + "WHERE l.isDeleted = false AND rcpt.isDeleted = false "
+                + "AND rcpt.id IN (" + inboundReceiptFilterJpql("SELECT DISTINCT r.id") + ")";
         Query q = entityManager.createQuery(jpql);
         bindInboundReceiptFilters(q, fromDate, toDate, createdBy, inboundNumber, contractNumber,
                 customerName, orderNumber, status);
@@ -88,9 +77,11 @@ public class ServiceReportRepository {
             LocalDate fromDate, LocalDate toDate,
             String createdBy, String inboundNumber, String contractNumber,
             String customerName, String orderNumber, String status) {
-        String jpql = inboundReceiptFilterJpql(
-                "SELECT COALESCE(SUM(r.feeAmount), 0), COALESCE(SUM(r.realBillAmount), 0), "
-                        + "COALESCE(SUM(r.billOnPaperAmount), 0) ");
+        // Header money is per receipt — DISTINCT id subquery prevents PRPOL join inflation.
+        String jpql = "SELECT COALESCE(SUM(hdr.feeAmount), 0), COALESCE(SUM(hdr.realBillAmount), 0), "
+                + "COALESCE(SUM(hdr.billOnPaperAmount), 0) "
+                + "FROM WarehouseInboundReceiptEntity hdr "
+                + "WHERE hdr.id IN (" + inboundReceiptFilterJpql("SELECT DISTINCT r.id") + ")";
         Query q = entityManager.createQuery(jpql);
         bindInboundReceiptFilters(q, fromDate, toDate, createdBy, inboundNumber, contractNumber,
                 customerName, orderNumber, status);
@@ -144,13 +135,15 @@ public class ServiceReportRepository {
             LocalDate fromDate, LocalDate toDate,
             String createdBy, String inboundNumber, String contractNumber,
             String customerName, String orderNumber, String status) {
+        // Join path must match findInboundDetail (direct POL → PO → order).
         String jpql = """
                 SELECT COUNT(l.id)
                 FROM WarehouseInboundReceiptLineEntity l
                 JOIN l.receipt r
                 LEFT JOIN r.paymentRequest pr
+                LEFT JOIN l.purchaseOrderLine pol
                 LEFT JOIN l.paymentRequestPurchaseOrderLine prpol
-                LEFT JOIN prpol.purchaseOrderLine pol
+                LEFT JOIN prpol.purchaseOrderLine prPol
                 LEFT JOIN pol.purchaseOrder po
                 LEFT JOIN po.order o
                 LEFT JOIN o.customer c

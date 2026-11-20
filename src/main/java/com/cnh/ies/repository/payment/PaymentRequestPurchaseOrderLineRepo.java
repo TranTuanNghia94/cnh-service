@@ -17,12 +17,9 @@ public interface PaymentRequestPurchaseOrderLineRepo extends BaseRepo<PaymentReq
     @Query("SELECT DISTINCT i FROM PaymentRequestPurchaseOrderLineEntity i "
             + "LEFT JOIN FETCH i.purchaseOrderLine pol "
             + "LEFT JOIN FETCH pol.vendor "
-            + "LEFT JOIN FETCH pol.purchaseOrder po "
-            + "LEFT JOIN FETCH po.order poOrder "
-            + "LEFT JOIN FETCH poOrder.customer "
-            + "LEFT JOIN FETCH poOrder.customerAddress "
             + "LEFT JOIN FETCH pol.product "
-            + "LEFT JOIN FETCH pol.saleOrderLine "
+            + "LEFT JOIN FETCH pol.purchaseOrder po "
+            + "LEFT JOIN FETCH po.order "
             + "WHERE i.paymentRequest.id = :paymentRequestId AND i.isDeleted = false")
     List<PaymentRequestPurchaseOrderLineEntity> findByPaymentRequestId(UUID paymentRequestId);
 

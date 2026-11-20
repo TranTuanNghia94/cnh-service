@@ -31,6 +31,7 @@ import com.cnh.ies.repository.product.ProductRepo;
 import com.cnh.ies.repository.product.ProductTaxHistoryRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptLineRepo;
 import com.cnh.ies.repository.warehouse.WarehouseOutboundDetailRepo;
+import com.cnh.ies.repository.warehouse.WarehouseOutboundRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInboundReceiptRepo;
 import com.cnh.ies.repository.warehouse.WarehouseInventoryRepo;
 import com.cnh.ies.repository.warehouse.WarehouseStockTransactionRepo;
@@ -48,6 +49,7 @@ public class WarehouseInventoryService {
     private final WarehouseInboundReceiptRepo warehouseInboundReceiptRepo;
     private final WarehouseInboundReceiptLineRepo warehouseInboundReceiptLineRepo;
     private final WarehouseOutboundDetailRepo warehouseOutboundDetailRepo;
+    private final WarehouseOutboundRepo warehouseOutboundRepo;
     private final WarehouseInventoryRepo warehouseInventoryRepo;
     private final WarehouseStockTransactionRepo warehouseStockTransactionRepo;
     private final ProductRepo productRepo;
@@ -135,7 +137,7 @@ public class WarehouseInventoryService {
 
     public WarehouseInventoryBalanceInfo getBalance(String productId, String requestId) {
         UUID pid = parseUuid(productId, "productId", requestId);
-        ProductEntity product = productRepo.findById(pid)
+        ProductEntity product = productRepo.findByIdWithCategory(pid)
                 .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
                 .orElseThrow(() -> new ApiException(ApiException.ErrorCode.NOT_FOUND, "Product not found",
                         HttpStatus.NOT_FOUND.value(), requestId));
@@ -313,6 +315,18 @@ public class WarehouseInventoryService {
                 .filter(id -> id != null)
                 .distinct()
                 .toList();
+        List<UUID> legacyExportIds = transactions.stream()
+                .filter(tx -> Constant.WAREHOUSE_STOCK_REF_LEGACY_EXPORT_REQUEST.equals(tx.getReferenceType()))
+                .map(WarehouseStockTransactionEntity::getReferenceId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        List<UUID> legacyImportIds = transactions.stream()
+                .filter(tx -> Constant.WAREHOUSE_STOCK_REF_LEGACY_IMPORT_REQUEST.equals(tx.getReferenceType()))
+                .map(WarehouseStockTransactionEntity::getReferenceId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
         Map<UUID, String> numbers = new java.util.HashMap<>();
         if (!inboundLineIds.isEmpty()) {
             warehouseInboundReceiptLineRepo.findReceiptNumbersByLineIds(inboundLineIds).forEach(row -> {
@@ -323,6 +337,20 @@ public class WarehouseInventoryService {
         }
         if (!outboundDetailIds.isEmpty()) {
             warehouseOutboundDetailRepo.findOutboundNumbersByDetailIds(outboundDetailIds).forEach(row -> {
+                if (row[0] != null && row[1] != null) {
+                    numbers.put((UUID) row[0], row[1].toString());
+                }
+            });
+        }
+        if (!legacyExportIds.isEmpty()) {
+            warehouseOutboundRepo.findOutboundNumbersByIds(legacyExportIds).forEach(row -> {
+                if (row[0] != null && row[1] != null) {
+                    numbers.put((UUID) row[0], row[1].toString());
+                }
+            });
+        }
+        if (!legacyImportIds.isEmpty()) {
+            warehouseInboundReceiptRepo.findReceiptNumbersByIds(legacyImportIds).forEach(row -> {
                 if (row[0] != null && row[1] != null) {
                     numbers.put((UUID) row[0], row[1].toString());
                 }

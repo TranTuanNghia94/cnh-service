@@ -27,4 +27,6 @@ public class PurchaseOrderInfo {
     private Set<PurchaseOrderLineInfo> purchaseOrderLines = new CopyOnWriteArraySet<>();
     private OrderInfo order;
     private BigDecimal processPercentage;
+    /** Sum of line totals in VND (never status notes). */
+    private BigDecimal totalAmount;
 }

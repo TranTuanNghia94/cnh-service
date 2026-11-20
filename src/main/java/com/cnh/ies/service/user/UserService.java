@@ -7,6 +7,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,7 @@ import com.cnh.ies.util.RequestContext;
 import com.cnh.ies.repository.auth.RoleRepo;
 import com.cnh.ies.repository.auth.UserRepo;
 import com.cnh.ies.mapper.user.UserMapper;
+import com.cnh.ies.service.auth.AuthService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +42,10 @@ public class UserService {
     private final UserRepo userRepo;
     private final UserMapper userMapper;
     private final RoleRepo roleRepo;
+
+    @Lazy
+    @Autowired
+    private AuthService authService;
 
     public UserInfo getMe(String requestId) {
         try {
@@ -256,6 +263,7 @@ public class UserService {
             user.get().setRoles(new HashSet<>(Arrays.asList(role.get())));
 
             userRepo.save(user.get());
+            authService.invalidateUserSession(user.get().getUsername());
 
             log.info("Update user success: {} | RequestId: {}", request.getId(), requestId);
 
@@ -284,6 +292,7 @@ public class UserService {
             user.get().setIsDeleted(true);
 
             userRepo.save(user.get());
+            authService.invalidateUserSession(user.get().getUsername());
 
             log.info("Delete user success: {} | RequestId: {}", id, requestId);
 
@@ -332,6 +341,7 @@ public class UserService {
             user.get().setIsActive(!user.get().getIsActive());
 
             userRepo.save(user.get());
+            authService.invalidateUserSession(user.get().getUsername());
 
             log.info("Toggle user active success: {} | RequestId: {}", id, requestId);
 
@@ -358,6 +368,7 @@ public class UserService {
 
         user.setPassword(BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt()));
         userRepo.save(user);
+        authService.invalidateUserSession(user.getUsername());
 
         log.info("Change password success: {} | RequestId: {}", user.getId(), requestId);
 
@@ -383,6 +394,7 @@ public class UserService {
             user.get().setPassword(BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt()));
 
             userRepo.save(user.get());
+            authService.invalidateUserSession(user.get().getUsername());
 
             log.info("Reset password success: {} | RequestId: {}", id, requestId);
 
@@ -416,6 +428,7 @@ public class UserService {
             user.get().setRoles(new HashSet<>(Arrays.asList(role.get())));
 
             userRepo.save(user.get());
+            authService.invalidateUserSession(user.get().getUsername());
 
             log.info("Assign role to user success: {} and roleId: {} | RequestId: {}", userId, roleId, requestId);
 
@@ -440,6 +453,7 @@ public class UserService {
             user.get().setRoles(user.get().getRoles().stream().filter(role -> !role.getId().equals(roleId)).collect(Collectors.toSet()));
 
             userRepo.save(user.get());
+            authService.invalidateUserSession(user.get().getUsername());
 
             log.info("Unassign role from user success: {} and roleId: {} | RequestId: {}", userId, roleId, requestId);
 

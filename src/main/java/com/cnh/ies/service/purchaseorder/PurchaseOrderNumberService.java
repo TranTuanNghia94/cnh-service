@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.cnh.ies.repository.purchaseorder.PurchaseOrderRepo;
 
@@ -20,13 +22,14 @@ public class PurchaseOrderNumberService {
     private static final String PO_PREFIX = "PO_";
     private static final String DATE_FORMAT = "yyyy_MM";
 
+    @Transactional(propagation = Propagation.MANDATORY)
     public Integer generateNextNumberOrReset() {
         String prefix = generatePoPrefix();
+        purchaseOrderRepo.acquirePoPrefixAllocationLock(prefix);
         Integer maxSequence = purchaseOrderRepo.findMaxSequenceForPrefix(prefix);
-        if (maxSequence == null) {
-            return 1;
-        }
-        return maxSequence + 1;
+        int next = (maxSequence == null || maxSequence < 1) ? 1 : maxSequence + 1;
+        log.debug("Allocated PO number {} for prefix {}", next, prefix);
+        return next;
     }
 
     public String generatePoPrefix() {

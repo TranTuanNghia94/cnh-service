@@ -78,7 +78,10 @@ public class PurchaseOrderService {
             List<PurchaseOrderInfo> infos = purchaseOrders.stream()
                     .map(purchaseOrderMapper::toPurchaseOrderInfo)
                     .collect(Collectors.toList());
-            infos.forEach(info -> info.setProcessPercentage(BigDecimal.ZERO));
+            infos.forEach(info -> {
+                info.setProcessPercentage(BigDecimal.ZERO);
+                info.setTotalAmount(BigDecimal.ZERO);
+            });
             Map<UUID, PurchaseOrderInfo> infoByPurchaseOrderId = infos.stream()
                     .collect(Collectors.toMap(info -> UUID.fromString(info.getId()), Function.identity()));
 
@@ -96,6 +99,7 @@ public class PurchaseOrderService {
                             .orElse(null);
                     if (info != null) {
                         info.setProcessPercentage(calculatePurchaseOrderProgressPercentage(purchaseOrder, poLines));
+                        info.setTotalAmount(sumPurchaseOrderTotalVnd(poLines));
                     }
                 });
             }
@@ -198,6 +202,7 @@ public class PurchaseOrderService {
                         poLineInfos.stream().collect(Collectors.toSet()));
             }
             info.setProcessPercentage(calculatePurchaseOrderProgressPercentage(po.get(), poLines));
+            info.setTotalAmount(sumPurchaseOrderTotalVnd(poLines));
 
             log.info("Purchase order fetched successfully with requestId: {}", requestId);
             return info;
@@ -325,6 +330,16 @@ public class PurchaseOrderService {
             po.get().setUpdatedBy(RequestContext.getCurrentUsername());
 
             purchaseOrderRepo.save(po.get());
+
+            List<PurchaseOrderLineEntity> poLines = purchaseOrderLineRepo.findByPurchaseOrderId(po.get().getId());
+            if (!poLines.isEmpty()) {
+                for (PurchaseOrderLineEntity line : poLines) {
+                    line.setIsDeleted(true);
+                    line.setUpdatedBy(RequestContext.getCurrentUsername());
+                }
+                purchaseOrderLineRepo.saveAll(poLines);
+            }
+
             return "Purchase order deleted successfully";
         } catch (ApiException e) {
             throw e;
@@ -344,7 +359,7 @@ public class PurchaseOrderService {
     }
 
     private OrderEntity getOrderOrThrow(String orderId, String requestId) {
-        return orderRepo.findById(UUID.fromString(orderId)).orElseThrow(() -> {
+        return orderRepo.findByIdAndIsDeletedFalse(UUID.fromString(orderId)).orElseThrow(() -> {
             log.error("Order not found with id: {} | RequestId: {}", orderId, requestId);
             return new ApiException(ApiException.ErrorCode.NOT_FOUND, "Order not found",
                     HttpStatus.NOT_FOUND.value(), requestId);
@@ -598,7 +613,7 @@ public class PurchaseOrderService {
         if (totalPrice == null) {
             return BigDecimal.ZERO;
         }
-        if ("VND".equalsIgnoreCase(currency)) {
+        if ("VND".equalsIgnoreCase(currency) || currency == null || currency.isBlank()) {
             return totalPrice.setScale(0, RoundingMode.HALF_UP);
         }
         if (exchangeRate != null && exchangeRate.compareTo(BigDecimal.ZERO) > 0) {
@@ -607,16 +622,33 @@ public class PurchaseOrderService {
         return totalPrice.setScale(0, RoundingMode.HALF_UP);
     }
 
+    private BigDecimal resolveLineTotalVnd(PurchaseOrderLineEntity line) {
+        if (line.getTotalPriceVnd() != null) {
+            return line.getTotalPriceVnd();
+        }
+        return calcTotalPriceVnd(line.getTotalPrice(), line.getExchangeRate(), line.getCurrency());
+    }
+
+    private BigDecimal sumPurchaseOrderTotalVnd(List<PurchaseOrderLineEntity> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return lines.stream()
+                .map(this::resolveLineTotalVnd)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     private void refreshPurchaseOrderTotalNote(PurchaseOrderEntity po) {
         List<PurchaseOrderLineEntity> lines = purchaseOrderLineRepo.findAllByPurchaseOrderId(po.getId());
-        BigDecimal totalVnd = lines.stream()
-                .map(line -> Optional.ofNullable(line.getTotalPriceVnd()).orElse(BigDecimal.ZERO))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalVnd = sumPurchaseOrderTotalVnd(lines);
 
         String totalLine = String.format("%,.0f VND", totalVnd);
         // Rebuild note from scratch on each line update to avoid stale totals.
-        po.setNotes(totalLine);
-        purchaseOrderRepo.save(po);
-        log.info("Purchase order total VND note updated: {}", totalLine);
+        // Migrated POs keep status history in notes — only overwrite for app-created edits.
+        if (po.getNotes() == null || po.getNotes().isBlank() || po.getNotes().endsWith(" VND")) {
+            po.setNotes(totalLine);
+            purchaseOrderRepo.save(po);
+            log.info("Purchase order total VND note updated: {}", totalLine);
+        }
     }
 }

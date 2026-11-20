@@ -106,7 +106,7 @@ public class AuthService {
             String username = RequestContext.getCurrentUsername();
 
             if (!isValidRefreshToken(username, refreshToken)) {
-                log.error("Invalid refresh token: {} | RequestId: {}", refreshToken, requestId);
+                log.error("Invalid refresh token | RequestId: {}", requestId);
                 throw new ApiException(ApiException.ErrorCode.UNAUTHORIZED, "Invalid refresh token",
                         HttpStatus.UNAUTHORIZED.value(), requestId);
             }
@@ -122,11 +122,21 @@ public class AuthService {
 
             return buildLoginResponse(userInfo, accessToken, newRefreshToken);
 
+        } catch (ApiException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error refreshing token: {}", e.getMessage());
             throw new ApiException(ApiException.ErrorCode.INTERNAL_ERROR, e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR.value(), requestId);
         }
+    }
+
+    /** Drop Redis access/refresh/user session so the next request requires re-login. */
+    public void invalidateUserSession(String username) {
+        if (username == null || username.isBlank()) {
+            return;
+        }
+        removeUserTokens(username);
     }
 
     public String logout(String requestId) {

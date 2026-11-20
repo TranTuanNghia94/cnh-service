@@ -25,7 +25,7 @@ public interface WarehouseInventoryRepo extends BaseRepo<WarehouseInventoryEntit
 
     @Query("SELECT i FROM WarehouseInventoryEntity i "
             + "JOIN FETCH i.product p "
-            + "LEFT JOIN p.category c "
+            + "LEFT JOIN FETCH p.category c "
             + "WHERE i.isDeleted = false AND p.isDeleted = false "
             + "AND (:productCode = '' OR LOWER(p.code) LIKE LOWER(CONCAT('%', :productCode, '%'))) "
             + "AND (:productName = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :productName, '%'))) "
