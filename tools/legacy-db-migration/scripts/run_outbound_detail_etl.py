@@ -76,7 +76,9 @@ def main() -> int:
             dc.execute("SELECT id, username FROM users WHERE is_deleted = false")
             user_by_id = {r[0]: r[1] for r in dc.fetchall()}
 
-            # (order_id, product_id) → earliest order_line id
+            # Prefer direct order_line id when present; else (order_id, product_id)
+            dc.execute("SELECT id FROM order_lines WHERE is_deleted = false")
+            order_line_ids = {r[0] for r in dc.fetchall()}
             dc.execute(
                 """
                 SELECT DISTINCT ON (order_id, product_id) order_id, product_id, id
@@ -88,16 +90,34 @@ def main() -> int:
             line_by_order_product = {(r[0], r[1]): r[2] for r in dc.fetchall()}
             print(
                 f"outbounds={len(outbounds)} products={len(products)} "
-                f"line_keys={len(line_by_order_product)} existing={len(existing)}"
+                f"line_ids={len(order_line_ids)} line_keys={len(line_by_order_product)} "
+                f"existing={len(existing)}"
             )
 
+            # Detect optional sale_order_line_id on legacy detail (recoverable linkage)
             sc.execute(
                 """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_schema = 'ies' AND table_name = 'EXPORT_REQUEST_DETAIL'
+                  AND column_name IN ('sale_order_line_id', 'order_line_id')
+                """
+            )
+            sol_cols = {r["column_name"] for r in sc.fetchall()}
+            sol_select = (
+                "ed.sale_order_line_id"
+                if "sale_order_line_id" in sol_cols
+                else ("ed.order_line_id" if "order_line_id" in sol_cols else "NULL::uuid")
+            )
+            print(f"legacy_detail_sol_cols={sorted(sol_cols)}")
+
+            sc.execute(
+                f"""
                 SELECT ed.id, ed.product_id, ed.quantity, ed.unit_price, ed.total_price,
                        ed.currency, ed.tax, ed.tax_amount, ed.box, ed.ref, ed.note,
                        ed.created_at, ed.updated_at, ed.deleted_at,
                        er.sale_order_id, er.created_by, er.updated_by,
-                       ed.export_request_id
+                       ed.export_request_id,
+                       {sol_select} AS sale_order_line_id
                 FROM ies."EXPORT_REQUEST_DETAIL" ed
                 JOIN ies."EXPORT_REQUEST" er ON er.id = ed.export_request_id
                 WHERE ed.export_request_id IS NOT NULL
@@ -158,7 +178,12 @@ def main() -> int:
                 if not sale_order_id:
                     skips["no_sale_order"] += 1
                     continue
-                order_line_id = line_by_order_product.get((sale_order_id, product_id))
+                direct_sol = row.get("sale_order_line_id")
+                order_line_id = (
+                    direct_sol
+                    if direct_sol and direct_sol in order_line_ids
+                    else line_by_order_product.get((sale_order_id, product_id))
+                )
                 if not order_line_id:
                     skips["no_order_line"] += 1
                     continue

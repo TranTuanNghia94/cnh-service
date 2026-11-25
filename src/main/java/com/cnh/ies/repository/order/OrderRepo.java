@@ -69,6 +69,10 @@ public interface OrderRepo extends BaseRepo<OrderEntity, UUID> {
             + "WHERE o.orderPrefix = :orderPrefix AND o.orderNumber = :orderNumber AND o.isDeleted = false")
     Optional<OrderEntity> findByOrderPrefixAndOrderNumber(String orderPrefix, Integer orderNumber);
 
-    @Query("SELECT o FROM OrderEntity o WHERE o.contractNumber = :contractNumber AND o.isDeleted = false")
+    @Query("SELECT o FROM OrderEntity o "
+            + "LEFT JOIN FETCH o.customer "
+            + "LEFT JOIN FETCH o.customerAddress a "
+            + "LEFT JOIN FETCH a.customer "
+            + "WHERE o.contractNumber = :contractNumber AND o.isDeleted = false")
     Optional<OrderEntity> findByContractNumber(String contractNumber);
 }

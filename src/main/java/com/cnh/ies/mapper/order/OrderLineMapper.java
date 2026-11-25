@@ -28,11 +28,18 @@ public class OrderLineMapper {
         OrderLineInfo info = new OrderLineInfo();
         info.setId(e.getId() != null ? e.getId().toString() : null);
         info.setOrderId(e.getOrder() != null ? e.getOrder().getId().toString() : null);
-        info.setProductId(e.getProduct() != null ? e.getProduct().getId().toString() : null);
-        info.setProductName(e.getProduct() != null ? e.getProduct().getName() : null);
-        info.setProductCodeSuggest(e.getProductCodeSuggest());
-        info.setProductNameSuggest(e.getProductNameSuggest());
-        info.setProduct(productMapper.toProductInfo(e.getProduct()));
+        boolean hasProduct = e.getProduct() != null;
+        info.setProductId(hasProduct ? e.getProduct().getId().toString() : null);
+        info.setProductName(hasProduct ? e.getProduct().getName() : e.getProductNameSuggest());
+        info.setProductCodeSuggest(
+                hasProduct && e.getProduct().getCode() != null
+                        ? e.getProduct().getCode()
+                        : e.getProductCodeSuggest());
+        info.setProductNameSuggest(
+                hasProduct && e.getProduct().getName() != null
+                        ? e.getProduct().getName()
+                        : e.getProductNameSuggest());
+        info.setProduct(hasProduct ? productMapper.toProductInfo(e.getProduct()) : null);
 
         boolean hasVendor = e.getVendor() != null;
         info.setVendorId(hasVendor ? e.getVendor().getId().toString() : null);

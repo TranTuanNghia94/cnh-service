@@ -30,6 +30,7 @@ import com.cnh.ies.entity.warehouse.WarehouseOutboundDetailEntity;
 import com.cnh.ies.entity.warehouse.WarehouseOutboundEntity;
 import com.cnh.ies.entity.warehouse.WarehouseStockTransactionEntity;
 import com.cnh.ies.exception.ApiException;
+import com.cnh.ies.mapper.order.OrderMapper;
 import com.cnh.ies.model.general.ListDataModel;
 import com.cnh.ies.model.general.PaginationModel;
 import com.cnh.ies.model.payment.ApprovePaymentRequest;
@@ -84,6 +85,7 @@ public class WarehouseOutboundService {
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
 
+    @Transactional
     public WarehouseOutboundOrderSearchInfo getOrderLinesByContractNumber(String contractNumber, String requestId) {
         OrderEntity order = findOrderByContract(contractNumber, requestId);
         List<OrderLineEntity> orderLines = orderLineRepo.findAllByOrderId(order.getId());
@@ -101,7 +103,7 @@ public class WarehouseOutboundService {
                 .toList();
         WarehouseOutboundOrderSearchInfo info = new WarehouseOutboundOrderSearchInfo();
         info.setOrderId(order.getId().toString());
-        info.setOrderNumber(order.getOrderPrefix() + order.getOrderNumber());
+        info.setOrderNumber(OrderMapper.formatOrderCode(order.getOrderPrefix(), order.getOrderNumber()));
         info.setContractNumber(order.getContractNumber());
         info.setOrderStatus(order.getStatus());
         if (order.getCustomer() != null) {

@@ -169,12 +169,14 @@ public class OrderService {
 
             OrderInfo orderInfo = orderMapper.toOrderInfo(order.get());
 
-            Optional<CustomerEntity> customer = customerRepo.findById(order.get().getCustomer().getId());
-            if (customer.isEmpty()) {
-                log.warn("Customer not found with id: {} | RequestId: {}", order.get().getCustomer().getId(),
-                        requestId);
-            } else {
-                orderInfo.setCustomer(customerMapper.mapToCustomerInfo(customer.get()));
+            if (order.get().getCustomer() != null) {
+                Optional<CustomerEntity> customer = customerRepo.findById(order.get().getCustomer().getId());
+                if (customer.isEmpty()) {
+                    log.warn("Customer not found with id: {} | RequestId: {}", order.get().getCustomer().getId(),
+                            requestId);
+                } else {
+                    orderInfo.setCustomer(customerMapper.mapToCustomerInfo(customer.get()));
+                }
             }
 
             if (order.get().getCustomerAddress() != null) {
